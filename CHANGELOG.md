@@ -3,6 +3,8 @@
 ## Oct 21, 2016
 - Added command frame payload length checking
 - Added echo payload checking
+- Added random generate command (random taken from ADC noise)
+- Added random reseed command (dummy response)
 
 ## Oct 20, 2016
 - Fixed Echo Command
