@@ -170,7 +170,7 @@ void loop() {
       switch (state)
       {
         case STATE_WAIT_BCNT:
-          request.bcnt = b;
+          request.bcnt = (b > (TSM_MAX_PKT_SIZE + 1)) ? (TSM_MAX_PKT_SIZE + 1) : b;
           remaining = b;
           state = STATE_WAIT_CMD;
           break;
@@ -201,7 +201,10 @@ void loop() {
         case STATE_WAIT_PAYLOAD:
           if (remaining-- > 0)
           {
-            request.payload.raw[idx++] = b;
+            /* cap index by TSM_MAX_PKT_SIZE */
+            if (idx < TSM_MAX_PKT_SIZE) {
+              request.payload.raw[idx++] = b;
+            }
           }
 
           if (remaining == 0)
@@ -219,92 +222,93 @@ void loop() {
 
 static void reset()
 {
-    memset(&request, 0, sizeof(request));
-    memset(&response, 0, sizeof(response));
+  memset(&request, 0, sizeof(request));
+  memset(&response, 0, sizeof(response));
 }
 
 static void execute_cmd()
 {
   /* switch on LED */
   digitalWrite(PIN_LED, HIGH);
-  
-    switch (request.cmd)
-    {
-    case TSM_AEAD_GENERATE:
-        break;
-    case TSM_BUFFER_AEAD_GENERATE:
-        break;
-    case TSM_RANDOM_AEAD_GENERATE:
-        break;
-    case TSM_AEAD_DECRYPT_CMP:
-        break;
-    case TSM_DB_YUBIKEY_AEAD_STORE:
-        break;
-    case TSM_AEAD_YUBIKEY_OTP_DECODE:
-        break;
-    case TSM_DB_OTP_VALIDATE:
-        break;
-    case TSM_DB_YUBIKEY_AEAD_STORE2:
-        break;
-    case TSM_AES_ECB_BLOCK_ENCRYPT:
-        break;
-    case TSM_AES_ECB_BLOCK_DECRYPT:
-        break;
-    case TSM_AES_ECB_BLOCK_DECRYPT_CMP:
-        break;
-    case TSM_HMAC_SHA1_GENERATE:
-        break;
-    case TSM_TEMP_KEY_LOAD:
-        break;
-    case TSM_BUFFER_LOAD:
-        break;
-    case TSM_BUFFER_RANDOM_LOAD:
-        break;
-    case TSM_NONCE_GET:
-        break;
-    case TSM_ECHO:
-        cmd_echo();
-        break;
-    case TSM_RANDOM_GENERATE:
-        break;
-    case TSM_RANDOM_RESEED:
-        break;
-    case TSM_SYSTEM_INFO_QUERY:
-        cmd_info_query();
-        break;
-    case TSM_HSM_UNLOCK:
-        break;
-    case TSM_KEY_STORE_DECRYPT:
-        break;
-    case TSM_MONITOR_EXIT:
-        break;
-    }
 
-    /* switch on LED */
+  switch (request.cmd)
+  {
+    case TSM_AEAD_GENERATE:
+      break;
+    case TSM_BUFFER_AEAD_GENERATE:
+      break;
+    case TSM_RANDOM_AEAD_GENERATE:
+      break;
+    case TSM_AEAD_DECRYPT_CMP:
+      break;
+    case TSM_DB_YUBIKEY_AEAD_STORE:
+      break;
+    case TSM_AEAD_YUBIKEY_OTP_DECODE:
+      break;
+    case TSM_DB_OTP_VALIDATE:
+      break;
+    case TSM_DB_YUBIKEY_AEAD_STORE2:
+      break;
+    case TSM_AES_ECB_BLOCK_ENCRYPT:
+      break;
+    case TSM_AES_ECB_BLOCK_DECRYPT:
+      break;
+    case TSM_AES_ECB_BLOCK_DECRYPT_CMP:
+      break;
+    case TSM_HMAC_SHA1_GENERATE:
+      break;
+    case TSM_TEMP_KEY_LOAD:
+      break;
+    case TSM_BUFFER_LOAD:
+      break;
+    case TSM_BUFFER_RANDOM_LOAD:
+      break;
+    case TSM_NONCE_GET:
+      break;
+    case TSM_ECHO:
+      cmd_echo();
+      break;
+    case TSM_RANDOM_GENERATE:
+      break;
+    case TSM_RANDOM_RESEED:
+      break;
+    case TSM_SYSTEM_INFO_QUERY:
+      cmd_info_query();
+      break;
+    case TSM_HSM_UNLOCK:
+      break;
+    case TSM_KEY_STORE_DECRYPT:
+      break;
+    case TSM_MONITOR_EXIT:
+      break;
+  }
+
+  /* switch on LED */
   digitalWrite(PIN_LED, LOW);
 }
 
 static void cmd_echo()
 {
-    uint32_t len = request.bcnt + 1;
-    if (request.bcnt > 1)
-    {
-        memcpy(response.payload.echo.data, request.payload.echo.data, request.payload.echo.data_len);
-    }
-    response.bcnt = request.bcnt;
-    response.cmd = request.cmd | TSM_RESPONSE;
-    response.payload.echo.data_len = request.payload.echo.data_len;
-    Serial.write((const char *)&response, len);
+  /* cap echo data length to sizeof(TSM_ECHO_REQ::data) */
+  uint8_t len = request.payload.echo.data_len;
+  uint8_t max = sizeof(request.payload.echo.data);
+  request.payload.echo.data_len = (len > max) ? max : len;
+
+  memcpy(response.payload.echo.data, request.payload.echo.data, request.payload.echo.data_len);
+  response.bcnt = request.payload.echo.data_len + 2;
+  response.cmd = request.cmd | TSM_RESPONSE;
+  response.payload.echo.data_len = request.payload.echo.data_len;
+  Serial.write((const char *)&response, (response.bcnt + 1));
 }
 
 static void cmd_info_query()
 {
-    response.bcnt = sizeof(response.payload.system_info) + 1;
-    response.cmd = request.cmd | TSM_RESPONSE;
-    response.payload.system_info.version_major = 1;
-    response.payload.system_info.version_minor = 0;
-    response.payload.system_info.version_build = 4;
-    response.payload.system_info.protocol_version = TSM_PROTOCOL_VERSION;
-    memcpy(response.payload.system_info.system_uid, "Teensy HSM  ", SYSTEM_ID_SIZE);
-    Serial.write((const char *)&response, response.bcnt + 1);
+  response.bcnt = sizeof(response.payload.system_info) + 1;
+  response.cmd = request.cmd | TSM_RESPONSE;
+  response.payload.system_info.version_major = 1;
+  response.payload.system_info.version_minor = 0;
+  response.payload.system_info.version_build = 4;
+  response.payload.system_info.protocol_version = TSM_PROTOCOL_VERSION;
+  memcpy(response.payload.system_info.system_uid, "Teensy HSM  ", SYSTEM_ID_SIZE);
+  Serial.write((const char *)&response, response.bcnt + 1);
 }

@@ -1,5 +1,9 @@
 # Changelog
 
+## Oct 21, 2016
+- Added command frame payload length checking
+- Added echo payload checking
+
 ## Oct 20, 2016
 - Fixed Echo Command
 - Fixed Info Query Command
