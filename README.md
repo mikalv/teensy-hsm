@@ -6,3 +6,5 @@ A Teensyduino based Yubikey HSM emulator.
 - Echo
 - Random Generation
 - Random Reseed
+- ECB Encryption (dummy static key)
+- ECB Decryption (dummy static key)
