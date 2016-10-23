@@ -4,6 +4,7 @@
 - Implemented ECB encryption command (static dummy key)
 - Implemented ECB decryption command (static dummy key)
 - Implemented buffer load command
+- Implemented buffer random load command
 
 ## Oct 21, 2016
 - Added command frame payload length checking

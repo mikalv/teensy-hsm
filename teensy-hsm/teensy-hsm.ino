@@ -8,6 +8,7 @@
 // Oct 23, 2016 - Implemented ECB encryption command (static dummy key)
 //              - Implemented ECB decryption command (static dummy key)
 //              - Implemented buffer load command
+//              - Implemented buffer random load command
 //
 // Oct 21, 2016 - Request payload buffer overflow checking
 //              - Added random generation command (random taken from ADC noise)
@@ -177,6 +178,11 @@ typedef struct {
   uint8_t data[THSM_DATA_BUF_SIZE];
 } THSM_BUFFER_LOAD_REQ;
 
+typedef struct {
+  uint8_t offset;
+  uint8_t length;
+} THSM_BUFFER_RANDOM_LOAD_REQ;
+
 typedef struct
 {
   uint8_t data_len;
@@ -214,30 +220,36 @@ typedef struct {
 } THSM_ECB_BLOCK_DECRYPT_RESP;
 
 typedef struct {
-  uint8_t data_len;
+  uint8_t length;
 } THSM_BUFFER_LOAD_RESP;
 
-typedef union
-{
-  uint8_t                    raw[THSM_MAX_PKT_SIZE];
-  THSM_ECHO_REQ              echo;
-  THSM_RANDOM_GENERATE_REQ   random_generate;
-  THSM_RANDOM_RESEED_REQ     random_reseed;
-  THSM_ECB_BLOCK_ENCRYPT_REQ ecb_encrypt;
-  THSM_ECB_BLOCK_DECRYPT_REQ ecb_decrypt;
-  THSM_BUFFER_LOAD_REQ        buffer_load;
-} THSM_PAYLOAD_REQ;
+typedef struct {
+  uint8_t length;
+} THSM_BUFFER_RANDOM_LOAD_RESP;
 
 typedef union
 {
   uint8_t                     raw[THSM_MAX_PKT_SIZE];
-  THSM_ECHO_RESP              echo;
-  THSM_SYSTEM_INFO_RESP       system_info;
-  THSM_RANDOM_GENERATE_RESP   random_generate;
-  THSM_RANDOM_RESEED_RESP     random_reseed;
-  THSM_ECB_BLOCK_ENCRYPT_RESP ecb_encrypt;
-  THSM_ECB_BLOCK_DECRYPT_RESP ecb_decrypt;
-  THSM_BUFFER_LOAD_RESP       buffer_load;
+  THSM_ECHO_REQ               echo;
+  THSM_RANDOM_GENERATE_REQ    random_generate;
+  THSM_RANDOM_RESEED_REQ      random_reseed;
+  THSM_ECB_BLOCK_ENCRYPT_REQ  ecb_encrypt;
+  THSM_ECB_BLOCK_DECRYPT_REQ  ecb_decrypt;
+  THSM_BUFFER_LOAD_REQ        buffer_load;
+  THSM_BUFFER_RANDOM_LOAD_REQ buffer_random_load;
+} THSM_PAYLOAD_REQ;
+
+typedef union
+{
+  uint8_t                      raw[THSM_MAX_PKT_SIZE];
+  THSM_ECHO_RESP               echo;
+  THSM_SYSTEM_INFO_RESP        system_info;
+  THSM_RANDOM_GENERATE_RESP    random_generate;
+  THSM_RANDOM_RESEED_RESP      random_reseed;
+  THSM_ECB_BLOCK_ENCRYPT_RESP  ecb_encrypt;
+  THSM_ECB_BLOCK_DECRYPT_RESP  ecb_decrypt;
+  THSM_BUFFER_LOAD_RESP        buffer_load;
+  THSM_BUFFER_RANDOM_LOAD_RESP buffer_random_load;
 } THSM_PAYLOAD_RESP;
 
 typedef struct
@@ -561,7 +573,7 @@ void loop() {
 
 static void reset()
 {
-  memset(&request, 0, sizeof(request));
+  memset(&request,  0, sizeof(request));
   memset(&response, 0, sizeof(response));
 }
 
@@ -604,6 +616,7 @@ static void execute_cmd()
       cmd_buffer_load();
       break;
     case THSM_CMD_BUFFER_RANDOM_LOAD:
+      cmd_buffer_random_load();
       break;
     case THSM_CMD_NONCE_GET:
       break;
@@ -754,19 +767,41 @@ static void cmd_buffer_load() {
 
   /* offset + length must be sizeof(request.payload.buffer_load.data) */
   uint8_t max_length = sizeof(request.payload.buffer_load.data) - offset;
-  uint8_t data_len = (request.payload.buffer_load.data_len > max_length) ? max_length : request.payload.buffer_load.data_len;
+  uint8_t length = (request.payload.buffer_load.data_len > max_length) ? max_length : request.payload.buffer_load.data_len;
 
   /* set request length */
   request.bcnt = request.payload.buffer_load.data_len + 3;
 
   /* copy data to buffer */
-  memcpy(&thsm_buffer.data[offset], request.payload.buffer_load.data, data_len);
-  thsm_buffer.data_len += data_len;
+  memcpy(&thsm_buffer.data[offset], request.payload.buffer_load.data, length);
+  thsm_buffer.data_len = (offset > 0) ? (thsm_buffer.data_len + length) : length;
 
   /* prepare response */
   response.bcnt = sizeof(response.payload.buffer_load) + 1;
   response.cmd = request.cmd | THSM_FLAG_RESPONSE;
-  response.payload.buffer_load.data_len = thsm_buffer.data_len;
+  response.payload.buffer_load.length = thsm_buffer.data_len;
+
+  /* send response */
+  Serial.write((const char *)&response, response.bcnt + 1);
+}
+
+static void cmd_buffer_random_load() {
+  /* loimit offset */
+  uint8_t max_offset = sizeof(thsm_buffer.data) - 1;
+  uint8_t offset = (request.payload.buffer_random_load.offset > max_offset) ? max_offset : request.payload.buffer_random_load.offset;
+
+  /* offset + length must be sizeof(thsm_buffer.data) */
+  uint8_t max_length = sizeof(thsm_buffer.data)  - offset;
+  uint8_t length = (request.payload.buffer_random_load.length > max_length) ? max_length : request.payload.buffer_random_load.length;
+
+  /* fill buffer with random */
+  generate_random(&thsm_buffer.data[offset], length);
+  thsm_buffer.data_len = (offset > 0) ? (thsm_buffer.data_len + length) : length;
+
+  /* prepare response */
+  response.bcnt = sizeof(response.payload.buffer_random_load) + 1;
+  response.cmd = request.cmd | THSM_FLAG_RESPONSE;
+  response.payload.buffer_random_load.length = thsm_buffer.data_len;
 
   /* send response */
   Serial.write((const char *)&response, response.bcnt + 1);

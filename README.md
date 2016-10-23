@@ -9,3 +9,4 @@ A Teensyduino based Yubikey HSM emulator.
 - ECB Encryption (dummy static key)
 - ECB Decryption (dummy static key)
 - Buffer loading
+- Buffer random loading
