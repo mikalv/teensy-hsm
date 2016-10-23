@@ -7,6 +7,7 @@
 //--------------------------------------------------------------------------------------------------
 // Oct 23, 2016 - Implemented ECB encryption command (static dummy key)
 //              - Implemented ECB decryption command (static dummy key)
+//              - Implemented buffer load command
 //
 // Oct 21, 2016 - Request payload buffer overflow checking
 //              - Added random generation command (random taken from ADC noise)
@@ -91,6 +92,8 @@
 #define THSM_CTR_DRBG_SEED_SIZE    32 // Size of CTR-DRBG entropy
 #define THSM_MAX_PKT_SIZE        0x60 // Max size of a packet (excluding command byte)
 #define SYSTEM_ID_SIZE             12
+#define UID_SIZE                    6
+#define KEY_SIZE                   16
 
 //--------------------------------------------------------------------------------------------------
 // Flags
@@ -134,6 +137,16 @@ typedef struct {
   aes_state_t keys[11];
 } aes_subkeys_t;
 
+typedef struct {
+  uint8_t key[KEY_SIZE];
+  uint8_t uid[UID_SIZE];
+} THSM_SECRETS;
+
+typedef struct {
+  uint8_t data_len;
+  uint8_t data[THSM_DATA_BUF_SIZE];
+} THSM_BUFFER;
+
 typedef struct
 {
   uint8_t data_len;
@@ -151,12 +164,18 @@ typedef struct {
 typedef struct {
   uint8_t key_handle[sizeof(uint32_t)];
   uint8_t plaintext[THSM_BLOCK_SIZE];
-} YHSM_ECB_BLOCK_ENCRYPT_REQ;
+} THSM_ECB_BLOCK_ENCRYPT_REQ;
 
 typedef struct {
   uint8_t key_handle[sizeof(uint32_t)];
   uint8_t ciphertext[THSM_BLOCK_SIZE];
-} YHSM_ECB_BLOCK_DECRYPT_REQ;
+} THSM_ECB_BLOCK_DECRYPT_REQ;
+
+typedef struct {
+  uint8_t offset;
+  uint8_t data_len;
+  uint8_t data[THSM_DATA_BUF_SIZE];
+} THSM_BUFFER_LOAD_REQ;
 
 typedef struct
 {
@@ -194,14 +213,19 @@ typedef struct {
   uint8_t status;
 } THSM_ECB_BLOCK_DECRYPT_RESP;
 
+typedef struct {
+  uint8_t data_len;
+} THSM_BUFFER_LOAD_RESP;
+
 typedef union
 {
   uint8_t                    raw[THSM_MAX_PKT_SIZE];
   THSM_ECHO_REQ              echo;
   THSM_RANDOM_GENERATE_REQ   random_generate;
   THSM_RANDOM_RESEED_REQ     random_reseed;
-  YHSM_ECB_BLOCK_ENCRYPT_REQ ecb_encrypt;
-  YHSM_ECB_BLOCK_DECRYPT_REQ ecb_decrypt;
+  THSM_ECB_BLOCK_ENCRYPT_REQ ecb_encrypt;
+  THSM_ECB_BLOCK_DECRYPT_REQ ecb_decrypt;
+  THSM_BUFFER_LOAD_REQ        buffer_load;
 } THSM_PAYLOAD_REQ;
 
 typedef union
@@ -213,6 +237,7 @@ typedef union
   THSM_RANDOM_RESEED_RESP     random_reseed;
   THSM_ECB_BLOCK_ENCRYPT_RESP ecb_encrypt;
   THSM_ECB_BLOCK_DECRYPT_RESP ecb_decrypt;
+  THSM_BUFFER_LOAD_RESP       buffer_load;
 } THSM_PAYLOAD_RESP;
 
 typedef struct
@@ -438,6 +463,7 @@ static const uint8_t DUMMY_KEY[THSM_BLOCK_SIZE] = {0x2b, 0x7e, 0x15, 0x16, 0x28,
 static THSM_PKT_REQ request;
 static THSM_PKT_RESP response;
 static aes_state_t phantom_key;
+static THSM_BUFFER thsm_buffer;
 static ADC *adc = new ADC();
 
 //--------------------------------------------------------------------------------------------------
@@ -454,7 +480,8 @@ void setup() {
   reset();
 
   /* TODO : implement proper phantom key loading unloading */
-  //memcpy(phantom_key.b, DUMMY_KEY, sizeof(DUMMY_KEY));
+  memcpy(phantom_key.b, DUMMY_KEY, sizeof(DUMMY_KEY));
+  memset(&thsm_buffer, 0, sizeof(thsm_buffer));
 }
 
 void loop() {
@@ -574,6 +601,7 @@ static void execute_cmd()
     case THSM_CMD_TEMP_KEY_LOAD:
       break;
     case THSM_CMD_BUFFER_LOAD:
+      cmd_buffer_load();
       break;
     case THSM_CMD_BUFFER_RANDOM_LOAD:
       break;
@@ -714,6 +742,31 @@ static void cmd_ecb_decrypt() {
     aes128_decrypt(&pt, &ct, &ck);
     memcpy(response.payload.ecb_decrypt.plaintext, pt.b, sizeof(pt.b));
   }
+
+  /* send response */
+  Serial.write((const char *)&response, response.bcnt + 1);
+}
+
+static void cmd_buffer_load() {
+  /* limit offset */
+  uint8_t max_offset = sizeof(request.payload.buffer_load.data) - 1;
+  uint8_t offset = (request.payload.buffer_load.offset > max_offset) ? max_offset : request.payload.buffer_load.offset;
+
+  /* offset + length must be sizeof(request.payload.buffer_load.data) */
+  uint8_t max_length = sizeof(request.payload.buffer_load.data) - offset;
+  uint8_t data_len = (request.payload.buffer_load.data_len > max_length) ? max_length : request.payload.buffer_load.data_len;
+
+  /* set request length */
+  request.bcnt = request.payload.buffer_load.data_len + 3;
+
+  /* copy data to buffer */
+  memcpy(&thsm_buffer.data[offset], request.payload.buffer_load.data, data_len);
+  thsm_buffer.data_len += data_len;
+
+  /* prepare response */
+  response.bcnt = sizeof(response.payload.buffer_load) + 1;
+  response.cmd = request.cmd | THSM_FLAG_RESPONSE;
+  response.payload.buffer_load.data_len = thsm_buffer.data_len;
 
   /* send response */
   Serial.write((const char *)&response, response.bcnt + 1);
