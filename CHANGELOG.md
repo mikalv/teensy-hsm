@@ -1,5 +1,8 @@
 # Changelog
 
+## Oct 24, 2016
+- Whiten ADC noise with CRC32
+
 ## Oct 23, 2016
 - Implemented ECB encryption command (static dummy key)
 - Implemented ECB decryption command (static dummy key)

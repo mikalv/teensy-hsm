@@ -5,6 +5,8 @@
 //--------------------------------------------------------------------------------------------------
 // Changelog
 //--------------------------------------------------------------------------------------------------
+// Oct 24, 2016 - Whiten ADC noise with CRC32
+//
 // Oct 23, 2016 - Implemented ECB encryption command (static dummy key)
 //              - Implemented ECB decryption command (static dummy key)
 //              - Implemented buffer load command
@@ -35,11 +37,12 @@
 // Includes
 //--------------------------------------------------------------------------------------------------
 #include <ADC.h>
+#include <FastCRC.h>
 
 //--------------------------------------------------------------------------------------------------
 // Hardare Configuration
 //--------------------------------------------------------------------------------------------------
-#define PIN_LED 13
+#define PIN_LED  13
 #define PIN_ADC1 A9
 #define PIN_ADC2 A9
 
@@ -137,6 +140,11 @@ typedef union
 typedef struct {
   aes_state_t keys[11];
 } aes_subkeys_t;
+
+typedef union {
+  uint8_t  b[sizeof(uint32_t)];
+  uint32_t w;
+} word_t;
 
 typedef struct {
   uint8_t key[KEY_SIZE];
@@ -477,6 +485,7 @@ static THSM_PKT_RESP response;
 static aes_state_t phantom_key;
 static THSM_BUFFER thsm_buffer;
 static ADC *adc = new ADC();
+static FastCRC32 CRC32;
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -683,7 +692,7 @@ static void cmd_random_generate() {
   response.bcnt = request.bcnt;
   response.cmd = request.cmd | THSM_FLAG_RESPONSE;
   response.payload.random_generate.bytes_len = request.payload.random_generate.bytes_len;
-  generate_random(response.payload.random_generate.bytes, response.payload.random_generate.bytes_len);
+  adc_rng_read(response.payload.random_generate.bytes, response.payload.random_generate.bytes_len);
   Serial.write((const char *)&response, response.bcnt + 1);
 }
 
@@ -795,7 +804,7 @@ static void cmd_buffer_random_load() {
   uint8_t length = (request.payload.buffer_random_load.length > max_length) ? max_length : request.payload.buffer_random_load.length;
 
   /* fill buffer with random */
-  generate_random(&thsm_buffer.data[offset], length);
+  adc_rng_read(&thsm_buffer.data[offset], length);
   thsm_buffer.data_len = (offset > 0) ? (thsm_buffer.data_len + length) : length;
 
   /* prepare response */
@@ -824,14 +833,40 @@ static void write_uint32(uint8_t *d, uint32_t v) {
 //--------------------------------------------------------------------------------------------------
 // PRNG
 //--------------------------------------------------------------------------------------------------
-static void generate_random(uint8_t *p_buffer, uint8_t len) {
-  while (len > 0) {
-    int val = adc->analogRead(A9, ADC_0);
-    if (val == ADC_ERROR_VALUE) {
-    } else {
-      *p_buffer++ = val;
-      --len;
+static uint8_t adc_read()
+{
+  int ret = ADC_ERROR_VALUE;
+  while (ret == ADC_ERROR_VALUE) {
+    ret = adc->analogRead(A9, ADC_0);
+  }
+  return ret;
+}
+
+static uint32_t adc_rng_step() {
+  uint8_t buffer[16];
+
+  /* fill buffer */
+  for (int i = 0; i < 16; i++) {
+    buffer[i] = adc_read();
+  }
+
+  return CRC32.crc32(buffer, sizeof(buffer));
+}
+
+static void adc_rng_read(uint8_t *p_buffer, uint32_t len)
+{
+  word_t data;
+  uint32_t idx = 4;
+
+  while (len--)
+  {
+    if (idx == 4)
+    {
+      data.w = adc_rng_step();
+      idx = 0;
     }
+
+    *p_buffer++ = data.b[idx++];
   }
 }
 
@@ -1003,16 +1038,16 @@ static void aes_encrypt_final(aes_state_t *c, aes_state_t *s, aes_state_t *k) {
 }
 
 static void aes_decrypt_final(aes_state_t *p, aes_state_t *s, aes_state_t *k) {
-  p->b[ 0] = td[s->b[ 0]] ^ k->b[0];
-  p->b[ 1] = td[s->b[13]] ^ k->b[1];
-  p->b[ 2] = td[s->b[10]] ^ k->b[2];
-  p->b[ 3] = td[s->b[ 7]] ^ k->b[3];
-  p->b[ 4] = td[s->b[ 4]] ^ k->b[4];
-  p->b[ 5] = td[s->b[ 1]] ^ k->b[5];
-  p->b[ 6] = td[s->b[14]] ^ k->b[6];
-  p->b[ 7] = td[s->b[11]] ^ k->b[7];
-  p->b[ 8] = td[s->b[ 8]] ^ k->b[8];
-  p->b[ 9] = td[s->b[ 5]] ^ k->b[9];
+  p->b[ 0] = td[s->b[ 0]] ^ k->b[ 0];
+  p->b[ 1] = td[s->b[13]] ^ k->b[ 1];
+  p->b[ 2] = td[s->b[10]] ^ k->b[ 2];
+  p->b[ 3] = td[s->b[ 7]] ^ k->b[ 3];
+  p->b[ 4] = td[s->b[ 4]] ^ k->b[ 4];
+  p->b[ 5] = td[s->b[ 1]] ^ k->b[ 5];
+  p->b[ 6] = td[s->b[14]] ^ k->b[ 6];
+  p->b[ 7] = td[s->b[11]] ^ k->b[ 7];
+  p->b[ 8] = td[s->b[ 8]] ^ k->b[ 8];
+  p->b[ 9] = td[s->b[ 5]] ^ k->b[ 9];
   p->b[10] = td[s->b[ 2]] ^ k->b[10];
   p->b[11] = td[s->b[15]] ^ k->b[11];
   p->b[12] = td[s->b[12]] ^ k->b[12];
