@@ -1,5 +1,8 @@
 # Changelog
 
+## Oct 25, 2016
+ - Implemented ECB decrypt and compare command
+
 ## Oct 24, 2016
 - Whiten ADC noise with CRC32
 

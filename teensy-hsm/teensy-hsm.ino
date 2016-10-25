@@ -5,6 +5,8 @@
 //--------------------------------------------------------------------------------------------------
 // Changelog
 //--------------------------------------------------------------------------------------------------
+// Oct 25, 2016 - Implemented ECB decrypt and compare command
+//
 // Oct 24, 2016 - Whiten ADC noise with CRC32
 //
 // Oct 23, 2016 - Implemented ECB encryption command (static dummy key)
@@ -181,6 +183,13 @@ typedef struct {
 } THSM_ECB_BLOCK_DECRYPT_REQ;
 
 typedef struct {
+  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t ciphertext[THSM_BLOCK_SIZE];
+  uint8_t plaintext [THSM_BLOCK_SIZE];
+} THSM_ECB_BLOCK_DECRYPT_CMP_REQ;
+
+
+typedef struct {
   uint8_t offset;
   uint8_t data_len;
   uint8_t data[THSM_DATA_BUF_SIZE];
@@ -228,6 +237,11 @@ typedef struct {
 } THSM_ECB_BLOCK_DECRYPT_RESP;
 
 typedef struct {
+  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t status;
+} THSM_ECB_BLOCK_DECRYPT_CMP_RESP;
+
+typedef struct {
   uint8_t length;
 } THSM_BUFFER_LOAD_RESP;
 
@@ -237,27 +251,29 @@ typedef struct {
 
 typedef union
 {
-  uint8_t                     raw[THSM_MAX_PKT_SIZE];
-  THSM_ECHO_REQ               echo;
-  THSM_RANDOM_GENERATE_REQ    random_generate;
-  THSM_RANDOM_RESEED_REQ      random_reseed;
-  THSM_ECB_BLOCK_ENCRYPT_REQ  ecb_encrypt;
-  THSM_ECB_BLOCK_DECRYPT_REQ  ecb_decrypt;
-  THSM_BUFFER_LOAD_REQ        buffer_load;
-  THSM_BUFFER_RANDOM_LOAD_REQ buffer_random_load;
+  uint8_t                        raw[THSM_MAX_PKT_SIZE];
+  THSM_ECHO_REQ                  echo;
+  THSM_RANDOM_GENERATE_REQ       random_generate;
+  THSM_RANDOM_RESEED_REQ         random_reseed;
+  THSM_ECB_BLOCK_ENCRYPT_REQ     ecb_encrypt;
+  THSM_ECB_BLOCK_DECRYPT_REQ     ecb_decrypt;
+  THSM_ECB_BLOCK_DECRYPT_CMP_REQ ecb_decrypt_cmp;
+  THSM_BUFFER_LOAD_REQ           buffer_load;
+  THSM_BUFFER_RANDOM_LOAD_REQ    buffer_random_load;
 } THSM_PAYLOAD_REQ;
 
 typedef union
 {
-  uint8_t                      raw[THSM_MAX_PKT_SIZE];
-  THSM_ECHO_RESP               echo;
-  THSM_SYSTEM_INFO_RESP        system_info;
-  THSM_RANDOM_GENERATE_RESP    random_generate;
-  THSM_RANDOM_RESEED_RESP      random_reseed;
-  THSM_ECB_BLOCK_ENCRYPT_RESP  ecb_encrypt;
-  THSM_ECB_BLOCK_DECRYPT_RESP  ecb_decrypt;
-  THSM_BUFFER_LOAD_RESP        buffer_load;
-  THSM_BUFFER_RANDOM_LOAD_RESP buffer_random_load;
+  uint8_t                         raw[THSM_MAX_PKT_SIZE];
+  THSM_ECHO_RESP                  echo;
+  THSM_SYSTEM_INFO_RESP           system_info;
+  THSM_RANDOM_GENERATE_RESP       random_generate;
+  THSM_RANDOM_RESEED_RESP         random_reseed;
+  THSM_ECB_BLOCK_ENCRYPT_RESP     ecb_encrypt;
+  THSM_ECB_BLOCK_DECRYPT_RESP     ecb_decrypt;
+  THSM_ECB_BLOCK_DECRYPT_CMP_RESP ecb_decrypt_cmp;
+  THSM_BUFFER_LOAD_RESP           buffer_load;
+  THSM_BUFFER_RANDOM_LOAD_RESP    buffer_random_load;
 } THSM_PAYLOAD_RESP;
 
 typedef struct
@@ -746,6 +762,7 @@ static void execute_cmd()
       cmd_ecb_decrypt();
       break;
     case THSM_CMD_AES_ECB_BLOCK_DECRYPT_CMP:
+      cmd_ecb_decrypt_cmp();
       break;
     case THSM_CMD_HMAC_SHA1_GENERATE:
       break;
@@ -876,7 +893,7 @@ static void cmd_ecb_decrypt() {
   memcpy(response.payload.ecb_decrypt.key_handle, request.payload.ecb_decrypt.key_handle, sizeof(request.payload.ecb_decrypt.key_handle));
   memset(response.payload.ecb_decrypt.plaintext, 0, sizeof(response.payload.ecb_decrypt.plaintext));
 
-  uint32_t key_handle = read_uint32(request.payload.ecb_encrypt.key_handle);
+  uint32_t key_handle = read_uint32(request.payload.ecb_decrypt.key_handle);
   if (request.bcnt != max) {
     response.payload.ecb_decrypt.status = THSM_STATUS_INVALID_PARAMETER;
   } else if (key_handle != THSM_TEMP_KEY_HANDLE) {
@@ -893,6 +910,41 @@ static void cmd_ecb_decrypt() {
     /* perform decryption */
     aes128_decrypt(&pt, &ct, &ck);
     memcpy(response.payload.ecb_decrypt.plaintext, pt.b, sizeof(pt.b));
+  }
+
+  /* send response */
+  Serial.write((const char *)&response, response.bcnt + 1);
+}
+
+static void cmd_ecb_decrypt_cmp() {
+  /* cap request length */
+  uint8_t max = sizeof(request.payload.ecb_decrypt_cmp) + 1;
+
+  /* common response values */
+  response.bcnt = sizeof(response.payload.ecb_decrypt_cmp) + 1;
+  response.cmd = request.cmd | THSM_FLAG_RESPONSE;
+  memcpy(response.payload.ecb_decrypt_cmp.key_handle, request.payload.ecb_decrypt_cmp.key_handle, sizeof(request.payload.ecb_decrypt_cmp.key_handle));
+
+  uint32_t key_handle = read_uint32(request.payload.ecb_decrypt_cmp.key_handle);
+  if (request.bcnt != max) {
+    response.payload.ecb_decrypt_cmp.status = THSM_STATUS_INVALID_PARAMETER;
+  } else if (key_handle != THSM_TEMP_KEY_HANDLE) {
+    response.payload.ecb_decrypt_cmp.status = THSM_STATUS_KEY_HANDLE_INVALID;
+  } else {
+    aes_state_t pt;
+    aes_state_t ct;
+    aes_state_t ck;
+
+    /* copy key and ciphertext */
+    memcpy(&ck, &phantom_key, sizeof(phantom_key));
+    memcpy(ct.b, request.payload.ecb_decrypt_cmp.ciphertext, sizeof(request.payload.ecb_decrypt_cmp.ciphertext));
+
+    /* perform decryption */
+    aes128_decrypt(&pt, &ct, &ck);
+
+    /* compare plaintext */
+    int match = memcmp(pt.b, request.payload.ecb_decrypt_cmp.plaintext, sizeof(request.payload.ecb_decrypt_cmp.plaintext));
+    response.payload.ecb_decrypt_cmp.status = (match == 0) ? THSM_STATUS_OK : THSM_STATUS_MISMATCH;
   }
 
   /* send response */
