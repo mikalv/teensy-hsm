@@ -5,6 +5,8 @@
 //--------------------------------------------------------------------------------------------------
 // Changelog
 //--------------------------------------------------------------------------------------------------
+// Nov 07, 2016 - Implemented HMAC-SHA1 generatiion command (limited to phantom key handle 0xffffffff)
+//
 // Oct 25, 2016 - Implemented ECB decrypt and compare command
 //
 // Oct 24, 2016 - Whiten ADC noise with CRC32
@@ -97,6 +99,9 @@
 #define THSM_SHA1_HASH_SIZE        20 // 160-bit SHA1 hash size
 #define THSM_CTR_DRBG_SEED_SIZE    32 // Size of CTR-DRBG entropy
 #define THSM_MAX_PKT_SIZE        0x60 // Max size of a packet (excluding command byte)
+#define THSM_HMAC_RESET          0x01
+#define THSM_HMAC_FINAL          0x02
+#define THSM_HMAC_SHA1_TO_BUFFER 0x04
 #define SYSTEM_ID_SIZE             12
 #define UID_SIZE                    6
 #define KEY_SIZE                   16
@@ -131,12 +136,54 @@
 #define THSM_STATUS_INVALID_PARAMETER  0x8c
 
 //--------------------------------------------------------------------------------------------------
+// SHA1 constants
+//--------------------------------------------------------------------------------------------------
+#define SHA1_DIGEST_SIZE_BITS    160
+#define SHA1_DIGEST_SIZE_BYTES   (SHA1_DIGEST_SIZE_BITS / 8)
+#define SHA1_DIGEST_SIZE_WORDS   (SHA1_DIGEST_SIZE_BYTES / sizeof(uint32_t))
+#define SHA1_BLOCK_SIZE_BITS     512
+#define SHA1_BLOCK_SIZE_BYTES    (SHA1_BLOCK_SIZE_BITS / 8)
+#define SHA1_BLOCK_SIZE_WORDS    (SHA1_BLOCK_SIZE_BYTES / sizeof(uint32_t))
+
+//--------------------------------------------------------------------------------------------------
+// Macros
+//--------------------------------------------------------------------------------------------------
+#define ROTL_1(x) (((x) << 1) | ((x) >> 31))
+#define ROTL_5(x) (((x) << 5) | ((x) >> 27))
+#define ROTL_30(x)(((x) << 30) | ((x) >> 2))
+
+//--------------------------------------------------------------------------------------------------
 // Data Structures
 //--------------------------------------------------------------------------------------------------
+typedef struct
+{
+  uint32_t words[SHA1_BLOCK_SIZE_WORDS];
+} sha1_block_t;
+
+typedef struct
+{
+  uint8_t bytes[SHA1_BLOCK_SIZE_BYTES];
+  uint32_t length;
+} sha1_buffer_t;
+
+typedef struct
+{
+  sha1_buffer_t buffer;
+  uint32_t hashes[SHA1_DIGEST_SIZE_WORDS];
+  uint32_t words[80];
+  uint64_t msg_length;
+} sha1_ctx_t;
+
+typedef struct
+{
+  uint8_t key[SHA1_BLOCK_SIZE_BYTES];
+  sha1_ctx_t hash;
+} hmac_sha1_ctx_t;
+
 typedef union
 {
-  uint8_t  b[THSM_BLOCK_SIZE];
-  uint32_t w[THSM_BLOCK_SIZE / sizeof(uint32_t)];
+  uint8_t  bytes[THSM_BLOCK_SIZE];
+  uint32_t words[THSM_BLOCK_SIZE / sizeof(uint32_t)];
 } aes_state_t;
 
 typedef struct {
@@ -144,8 +191,8 @@ typedef struct {
 } aes_subkeys_t;
 
 typedef union {
-  uint8_t  b[sizeof(uint32_t)];
-  uint32_t w;
+  uint8_t  bytes[sizeof(uint32_t)];
+  uint32_t words;
 } word_t;
 
 typedef struct {
@@ -200,6 +247,13 @@ typedef struct {
   uint8_t length;
 } THSM_BUFFER_RANDOM_LOAD_REQ;
 
+typedef struct {
+  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t flags;
+  uint8_t data_len;
+  uint8_t data[THSM_MAX_PKT_SIZE - 6];
+} THSM_HMAC_SHA1_GENERATE_REQ;
+
 typedef struct
 {
   uint8_t data_len;
@@ -249,6 +303,13 @@ typedef struct {
   uint8_t length;
 } THSM_BUFFER_RANDOM_LOAD_RESP;
 
+typedef struct {
+  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t status;
+  uint8_t data_len;
+  uint8_t data[THSM_SHA1_HASH_SIZE];
+} THSM_HMAC_SHA1_GENERATE_RESP;
+
 typedef union
 {
   uint8_t                        raw[THSM_MAX_PKT_SIZE];
@@ -260,6 +321,7 @@ typedef union
   THSM_ECB_BLOCK_DECRYPT_CMP_REQ ecb_decrypt_cmp;
   THSM_BUFFER_LOAD_REQ           buffer_load;
   THSM_BUFFER_RANDOM_LOAD_REQ    buffer_random_load;
+  THSM_HMAC_SHA1_GENERATE_REQ    hmac_sha1_generate;
 } THSM_PAYLOAD_REQ;
 
 typedef union
@@ -274,6 +336,7 @@ typedef union
   THSM_ECB_BLOCK_DECRYPT_CMP_RESP ecb_decrypt_cmp;
   THSM_BUFFER_LOAD_RESP           buffer_load;
   THSM_BUFFER_RANDOM_LOAD_RESP    buffer_random_load;
+  THSM_HMAC_SHA1_GENERATE_RESP    hmac_sha1_generate;
 } THSM_PAYLOAD_RESP;
 
 typedef struct
@@ -632,6 +695,7 @@ static aes_state_t phantom_key;
 static THSM_BUFFER thsm_buffer;
 static ADC *adc = new ADC();
 static FastCRC32 CRC32;
+static hmac_sha1_ctx_t hmac_sha1_ctx;
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -647,7 +711,7 @@ void setup() {
   reset();
 
   /* TODO : implement proper phantom key loading unloading */
-  memcpy(phantom_key.b, DUMMY_KEY, sizeof(DUMMY_KEY));
+  memcpy(phantom_key.bytes, DUMMY_KEY, sizeof(DUMMY_KEY));
   memset(&thsm_buffer, 0, sizeof(thsm_buffer));
 }
 
@@ -730,6 +794,8 @@ static void reset()
 {
   memset(&request,  0, sizeof(request));
   memset(&response, 0, sizeof(response));
+  memset(&hmac_sha1_ctx, 0, sizeof(hmac_sha1_ctx));
+  memset(&thsm_buffer, 0, sizeof(thsm_buffer));
 }
 
 static void execute_cmd()
@@ -765,6 +831,7 @@ static void execute_cmd()
       cmd_ecb_decrypt_cmp();
       break;
     case THSM_CMD_HMAC_SHA1_GENERATE:
+      cmd_hmac_sha1_generate();
       break;
     case THSM_CMD_TEMP_KEY_LOAD:
       break;
@@ -872,11 +939,52 @@ static void cmd_ecb_encrypt() {
 
     response.payload.ecb_encrypt.status = THSM_STATUS_OK;
     memcpy(&ck, &phantom_key, sizeof(phantom_key));
-    memcpy(pt.b, request.payload.ecb_encrypt.plaintext, sizeof(request.payload.ecb_encrypt.plaintext));
+    memcpy(pt.bytes, request.payload.ecb_encrypt.plaintext, sizeof(request.payload.ecb_encrypt.plaintext));
 
     /* perform encryption */
     aes128_encrypt(&ct, &pt, &ck);
-    memcpy(response.payload.ecb_encrypt.ciphertext, ct.b, sizeof(ct.b));
+    memcpy(response.payload.ecb_encrypt.ciphertext, ct.bytes, sizeof(ct.bytes));
+  }
+
+  /* send response */
+  Serial.write((const char *)&response, response.bcnt + 1);
+}
+
+// xxx
+static void cmd_hmac_sha1_generate() {
+  /* set common response */
+  response.bcnt = sizeof(response.payload.hmac_sha1_generate);
+  response.cmd = request.cmd | THSM_FLAG_RESPONSE;
+  memcpy(response.payload.hmac_sha1_generate.key_handle, request.payload.hmac_sha1_generate.key_handle, sizeof(request.payload.hmac_sha1_generate.key_handle));
+  memset(response.payload.hmac_sha1_generate.data, 0, sizeof(response.payload.hmac_sha1_generate.data));
+  response.payload.hmac_sha1_generate.data_len = 0;
+  response.payload.hmac_sha1_generate.status = THSM_STATUS_OK;
+
+  /* check given key handle */
+  uint32_t key_handle = read_uint32(request.payload.hmac_sha1_generate.key_handle);
+  if (key_handle != THSM_TEMP_KEY_HANDLE) {
+    response.payload.hmac_sha1_generate.status = THSM_STATUS_KEY_HANDLE_INVALID;
+  } else {
+    /* init hmac */
+    if (request.payload.hmac_sha1_generate.flags & THSM_HMAC_RESET) {
+      hmac_sha1_init(&hmac_sha1_ctx, phantom_key.bytes, sizeof(phantom_key.bytes));
+    }
+
+    /* update hmac */
+    if (request.payload.hmac_sha1_generate.data_len > 0) {
+      hmac_sha1_update(&hmac_sha1_ctx, request.payload.hmac_sha1_generate.data, request.payload.hmac_sha1_generate.data_len);
+    }
+
+    /* finalize hmac */
+    if (request.payload.hmac_sha1_generate.flags & THSM_HMAC_FINAL) {
+      if (request.payload.hmac_sha1_generate.flags & THSM_HMAC_SHA1_TO_BUFFER) {
+        hmac_sha1_final(&hmac_sha1_ctx, thsm_buffer.data);
+        thsm_buffer.data_len = THSM_SHA1_HASH_SIZE;
+      } else {
+        hmac_sha1_final(&hmac_sha1_ctx, response.payload.hmac_sha1_generate.data);
+        response.payload.hmac_sha1_generate.data_len = THSM_SHA1_HASH_SIZE;
+      }
+    }
   }
 
   /* send response */
@@ -905,11 +1013,11 @@ static void cmd_ecb_decrypt() {
 
     response.payload.ecb_decrypt.status = THSM_STATUS_OK;
     memcpy(&ck, &phantom_key, sizeof(phantom_key));
-    memcpy(ct.b, request.payload.ecb_decrypt.ciphertext, sizeof(request.payload.ecb_decrypt.ciphertext));
+    memcpy(ct.bytes, request.payload.ecb_decrypt.ciphertext, sizeof(request.payload.ecb_decrypt.ciphertext));
 
     /* perform decryption */
     aes128_decrypt(&pt, &ct, &ck);
-    memcpy(response.payload.ecb_decrypt.plaintext, pt.b, sizeof(pt.b));
+    memcpy(response.payload.ecb_decrypt.plaintext, pt.bytes, sizeof(pt.bytes));
   }
 
   /* send response */
@@ -937,13 +1045,13 @@ static void cmd_ecb_decrypt_cmp() {
 
     /* copy key and ciphertext */
     memcpy(&ck, &phantom_key, sizeof(phantom_key));
-    memcpy(ct.b, request.payload.ecb_decrypt_cmp.ciphertext, sizeof(request.payload.ecb_decrypt_cmp.ciphertext));
+    memcpy(ct.bytes, request.payload.ecb_decrypt_cmp.ciphertext, sizeof(request.payload.ecb_decrypt_cmp.ciphertext));
 
     /* perform decryption */
     aes128_decrypt(&pt, &ct, &ck);
 
     /* compare plaintext */
-    int match = memcmp(pt.b, request.payload.ecb_decrypt_cmp.plaintext, sizeof(request.payload.ecb_decrypt_cmp.plaintext));
+    int match = memcmp(pt.bytes, request.payload.ecb_decrypt_cmp.plaintext, sizeof(request.payload.ecb_decrypt_cmp.plaintext));
     response.payload.ecb_decrypt_cmp.status = (match == 0) ? THSM_STATUS_OK : THSM_STATUS_MISMATCH;
   }
 
@@ -1044,11 +1152,11 @@ static void adc_rng_read(uint8_t *p_buffer, uint32_t len)
   {
     if (idx == 4)
     {
-      data.w = adc_rng_step();
+      data.words = adc_rng_step();
       idx = 0;
     }
 
-    *p_buffer++ = data.b[idx++];
+    *p_buffer++ = data.bytes[idx++];
   }
 }
 
@@ -1060,29 +1168,29 @@ static void aes128_init(aes_subkeys_t *sk, aes_state_t *ck) {
   aes_state_t *dst = &(sk->keys[1]);
 
   /* backup to temporary state */
-  src->w[0] = ck->w[0];
-  src->w[1] = ck->w[1];
-  src->w[2] = ck->w[2];
-  src->w[3] = ck->w[3];
+  src->words[0] = ck->words[0];
+  src->words[1] = ck->words[1];
+  src->words[2] = ck->words[2];
+  src->words[3] = ck->words[3];
 
   /* derive subkeys */
   for (int i = 1; i < 11; i++) {
-    dst->b[ 0] = src->b[ 0] ^ te[src->b[13]] ^ rcon[i];
-    dst->b[ 1] = src->b[ 1] ^ te[src->b[14]];
-    dst->b[ 2] = src->b[ 2] ^ te[src->b[15]];
-    dst->b[ 3] = src->b[ 3] ^ te[src->b[12]];
-    dst->b[ 4] = src->b[ 4] ^ dst->b[ 0];
-    dst->b[ 5] = src->b[ 5] ^ dst->b[ 1];
-    dst->b[ 6] = src->b[ 6] ^ dst->b[ 2];
-    dst->b[ 7] = src->b[ 7] ^ dst->b[ 3];
-    dst->b[ 8] = src->b[ 8] ^ dst->b[ 4];
-    dst->b[ 9] = src->b[ 9] ^ dst->b[ 5];
-    dst->b[10] = src->b[10] ^ dst->b[ 6];
-    dst->b[11] = src->b[11] ^ dst->b[ 7];
-    dst->b[12] = src->b[12] ^ dst->b[ 8];
-    dst->b[13] = src->b[13] ^ dst->b[ 9];
-    dst->b[14] = src->b[14] ^ dst->b[10];
-    dst->b[15] = src->b[15] ^ dst->b[11];
+    dst->bytes[ 0] = src->bytes[ 0] ^ te[src->bytes[13]] ^ rcon[i];
+    dst->bytes[ 1] = src->bytes[ 1] ^ te[src->bytes[14]];
+    dst->bytes[ 2] = src->bytes[ 2] ^ te[src->bytes[15]];
+    dst->bytes[ 3] = src->bytes[ 3] ^ te[src->bytes[12]];
+    dst->bytes[ 4] = src->bytes[ 4] ^ dst->bytes[ 0];
+    dst->bytes[ 5] = src->bytes[ 5] ^ dst->bytes[ 1];
+    dst->bytes[ 6] = src->bytes[ 6] ^ dst->bytes[ 2];
+    dst->bytes[ 7] = src->bytes[ 7] ^ dst->bytes[ 3];
+    dst->bytes[ 8] = src->bytes[ 8] ^ dst->bytes[ 4];
+    dst->bytes[ 9] = src->bytes[ 9] ^ dst->bytes[ 5];
+    dst->bytes[10] = src->bytes[10] ^ dst->bytes[ 6];
+    dst->bytes[11] = src->bytes[11] ^ dst->bytes[ 7];
+    dst->bytes[12] = src->bytes[12] ^ dst->bytes[ 8];
+    dst->bytes[13] = src->bytes[13] ^ dst->bytes[ 9];
+    dst->bytes[14] = src->bytes[14] ^ dst->bytes[10];
+    dst->bytes[15] = src->bytes[15] ^ dst->bytes[11];
     src++;
     dst++;
   }
@@ -1090,10 +1198,10 @@ static void aes128_init(aes_subkeys_t *sk, aes_state_t *ck) {
 
 static void aes128_cleanup(aes_subkeys_t *sk) {
   for (int i = 0; i < 11; i++) {
-    sk->keys[i].w[0] = 0;
-    sk->keys[i].w[1] = 0;
-    sk->keys[i].w[2] = 0;
-    sk->keys[i].w[3] = 0;
+    sk->keys[i].words[0] = 0;
+    sk->keys[i].words[1] = 0;
+    sk->keys[i].words[2] = 0;
+    sk->keys[i].words[3] = 0;
   }
 }
 
@@ -1105,10 +1213,10 @@ static void aes128_encrypt(aes_state_t *ct, aes_state_t *pt, aes_state_t *ck) {
   aes128_init(&sk, ck);
 
   aes_state_t *key = &(sk.keys[0]);
-  tmp.w[0] = pt->w[0] ^ key->w[0];
-  tmp.w[1] = pt->w[1] ^ key->w[1];
-  tmp.w[2] = pt->w[2] ^ key->w[2];
-  tmp.w[3] = pt->w[3] ^ key->w[3];
+  tmp.words[0] = pt->words[0] ^ key->words[0];
+  tmp.words[1] = pt->words[1] ^ key->words[1];
+  tmp.words[2] = pt->words[2] ^ key->words[2];
+  tmp.words[3] = pt->words[3] ^ key->words[3];
 
   for (int i = 0; i < 9; i++) {
     aes_encrypt_step(&tmp, ++key);
@@ -1127,10 +1235,10 @@ static void aes128_decrypt(aes_state_t *pt, aes_state_t *ct, aes_state_t *ck) {
 
   aes_state_t *key = &(sk.keys[10]);
 
-  tmp.w[0] = ct->w[0] ^ key->w[0];
-  tmp.w[1] = ct->w[1] ^ key->w[1];
-  tmp.w[2] = ct->w[2] ^ key->w[2];
-  tmp.w[3] = ct->w[3] ^ key->w[3];
+  tmp.words[0] = ct->words[0] ^ key->words[0];
+  tmp.words[1] = ct->words[1] ^ key->words[1];
+  tmp.words[2] = ct->words[2] ^ key->words[2];
+  tmp.words[3] = ct->words[3] ^ key->words[3];
 
   for (int i = 0; i < 9; i++)
   {
@@ -1145,101 +1253,298 @@ static void aes_encrypt_step(aes_state_t *s, aes_state_t *k) {
   aes_state_t t;
 
   /* copy to temporary state */
-  t.w[0] = s->w[0];
-  t.w[1] = s->w[1];
-  t.w[2] = s->w[2];
-  t.w[3] = s->w[3];
+  t.words[0] = s->words[0];
+  t.words[1] = s->words[1];
+  t.words[2] = s->words[2];
+  t.words[3] = s->words[3];
 
   /* shift-row, substitute, mix-column & add-round-key */
-  s->w[0] = te0[t.b[ 0]] ^ te1[t.b[ 5]] ^ te2[t.b[10]] ^ te3[t.b[15]] ^ k->w[0];
-  s->w[1] = te0[t.b[ 4]] ^ te1[t.b[ 9]] ^ te2[t.b[14]] ^ te3[t.b[ 3]] ^ k->w[1];
-  s->w[2] = te0[t.b[ 8]] ^ te1[t.b[13]] ^ te2[t.b[ 2]] ^ te3[t.b[ 7]] ^ k->w[2];
-  s->w[3] = te0[t.b[12]] ^ te1[t.b[ 1]] ^ te2[t.b[ 6]] ^ te3[t.b[11]] ^ k->w[3];
+  s->words[0] = te0[t.bytes[ 0]] ^ te1[t.bytes[ 5]] ^ te2[t.bytes[10]] ^ te3[t.bytes[15]] ^ k->words[0];
+  s->words[1] = te0[t.bytes[ 4]] ^ te1[t.bytes[ 9]] ^ te2[t.bytes[14]] ^ te3[t.bytes[ 3]] ^ k->words[1];
+  s->words[2] = te0[t.bytes[ 8]] ^ te1[t.bytes[13]] ^ te2[t.bytes[ 2]] ^ te3[t.bytes[ 7]] ^ k->words[2];
+  s->words[3] = te0[t.bytes[12]] ^ te1[t.bytes[ 1]] ^ te2[t.bytes[ 6]] ^ te3[t.bytes[11]] ^ k->words[3];
 }
 
 static void aes_decrypt_step(aes_state_t *s, aes_state_t *k) {
   aes_state_t t;
 
   /* inverse shift-row, inverse-substitution and add-round-key */
-  t.b[ 0] = td[s->b[ 0]] ^ k->b[0];
-  t.b[ 1] = td[s->b[13]] ^ k->b[1];
-  t.b[ 2] = td[s->b[10]] ^ k->b[2];
-  t.b[ 3] = td[s->b[ 7]] ^ k->b[3];
-  t.b[ 4] = td[s->b[ 4]] ^ k->b[4];
-  t.b[ 5] = td[s->b[ 1]] ^ k->b[5];
-  t.b[ 6] = td[s->b[14]] ^ k->b[6];
-  t.b[ 7] = td[s->b[11]] ^ k->b[7];
-  t.b[ 8] = td[s->b[ 8]] ^ k->b[8];
-  t.b[ 9] = td[s->b[ 5]] ^ k->b[9];
-  t.b[10] = td[s->b[ 2]] ^ k->b[10];
-  t.b[11] = td[s->b[15]] ^ k->b[11];
-  t.b[12] = td[s->b[12]] ^ k->b[12];
-  t.b[13] = td[s->b[ 9]] ^ k->b[13];
-  t.b[14] = td[s->b[ 6]] ^ k->b[14];
-  t.b[15] = td[s->b[ 3]] ^ k->b[15];
+  t.bytes[ 0] = td[s->bytes[ 0]] ^ k->bytes[0];
+  t.bytes[ 1] = td[s->bytes[13]] ^ k->bytes[1];
+  t.bytes[ 2] = td[s->bytes[10]] ^ k->bytes[2];
+  t.bytes[ 3] = td[s->bytes[ 7]] ^ k->bytes[3];
+  t.bytes[ 4] = td[s->bytes[ 4]] ^ k->bytes[4];
+  t.bytes[ 5] = td[s->bytes[ 1]] ^ k->bytes[5];
+  t.bytes[ 6] = td[s->bytes[14]] ^ k->bytes[6];
+  t.bytes[ 7] = td[s->bytes[11]] ^ k->bytes[7];
+  t.bytes[ 8] = td[s->bytes[ 8]] ^ k->bytes[8];
+  t.bytes[ 9] = td[s->bytes[ 5]] ^ k->bytes[9];
+  t.bytes[10] = td[s->bytes[ 2]] ^ k->bytes[10];
+  t.bytes[11] = td[s->bytes[15]] ^ k->bytes[11];
+  t.bytes[12] = td[s->bytes[12]] ^ k->bytes[12];
+  t.bytes[13] = td[s->bytes[ 9]] ^ k->bytes[13];
+  t.bytes[14] = td[s->bytes[ 6]] ^ k->bytes[14];
+  t.bytes[15] = td[s->bytes[ 3]] ^ k->bytes[15];
 
   /* inverse mix-column */
-  s->w[0] = td0[t.b[ 0]] ^ td1[t.b[ 1]] ^ td2[t.b[ 2]] ^ td3[t.b[ 3]];
-  s->w[1] = td0[t.b[ 4]] ^ td1[t.b[ 5]] ^ td2[t.b[ 6]] ^ td3[t.b[ 7]];
-  s->w[2] = td0[t.b[ 8]] ^ td1[t.b[ 9]] ^ td2[t.b[10]] ^ td3[t.b[11]];
-  s->w[3] = td0[t.b[12]] ^ td1[t.b[13]] ^ td2[t.b[14]] ^ td3[t.b[15]];
+  s->words[0] = td0[t.bytes[ 0]] ^ td1[t.bytes[ 1]] ^ td2[t.bytes[ 2]] ^ td3[t.bytes[ 3]];
+  s->words[1] = td0[t.bytes[ 4]] ^ td1[t.bytes[ 5]] ^ td2[t.bytes[ 6]] ^ td3[t.bytes[ 7]];
+  s->words[2] = td0[t.bytes[ 8]] ^ td1[t.bytes[ 9]] ^ td2[t.bytes[10]] ^ td3[t.bytes[11]];
+  s->words[3] = td0[t.bytes[12]] ^ td1[t.bytes[13]] ^ td2[t.bytes[14]] ^ td3[t.bytes[15]];
 }
 
 static void aes_encrypt_final(aes_state_t *c, aes_state_t *s, aes_state_t *k) {
   aes_state_t t;
 
   /* final shift-row & substitute */
-  t.b[ 0] = te[s->b[ 0]];
-  t.b[ 1] = te[s->b[ 5]];
-  t.b[ 2] = te[s->b[10]];
-  t.b[ 3] = te[s->b[15]];
-  t.b[ 4] = te[s->b[ 4]];
-  t.b[ 5] = te[s->b[ 9]];
-  t.b[ 6] = te[s->b[14]];
-  t.b[ 7] = te[s->b[ 3]];
-  t.b[ 8] = te[s->b[ 8]];
-  t.b[ 9] = te[s->b[13]];
-  t.b[10] = te[s->b[ 2]];
-  t.b[11] = te[s->b[ 7]];
-  t.b[12] = te[s->b[12]];
-  t.b[13] = te[s->b[ 1]];
-  t.b[14] = te[s->b[ 6]];
-  t.b[15] = te[s->b[11]];
+  t.bytes[ 0] = te[s->bytes[ 0]];
+  t.bytes[ 1] = te[s->bytes[ 5]];
+  t.bytes[ 2] = te[s->bytes[10]];
+  t.bytes[ 3] = te[s->bytes[15]];
+  t.bytes[ 4] = te[s->bytes[ 4]];
+  t.bytes[ 5] = te[s->bytes[ 9]];
+  t.bytes[ 6] = te[s->bytes[14]];
+  t.bytes[ 7] = te[s->bytes[ 3]];
+  t.bytes[ 8] = te[s->bytes[ 8]];
+  t.bytes[ 9] = te[s->bytes[13]];
+  t.bytes[10] = te[s->bytes[ 2]];
+  t.bytes[11] = te[s->bytes[ 7]];
+  t.bytes[12] = te[s->bytes[12]];
+  t.bytes[13] = te[s->bytes[ 1]];
+  t.bytes[14] = te[s->bytes[ 6]];
+  t.bytes[15] = te[s->bytes[11]];
 
   /* final add round key */
-  c->w[0] = t.w[0] ^ k->w[0];
-  c->w[1] = t.w[1] ^ k->w[1];
-  c->w[2] = t.w[2] ^ k->w[2];
-  c->w[3] = t.w[3] ^ k->w[3];
+  c->words[0] = t.words[0] ^ k->words[0];
+  c->words[1] = t.words[1] ^ k->words[1];
+  c->words[2] = t.words[2] ^ k->words[2];
+  c->words[3] = t.words[3] ^ k->words[3];
 
   /* cleanup temporary state */
-  t.w[0] = 0;
-  t.w[1] = 0;
-  t.w[2] = 0;
-  t.w[3] = 0;
+  t.words[0] = 0;
+  t.words[1] = 0;
+  t.words[2] = 0;
+  t.words[3] = 0;
 }
 
 static void aes_decrypt_final(aes_state_t *p, aes_state_t *s, aes_state_t *k) {
-  p->b[ 0] = td[s->b[ 0]] ^ k->b[ 0];
-  p->b[ 1] = td[s->b[13]] ^ k->b[ 1];
-  p->b[ 2] = td[s->b[10]] ^ k->b[ 2];
-  p->b[ 3] = td[s->b[ 7]] ^ k->b[ 3];
-  p->b[ 4] = td[s->b[ 4]] ^ k->b[ 4];
-  p->b[ 5] = td[s->b[ 1]] ^ k->b[ 5];
-  p->b[ 6] = td[s->b[14]] ^ k->b[ 6];
-  p->b[ 7] = td[s->b[11]] ^ k->b[ 7];
-  p->b[ 8] = td[s->b[ 8]] ^ k->b[ 8];
-  p->b[ 9] = td[s->b[ 5]] ^ k->b[ 9];
-  p->b[10] = td[s->b[ 2]] ^ k->b[10];
-  p->b[11] = td[s->b[15]] ^ k->b[11];
-  p->b[12] = td[s->b[12]] ^ k->b[12];
-  p->b[13] = td[s->b[ 9]] ^ k->b[13];
-  p->b[14] = td[s->b[ 6]] ^ k->b[14];
-  p->b[15] = td[s->b[ 3]] ^ k->b[15];
+  p->bytes[ 0] = td[s->bytes[ 0]] ^ k->bytes[ 0];
+  p->bytes[ 1] = td[s->bytes[13]] ^ k->bytes[ 1];
+  p->bytes[ 2] = td[s->bytes[10]] ^ k->bytes[ 2];
+  p->bytes[ 3] = td[s->bytes[ 7]] ^ k->bytes[ 3];
+  p->bytes[ 4] = td[s->bytes[ 4]] ^ k->bytes[ 4];
+  p->bytes[ 5] = td[s->bytes[ 1]] ^ k->bytes[ 5];
+  p->bytes[ 6] = td[s->bytes[14]] ^ k->bytes[ 6];
+  p->bytes[ 7] = td[s->bytes[11]] ^ k->bytes[ 7];
+  p->bytes[ 8] = td[s->bytes[ 8]] ^ k->bytes[ 8];
+  p->bytes[ 9] = td[s->bytes[ 5]] ^ k->bytes[ 9];
+  p->bytes[10] = td[s->bytes[ 2]] ^ k->bytes[10];
+  p->bytes[11] = td[s->bytes[15]] ^ k->bytes[11];
+  p->bytes[12] = td[s->bytes[12]] ^ k->bytes[12];
+  p->bytes[13] = td[s->bytes[ 9]] ^ k->bytes[13];
+  p->bytes[14] = td[s->bytes[ 6]] ^ k->bytes[14];
+  p->bytes[15] = td[s->bytes[ 3]] ^ k->bytes[15];
 
   /* cleanup temporary state */
-  s->w[0] = 0;
-  s->w[1] = 0;
-  s->w[2] = 0;
-  s->w[3] = 0;
+  s->words[0] = 0;
+  s->words[1] = 0;
+  s->words[2] = 0;
+  s->words[3] = 0;
+}
+
+static void hmac_sha1_init(hmac_sha1_ctx_t *ctx, uint8_t *key, uint32_t length)
+{
+  /* clear and initialize context */
+  memset(ctx, 0, sizeof(hmac_sha1_ctx_t));
+
+  if (length > sizeof(ctx->key))
+  {
+    sha1_init(&(ctx->hash));
+    sha1_update(&(ctx->hash), key, length);
+    sha1_final(&(ctx->hash), ctx->key);
+  }
+  else
+  {
+    memcpy(ctx->key, key, length);
+  }
+
+  /* xor key with ipad */
+  uint8_t tmp[SHA1_BLOCK_SIZE_BYTES];
+  for (int i = 0; i < sizeof(tmp); i++)
+  {
+    tmp[i] = 0x36 ^ ctx->key[i];
+  }
+
+  /* init and update hash */
+  sha1_init(&(ctx->hash));
+  sha1_update(&(ctx->hash), tmp, sizeof(tmp));
+}
+
+static void hmac_sha1_update(hmac_sha1_ctx_t *ctx, uint8_t *data, uint32_t length)
+{
+  /* update hash */
+  sha1_update(&(ctx->hash), data, length);
+}
+
+static void hmac_sha1_final(hmac_sha1_ctx_t *ctx, uint8_t *mac)
+{
+  uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
+  uint8_t tmp[SHA1_BLOCK_SIZE_BYTES];
+
+  /* finalize hash */
+  sha1_final(&(ctx->hash), digest);
+
+  /* xor key with opad */
+  for (int i = 0; i < sizeof(tmp); i++)
+  {
+    tmp[i] = 0x5c ^ ctx->key[i];
+  }
+
+  /* reinitialize hash context */
+  sha1_init(&(ctx->hash));
+  sha1_update(&(ctx->hash), tmp, sizeof(tmp));
+  sha1_update(&(ctx->hash), digest, sizeof(digest));
+  sha1_final(&(ctx->hash), mac);
+}
+
+static void sha1_init(sha1_ctx_t *ctx)
+{
+  memset(ctx, 0, sizeof(sha1_ctx_t));
+  ctx->hashes[0] = 0x67452301;
+  ctx->hashes[1] = 0xefcdab89;
+  ctx->hashes[2] = 0x98badcfe;
+  ctx->hashes[3] = 0x10325476;
+  ctx->hashes[4] = 0xc3d2e1f0;
+}
+
+static void sha1_update(sha1_ctx_t *state, uint8_t *data, uint32_t length)
+{
+  /* update total length */
+  state->msg_length += length;
+
+  while (length > 0)
+  {
+    uint32_t written = state->buffer.length;
+    if (written < sizeof(state->buffer.bytes))
+    {
+      uint32_t max = (sizeof(state->buffer.bytes) - written);
+      uint32_t step = (length > max) ? max : length;
+      memcpy(&state->buffer.bytes[written], data, step);
+
+      data += step;
+      length -= step;
+      written += step;
+      state->buffer.length += step;
+    }
+
+    if (written >= sizeof(state->buffer.bytes))
+    {
+      sha1_step(state);
+    }
+  }
+}
+
+static void sha1_final(sha1_ctx_t *ctx, uint8_t *digest)
+{
+  uint32_t written = ctx->buffer.length;
+
+  /* append padding */
+  ctx->buffer.bytes[written] = 0x80;
+  memset(&ctx->buffer.bytes[written + 1], 0, (sizeof(ctx->buffer.bytes) - (written + 1)));
+
+  if (written > (sizeof(ctx->buffer.bytes) - 9))
+  {
+    sha1_step(ctx);
+  }
+
+  /* append length in bits */
+  uint8_t *ptr = &ctx->buffer.bytes[sizeof(ctx->buffer.bytes) - sizeof(uint64_t)];
+  uint64_t msg_length = ctx->msg_length << 3;
+  *ptr++ = (uint8_t) (msg_length >> 56);
+  *ptr++ = (uint8_t) (msg_length >> 48);
+  *ptr++ = (uint8_t) (msg_length >> 40);
+  *ptr++ = (uint8_t) (msg_length >> 32);
+  *ptr++ = (uint8_t) (msg_length >> 24);
+  *ptr++ = (uint8_t) (msg_length >> 16);
+  *ptr++ = (uint8_t) (msg_length >> 8);
+  *ptr++ = (uint8_t) (msg_length);
+
+  /* run last round */
+  sha1_step(ctx);
+
+  for (int i = 0; i < SHA1_DIGEST_SIZE_WORDS; i++)
+  {
+    *digest++ = (uint8_t) (ctx->hashes[i] >> 24);
+    *digest++ = (uint8_t) (ctx->hashes[i] >> 16);
+    *digest++ = (uint8_t) (ctx->hashes[i] >> 8);
+    *digest++ = (uint8_t) (ctx->hashes[i]);
+  }
+}
+
+static void sha1_step(sha1_ctx_t *ctx)
+{
+
+  sha1_block_t block;
+  uint32_t a, b, c, d, e;
+
+  /* load block */
+  uint8_t *p2 = ctx->buffer.bytes;
+  for (int i = 0; i < SHA1_BLOCK_SIZE_WORDS; i++)
+  {
+    uint32_t tmp = 0;
+    tmp |= *p2++ << 24;
+    tmp |= *p2++ << 16;
+    tmp |= *p2++ << 8;
+    tmp |= *p2++ << 0;
+    block.words[i] = tmp;
+  }
+
+  /* load hash */
+  a = ctx->hashes[0];
+  b = ctx->hashes[1];
+  c = ctx->hashes[2];
+  d = ctx->hashes[3];
+  e = ctx->hashes[4];
+
+  for (uint32_t i = 0; i < 80; i++)
+  {
+    uint32_t w;
+
+    uint32_t t = (i < 16) ? block.words[i] : ROTL_1((ctx->words[i - 3] ^ ctx->words[i - 8] ^ ctx->words[i - 14] ^ ctx->words[i - 16]));
+    ctx->words[i] = t;
+
+    if (i < 20)
+    {
+      w = ROTL_5(a) + ((b & c) | ((~b) & d)) + e + t + 0x5a827999;
+    }
+    else if (i < 40)
+    {
+      w = ROTL_5(a) + (b ^ c ^ d) + e + t + 0x6ed9eba1;
+    }
+    else if (i < 60)
+    {
+      w = ROTL_5(a) + ((b & c) | (b & d) | (c & d)) + e + t + 0x8f1bbcdc;
+    }
+    else
+    {
+      w = ROTL_5(a) + (b ^ c ^ d) + e + t + 0xca62c1d6;
+    }
+
+    e = d;
+    d = c;
+    c = ROTL_30(b);
+    b = a;
+    a = w;
+  }
+
+  /* store hash */
+  ctx->hashes[0] += a;
+  ctx->hashes[1] += b;
+  ctx->hashes[2] += c;
+  ctx->hashes[3] += d;
+  ctx->hashes[4] += e;
+
+  /* clear buffer */
+  memset(ctx->buffer.bytes, 0, sizeof(ctx->buffer.bytes));
+  ctx->buffer.length = 0;
 }

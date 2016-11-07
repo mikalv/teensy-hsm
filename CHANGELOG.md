@@ -1,5 +1,8 @@
 # Changelog
 
+## Nov 07, 2016
+- Implemented HMAC-SHA1 generatiion command (limited to phantom key handle 0xffffffff)
+
 ## Oct 25, 2016
  - Implemented ECB decrypt and compare command
 
