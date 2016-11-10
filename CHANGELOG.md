@@ -5,6 +5,7 @@
 - Added keystore decryption command (dummy command, need to add implementation)
 - Fixed HMAC-SHA1 generation
 - Added ADC rng based nonce get command
+- Added aead_generate command (limited to phantom key handle 0xffffffff)
 
 ## Nov 07, 2016
 - Implemented HMAC-SHA1 generation command (limited to phantom key handle 0xffffffff)
@@ -16,8 +17,8 @@
 - Whiten ADC noise with CRC32
 
 ## Oct 23, 2016
-- Implemented ECB encryption command (static dummy key)
-- Implemented ECB decryption command (static dummy key)
+- Implemented ECB encryption command (limited to phantom key handle 0xffffffff)
+- Implemented ECB decryption command (limited to phantom key handle 0xffffffff)
 - Implemented buffer load command
 - Implemented buffer random load command
 

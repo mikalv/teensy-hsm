@@ -6,15 +6,16 @@ A Teensyduino based Yubikey HSM emulator.
 - Echo
 - Random Generation
 - Random Reseed
-- ECB Encryption (dummy static key)
-- ECB Decryption (dummy static key)
-- ECB decrypt & compare (dummy static key)
+- ECB Encryption (limited to phantom key handle 0xffffffff)
+- ECB Decryption (limited to phantom key handle 0xffffffff)
+- ECB decrypt & compare (limited to phantom key handle 0xffffffff)
 - Buffer loading
 - Buffer random loading
-- HMAC-SHA1 (limited to phantom key handle)
+- HMAC-SHA1 (limited to phantom key handle 0xffffffff)
 - HSM unlock (dummy command)
 - Keystore decrypt (dummy command)
 - Nonce get (nonce returned from ADC rng)
+- AEAD generate (limited to phantom key handle 0xffffffff)
 
 ## How to Flash
 - Get Teensy duino [v3.1](http://www.pjrc.com/store/teensy31.html) or [v3.2](http://www.pjrc.com/store/teensy32.html)

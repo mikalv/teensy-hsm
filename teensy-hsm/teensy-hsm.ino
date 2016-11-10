@@ -9,6 +9,7 @@
 //              - Added keystore decryption command (dummy command, need to add implementation)
 //              - Fixed HMAC-SHA1 generation
 //              - Added ADC rng based nonce get command
+//              - Added aead_generate command (limited to phantom key handle 0xffffffff)
 //
 // Nov 07, 2016 - Implemented HMAC-SHA1 generation command (limited to phantom key handle 0xffffffff)
 //
@@ -16,8 +17,8 @@
 //
 // Oct 24, 2016 - Whiten ADC noise with CRC32
 //
-// Oct 23, 2016 - Implemented ECB encryption command (static dummy key)
-//              - Implemented ECB decryption command (static dummy key)
+// Oct 23, 2016 - Implemented ECB encryption command (limited to phantom key handle 0xffffffff)
+//              - Implemented ECB decryption command (limited to phantom key handle 0xffffffff)
 //              - Implemented buffer load command
 //              - Implemented buffer random load command
 //
@@ -271,6 +272,13 @@ typedef struct {
   uint8_t post_inc[sizeof(uint16_t)];
 } THSM_NONCE_GET_REQ;
 
+typedef struct {
+  uint8_t nonce[THSM_AEAD_NONCE_SIZE];
+  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t data_len;
+  uint8_t data[THSM_AEAD_MAX_SIZE];
+} THSM_AEAD_GENERATE_REQ;
+
 typedef struct
 {
   uint8_t data_len;
@@ -340,6 +348,14 @@ typedef struct {
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
 } THSM_NONCE_GET_RESP;
 
+typedef struct {
+  uint8_t nonce[THSM_AEAD_NONCE_SIZE];
+  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t status;
+  uint8_t data_len;
+  uint8_t data[THSM_AEAD_MAX_SIZE];
+} THSM_AEAD_GENERATE_RESP;
+
 typedef union
 {
   uint8_t                        raw[THSM_MAX_PKT_SIZE];
@@ -355,6 +371,7 @@ typedef union
   THSM_HSM_UNLOCK_REQ            hsm_unlock;
   THSM_KEY_STORE_DECRYPT_REQ     key_store_decrypt;
   THSM_NONCE_GET_REQ             nonce_get;
+  THSM_AEAD_GENERATE_REQ         aead_generate;
 } THSM_PAYLOAD_REQ;
 
 typedef union
@@ -373,6 +390,7 @@ typedef union
   THSM_HSM_UNLOCK_RESP            hsm_unlock;
   THSM_KEY_STORE_DECRYPT_RESP     key_store_decrypt;
   THSM_NONCE_GET_RESP             nonce_get;
+  THSM_AEAD_GENERATE_RESP         aead_generate;
 } THSM_PAYLOAD_RESP;
 
 typedef struct
@@ -721,6 +739,8 @@ static const uint8_t DUMMY_KEY[THSM_BLOCK_SIZE] = {0x2b, 0x7e, 0x15, 0x16, 0x28,
                                                    0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c
                                                   };
 
+static const uint8_t null_nonce[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
 //--------------------------------------------------------------------------------------------------
 // Global Variables
 //--------------------------------------------------------------------------------------------------
@@ -842,6 +862,7 @@ static void execute_cmd()
   switch (request.cmd)
   {
     case THSM_CMD_AEAD_GENERATE:
+      cmd_aead_generate();
       break;
     case THSM_CMD_BUFFER_AEAD_GENERATE:
       break;
@@ -978,7 +999,7 @@ static void cmd_ecb_encrypt() {
     memcpy(pt.bytes, request.payload.ecb_encrypt.plaintext, sizeof(request.payload.ecb_encrypt.plaintext));
 
     /* perform encryption */
-    aes128_encrypt(&ct, &pt, &ck);
+    aes_ecb_encrypt(&ct, &pt, &ck);
     memcpy(response.payload.ecb_encrypt.ciphertext, ct.bytes, sizeof(ct.bytes));
   }
 
@@ -1052,7 +1073,7 @@ static void cmd_ecb_decrypt() {
     memcpy(ct.bytes, request.payload.ecb_decrypt.ciphertext, sizeof(request.payload.ecb_decrypt.ciphertext));
 
     /* perform decryption */
-    aes128_decrypt(&pt, &ct, &ck);
+    aes_ecb_decrypt(&pt, &ct, &ck);
     memcpy(response.payload.ecb_decrypt.plaintext, pt.bytes, sizeof(pt.bytes));
   }
 
@@ -1081,7 +1102,7 @@ static void cmd_ecb_decrypt_cmp() {
     memcpy(ct.bytes, request.payload.ecb_decrypt_cmp.ciphertext, sizeof(request.payload.ecb_decrypt_cmp.ciphertext));
 
     /* perform decryption */
-    aes128_decrypt(&pt, &ct, &ck);
+    aes_ecb_decrypt(&pt, &ct, &ck);
 
     /* compare plaintext */
     int match = memcmp(pt.bytes, request.payload.ecb_decrypt_cmp.plaintext, sizeof(request.payload.ecb_decrypt_cmp.plaintext));
@@ -1192,6 +1213,51 @@ static void cmd_nonce_get() {
   Serial.write((const char *)&response, response.bcnt + 1);
 }
 
+static void cmd_aead_generate() {
+  /* prepare response */
+  response.bcnt = (sizeof(response.payload.aead_generate) - sizeof(request.payload.aead_generate.data)) + 1;
+  response.cmd = request.cmd | THSM_FLAG_RESPONSE;
+  response.payload.aead_generate.status = THSM_STATUS_OK;
+  response.payload.aead_generate.data_len = 0;
+  memcpy(response.payload.aead_generate.key_handle, request.payload.aead_generate.key_handle, sizeof(request.payload.aead_generate.key_handle));
+  memcpy(response.payload.aead_generate.nonce, request.payload.aead_generate.nonce, sizeof(request.payload.aead_generate.nonce));
+  memset(response.payload.aead_generate.data, 0, sizeof(response.payload.aead_generate.data));
+
+  /* get key handle */
+  uint32_t key_handle = read_uint32(request.payload.aead_generate.key_handle);
+
+  if (request.bcnt > (sizeof(request.payload.aead_generate) + 1)) {
+    response.payload.aead_generate.status = THSM_STATUS_INVALID_PARAMETER;
+  } else if (key_handle != 0xffffffff) {
+    response.payload.aead_generate.status = THSM_STATUS_KEY_HANDLE_INVALID;
+  } else if (request.payload.aead_generate.data_len < 1) {
+    response.payload.aead_generate.status = THSM_STATUS_INVALID_PARAMETER;
+  } else if (request.payload.aead_generate.data_len > sizeof(request.payload.aead_generate.data)) {
+    response.payload.aead_generate.status = THSM_STATUS_INVALID_PARAMETER;
+  } else {
+    /* generate nonce */
+    if (memcmp(response.payload.aead_generate.nonce, null_nonce, sizeof(null_nonce)) == 0) {
+      adc_rng_read(response.payload.aead_generate.nonce, sizeof(response.payload.aead_generate.nonce));
+    }
+
+    /* FIXME load proper key */
+    aes_ccm_generate(response.payload.aead_generate.data,
+                     request.payload.aead_generate.data,
+                     request.payload.aead_generate.data_len,
+                     request.payload.aead_generate.key_handle,
+                     &phantom_key,
+                     request.payload.aead_generate.nonce);
+
+    response.payload.aead_generate.data_len = request.payload.aead_generate.data_len + 8;
+    response.bcnt += response.payload.aead_generate.data_len;
+    response.payload.aead_generate.status = THSM_STATUS_OK;
+  }
+
+  /* send response */
+  Serial.write((const char *)&response, response.bcnt + 1);
+}
+
+
 //--------------------------------------------------------------------------------------------------
 // Helper
 //--------------------------------------------------------------------------------------------------
@@ -1247,9 +1313,35 @@ static void adc_rng_read(uint8_t *p_buffer, uint32_t len)
 }
 
 //--------------------------------------------------------------------------------------------------
-// AES-128 block cipher
+// AES-ECB block cipher
 //--------------------------------------------------------------------------------------------------
-static void aes128_init(aes_subkeys_t *sk, aes_state_t *ck) {
+static void aes_ecb_encrypt(aes_state_t *ct, aes_state_t *pt, aes_state_t *ck) {
+  aes_subkeys_t sk;
+
+  /* derive sub-keys */
+  aes_init(&sk, ck);
+
+  /* encrypt */
+  aes_encrypt(ct, pt, &sk);
+
+  /* cleanup subkeys */
+  memset(&sk, 0, sizeof(sk));
+}
+
+static void aes_ecb_decrypt(aes_state_t *pt, aes_state_t *ct, aes_state_t *ck) {
+  aes_subkeys_t sk;
+
+  /* derive sub-keys */
+  aes_init(&sk, ck);
+
+  /* decrypt */
+  aes_decrypt(pt, ct, &sk);
+
+  /* cleanup subkeys */
+  memset(&sk, 0, sizeof(sk));
+}
+
+static void aes_init(aes_subkeys_t *sk, aes_state_t *ck) {
   aes_state_t *src = &(sk->keys[0]);
   aes_state_t *dst = &(sk->keys[1]);
 
@@ -1282,23 +1374,10 @@ static void aes128_init(aes_subkeys_t *sk, aes_state_t *ck) {
   }
 }
 
-static void aes128_cleanup(aes_subkeys_t *sk) {
-  for (int i = 0; i < 11; i++) {
-    sk->keys[i].words[0] = 0;
-    sk->keys[i].words[1] = 0;
-    sk->keys[i].words[2] = 0;
-    sk->keys[i].words[3] = 0;
-  }
-}
-
-static void aes128_encrypt(aes_state_t *ct, aes_state_t *pt, aes_state_t *ck) {
+static void aes_encrypt(aes_state_t *ct, aes_state_t *pt, aes_subkeys_t *sk) {
   aes_state_t tmp;
-  aes_subkeys_t sk;
 
-  /* derive sub-keys */
-  aes128_init(&sk, ck);
-
-  aes_state_t *key = &(sk.keys[0]);
+  aes_state_t *key = &(sk->keys[0]);
   tmp.words[0] = pt->words[0] ^ key->words[0];
   tmp.words[1] = pt->words[1] ^ key->words[1];
   tmp.words[2] = pt->words[2] ^ key->words[2];
@@ -1308,18 +1387,12 @@ static void aes128_encrypt(aes_state_t *ct, aes_state_t *pt, aes_state_t *ck) {
     aes_encrypt_step(&tmp, ++key);
   }
   aes_encrypt_final(ct, &tmp, ++key);
-
-  aes128_cleanup(&sk);
 }
 
-static void aes128_decrypt(aes_state_t *pt, aes_state_t *ct, aes_state_t *ck) {
+static void aes_decrypt(aes_state_t *pt, aes_state_t *ct, aes_subkeys_t *sk) {
   aes_state_t tmp;
-  aes_subkeys_t sk;
 
-  /* derive sub-keys */
-  aes128_init(&sk, ck);
-
-  aes_state_t *key = &(sk.keys[10]);
+  aes_state_t *key = &(sk->keys[10]);
 
   tmp.words[0] = ct->words[0] ^ key->words[0];
   tmp.words[1] = ct->words[1] ^ key->words[1];
@@ -1331,8 +1404,6 @@ static void aes128_decrypt(aes_state_t *pt, aes_state_t *ct, aes_state_t *ck) {
     aes_decrypt_step(&tmp, --key);
   }
   aes_decrypt_final(pt, &tmp, --key);
-
-  aes128_cleanup(&sk);
 }
 
 static void aes_encrypt_step(aes_state_t *s, aes_state_t *k) {
@@ -1438,20 +1509,99 @@ static void aes_decrypt_final(aes_state_t *p, aes_state_t *s, aes_state_t *k) {
   s->words[3] = 0;
 }
 
-static void hmac_sha1_init(hmac_sha1_ctx_t *ctx, uint8_t *key, uint32_t length)
+//--------------------------------------------------------------------------------------------------
+// AES-CCM block cipher
+//--------------------------------------------------------------------------------------------------
+static uint8_t aes_ccm_generate(uint8_t *ct, uint8_t *pt, uint8_t len, uint8_t *kh, aes_state_t *ck, uint8_t *nonce) {
+  aes_subkeys_t sk;
+  aes_state_t tmp;
+  aes_state_t mac_in, mac_out;
+  aes_state_t cipher_in, cipher_out;
+
+  /* set MAC IV */
+  memset(&mac_in, 0, sizeof(mac_in));
+  mac_in.bytes[0] = 0x19; /* 8 bytes mac and 2 bytes counter */
+  memcpy(&(mac_in.bytes[1]), kh,    4);
+  memcpy(&(mac_in.bytes[5]), nonce, 6);
+  mac_in.bytes[15] = len;
+
+  /* set cipher IV */
+  memset(&cipher_in, 0, sizeof(cipher_in));
+  cipher_in.bytes[0] = 0x01; /* 2 bytes counter */
+  memcpy(&(cipher_in.bytes[1]), kh,    4);
+  memcpy(&(cipher_in.bytes[5]), nonce, 6);
+  cipher_in.bytes[15] = 1;
+
+  /* derive subkeys */
+  aes_init(&sk, ck);
+
+  /* derive sub-keys */
+  uint8_t remaining = len;
+  while (remaining-- > 0) {
+    /* load plaintext */
+    uint8_t step = (remaining > 16) ? 16 : remaining;
+    for (int i = 0; i < sizeof(tmp); i++) {
+      tmp.bytes[i] = (i < step) ? *pt++ : 0;
+    }
+
+    /* perform encryption */
+    aes_encrypt(&mac_out, &mac_in, &sk);
+    aes_encrypt(&cipher_out, &cipher_in, &sk);
+
+    /* xor mac stream with plaintext */
+    mac_in.words[1] = mac_out.words[0] ^ tmp.words[0];
+    mac_in.words[1] = mac_out.words[1] ^ tmp.words[1];
+    mac_in.words[2] = mac_out.words[2] ^ tmp.words[2];
+    mac_in.words[3] = mac_out.words[3] ^ tmp.words[3];
+
+    /* xor cipher stream with plaintext */
+    for (int j = 0; j < 16; j++) {
+      *ct++ = cipher_out.bytes[j] ^ tmp.bytes[j];
+    }
+
+    if (cipher_in.bytes[15] == 0xff) {
+      cipher_in.bytes[15] = 0;
+      cipher_in.bytes[14]++;
+    } else {
+      cipher_in.bytes[15]++;
+    }
+
+    /* update counter */
+    remaining -= step;
+  }
+
+  /* set MAC iv */
+  memset(&mac_in, 0, sizeof(mac_in));
+  mac_in.bytes[0] = 0x19; /* 8 bytes mac and 2 bytes counter */
+  memcpy(&(mac_in.bytes[1]), kh,    4);
+  memcpy(&(mac_in.bytes[5]), nonce, 6);
+
+  /* perform encryption */
+  aes_encrypt(&tmp, &mac_in, &sk);
+
+  /* append mac mac to ciphertext result */
+  for (int j = 0; j < 8; j++) {
+    *ct++ = mac_out.bytes[j] ^ tmp.bytes[j];
+  }
+}
+
+//--------------------------------------------------------------------------------------------------
+// HMAC-SHA1
+//--------------------------------------------------------------------------------------------------
+static void hmac_sha1_init(hmac_sha1_ctx_t *ctx, uint8_t *key, uint8_t len)
 {
   /* clear and initialize context */
   memset(ctx, 0, sizeof(hmac_sha1_ctx_t));
 
-  if (length > sizeof(ctx->key))
+  if (len > sizeof(ctx->key))
   {
     sha1_init(&(ctx->hash));
-    sha1_update(&(ctx->hash), key, length);
+    sha1_update(&(ctx->hash), key, len);
     sha1_final(&(ctx->hash), ctx->key);
   }
   else
   {
-    memcpy(ctx->key, key, length);
+    memcpy(ctx->key, key, len);
   }
 
   /* xor key with ipad */
@@ -1466,10 +1616,10 @@ static void hmac_sha1_init(hmac_sha1_ctx_t *ctx, uint8_t *key, uint32_t length)
   sha1_update(&(ctx->hash), tmp, sizeof(tmp));
 }
 
-static void hmac_sha1_update(hmac_sha1_ctx_t *ctx, uint8_t *data, uint32_t length)
+static void hmac_sha1_update(hmac_sha1_ctx_t *ctx, uint8_t *data, uint8_t len)
 {
   /* update hash */
-  sha1_update(&(ctx->hash), data, length);
+  sha1_update(&(ctx->hash), data, len);
 }
 
 static void hmac_sha1_final(hmac_sha1_ctx_t *ctx, uint8_t *mac)
@@ -1493,6 +1643,9 @@ static void hmac_sha1_final(hmac_sha1_ctx_t *ctx, uint8_t *mac)
   sha1_final(&(ctx->hash), mac);
 }
 
+//--------------------------------------------------------------------------------------------------
+// SHA1
+//--------------------------------------------------------------------------------------------------
 static void sha1_init(sha1_ctx_t *ctx)
 {
   memset(ctx, 0, sizeof(sha1_ctx_t));
@@ -1503,7 +1656,7 @@ static void sha1_init(sha1_ctx_t *ctx)
   ctx->hashes[4] = 0xc3d2e1f0;
 }
 
-static void sha1_update(sha1_ctx_t *state, uint8_t *data, uint32_t length)
+static void sha1_update(sha1_ctx_t *state, uint8_t *data, uint8_t length)
 {
   /* update total length */
   state->msg_length += length;
