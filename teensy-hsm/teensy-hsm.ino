@@ -8,6 +8,7 @@
 // Nov 10, 2016 - Added hsm unlock command (dummy command, need to add implementation)
 //              - Added keystore decryption command (dummy command, need to add implementation)
 //              - Fixed HMAC-SHA1 generation
+//              - Added ADC rng based nonce get command
 //
 // Nov 07, 2016 - Implemented HMAC-SHA1 generation command (limited to phantom key handle 0xffffffff)
 //
@@ -266,6 +267,10 @@ typedef struct {
   uint8_t key[THSM_MAX_KEY_SIZE];
 } THSM_KEY_STORE_DECRYPT_REQ;
 
+typedef struct {
+  uint8_t post_inc[sizeof(uint16_t)];
+} THSM_NONCE_GET_REQ;
+
 typedef struct
 {
   uint8_t data_len;
@@ -330,6 +335,11 @@ typedef struct {
   uint8_t status;
 } THSM_KEY_STORE_DECRYPT_RESP;
 
+typedef struct {
+  uint8_t status;
+  uint8_t nonce[THSM_AEAD_NONCE_SIZE];
+} THSM_NONCE_GET_RESP;
+
 typedef union
 {
   uint8_t                        raw[THSM_MAX_PKT_SIZE];
@@ -344,6 +354,7 @@ typedef union
   THSM_HMAC_SHA1_GENERATE_REQ    hmac_sha1_generate;
   THSM_HSM_UNLOCK_REQ            hsm_unlock;
   THSM_KEY_STORE_DECRYPT_REQ     key_store_decrypt;
+  THSM_NONCE_GET_REQ             nonce_get;
 } THSM_PAYLOAD_REQ;
 
 typedef union
@@ -361,6 +372,7 @@ typedef union
   THSM_HMAC_SHA1_GENERATE_RESP    hmac_sha1_generate;
   THSM_HSM_UNLOCK_RESP            hsm_unlock;
   THSM_KEY_STORE_DECRYPT_RESP     key_store_decrypt;
+  THSM_NONCE_GET_RESP             nonce_get;
 } THSM_PAYLOAD_RESP;
 
 typedef struct
@@ -866,6 +878,7 @@ static void execute_cmd()
       cmd_buffer_random_load();
       break;
     case THSM_CMD_NONCE_GET:
+      cmd_nonce_get();
       break;
     case THSM_CMD_ECHO:
       cmd_echo();
@@ -1156,6 +1169,23 @@ static void cmd_key_store_decrypt() {
     response.payload.key_store_decrypt.status = THSM_STATUS_INVALID_PARAMETER;
   } else {
     response.payload.key_store_decrypt.status = THSM_STATUS_OK;
+  }
+
+  /* send response */
+  Serial.write((const char *)&response, response.bcnt + 1);
+}
+
+static void cmd_nonce_get() {
+  /* prepare response */
+  response.bcnt = sizeof(response.payload.nonce_get) + 1;
+  response.cmd = request.cmd | THSM_FLAG_RESPONSE;
+  response.payload.nonce_get.status = THSM_STATUS_OK;
+
+  if (request.bcnt != (sizeof(request.payload.nonce_get) + 1)) {
+    response.payload.nonce_get.status = THSM_STATUS_INVALID_PARAMETER;
+  } else {
+    adc_rng_read(response.payload.nonce_get.nonce, sizeof(response.payload.nonce_get.nonce));
+    response.payload.nonce_get.status = THSM_STATUS_OK;
   }
 
   /* send response */

@@ -4,6 +4,7 @@
 - Added hsm unlock command (dummy command, need to add implementation)
 - Added keystore decryption command (dummy command, need to add implementation)
 - Fixed HMAC-SHA1 generation
+- Added ADC rng based nonce get command
 
 ## Nov 07, 2016
 - Implemented HMAC-SHA1 generation command (limited to phantom key handle 0xffffffff)
