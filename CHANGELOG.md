@@ -1,7 +1,12 @@
 # Changelog
 
+## Nov 10, 2016
+- Added hsm unlock command (dummy command, need to add implementation)
+- Added keystore decryption command (dummy command, need to add implementation)
+- Fixed HMAC-SHA1 generation
+
 ## Nov 07, 2016
-- Implemented HMAC-SHA1 generatiion command (limited to phantom key handle 0xffffffff)
+- Implemented HMAC-SHA1 generation command (limited to phantom key handle 0xffffffff)
 
 ## Oct 25, 2016
  - Implemented ECB decrypt and compare command

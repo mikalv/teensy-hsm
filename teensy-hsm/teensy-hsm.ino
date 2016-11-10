@@ -5,7 +5,11 @@
 //--------------------------------------------------------------------------------------------------
 // Changelog
 //--------------------------------------------------------------------------------------------------
-// Nov 07, 2016 - Implemented HMAC-SHA1 generatiion command (limited to phantom key handle 0xffffffff)
+// Nov 10, 2016 - Added hsm unlock command (dummy command, need to add implementation)
+//              - Added keystore decryption command (dummy command, need to add implementation)
+//              - Fixed HMAC-SHA1 generation
+//
+// Nov 07, 2016 - Implemented HMAC-SHA1 generation command (limited to phantom key handle 0xffffffff)
 //
 // Oct 25, 2016 - Implemented ECB decrypt and compare command
 //
@@ -235,7 +239,6 @@ typedef struct {
   uint8_t plaintext [THSM_BLOCK_SIZE];
 } THSM_ECB_BLOCK_DECRYPT_CMP_REQ;
 
-
 typedef struct {
   uint8_t offset;
   uint8_t data_len;
@@ -253,6 +256,15 @@ typedef struct {
   uint8_t data_len;
   uint8_t data[THSM_MAX_PKT_SIZE - 6];
 } THSM_HMAC_SHA1_GENERATE_REQ;
+
+typedef struct {
+  uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+  uint8_t otp[THSM_OTP_SIZE];
+} THSM_HSM_UNLOCK_REQ;
+
+typedef struct {
+  uint8_t key[THSM_MAX_KEY_SIZE];
+} THSM_KEY_STORE_DECRYPT_REQ;
 
 typedef struct
 {
@@ -310,6 +322,14 @@ typedef struct {
   uint8_t data[THSM_SHA1_HASH_SIZE];
 } THSM_HMAC_SHA1_GENERATE_RESP;
 
+typedef struct {
+  uint8_t status;
+} THSM_HSM_UNLOCK_RESP;
+
+typedef struct {
+  uint8_t status;
+} THSM_KEY_STORE_DECRYPT_RESP;
+
 typedef union
 {
   uint8_t                        raw[THSM_MAX_PKT_SIZE];
@@ -322,6 +342,8 @@ typedef union
   THSM_BUFFER_LOAD_REQ           buffer_load;
   THSM_BUFFER_RANDOM_LOAD_REQ    buffer_random_load;
   THSM_HMAC_SHA1_GENERATE_REQ    hmac_sha1_generate;
+  THSM_HSM_UNLOCK_REQ            hsm_unlock;
+  THSM_KEY_STORE_DECRYPT_REQ     key_store_decrypt;
 } THSM_PAYLOAD_REQ;
 
 typedef union
@@ -337,6 +359,8 @@ typedef union
   THSM_BUFFER_LOAD_RESP           buffer_load;
   THSM_BUFFER_RANDOM_LOAD_RESP    buffer_random_load;
   THSM_HMAC_SHA1_GENERATE_RESP    hmac_sha1_generate;
+  THSM_HSM_UNLOCK_RESP            hsm_unlock;
+  THSM_KEY_STORE_DECRYPT_RESP     key_store_decrypt;
 } THSM_PAYLOAD_RESP;
 
 typedef struct
@@ -856,8 +880,10 @@ static void execute_cmd()
       cmd_info_query();
       break;
     case THSM_CMD_HSM_UNLOCK:
+      cmd_hsm_unlock();
       break;
     case THSM_CMD_KEY_STORE_DECRYPT:
+      cmd_key_store_decrypt();
       break;
     case THSM_CMD_MONITOR_EXIT:
       break;
@@ -918,9 +944,6 @@ static void cmd_random_reseed() {
 }
 
 static void cmd_ecb_encrypt() {
-  /* cap request length */
-  uint8_t max = sizeof(request.payload.ecb_encrypt) + 1;
-
   /* common response values */
   response.bcnt = sizeof(response.payload.ecb_encrypt) + 1;
   response.cmd = request.cmd | THSM_FLAG_RESPONSE;
@@ -928,7 +951,7 @@ static void cmd_ecb_encrypt() {
   memset(response.payload.ecb_encrypt.ciphertext, 0, sizeof(response.payload.ecb_encrypt.ciphertext));
 
   uint32_t key_handle = read_uint32(request.payload.ecb_encrypt.key_handle);
-  if (request.bcnt != max) {
+  if (request.bcnt != (sizeof(request.payload.ecb_encrypt) + 1)) {
     response.payload.ecb_encrypt.status = THSM_STATUS_INVALID_PARAMETER;
   } else if (key_handle != THSM_TEMP_KEY_HANDLE) {
     response.payload.ecb_encrypt.status = THSM_STATUS_KEY_HANDLE_INVALID;
@@ -950,10 +973,9 @@ static void cmd_ecb_encrypt() {
   Serial.write((const char *)&response, response.bcnt + 1);
 }
 
-// xxx
 static void cmd_hmac_sha1_generate() {
   /* set common response */
-  response.bcnt = sizeof(response.payload.hmac_sha1_generate);
+  response.bcnt = sizeof(response.payload.hmac_sha1_generate) + 1;
   response.cmd = request.cmd | THSM_FLAG_RESPONSE;
   memcpy(response.payload.hmac_sha1_generate.key_handle, request.payload.hmac_sha1_generate.key_handle, sizeof(request.payload.hmac_sha1_generate.key_handle));
   memset(response.payload.hmac_sha1_generate.data, 0, sizeof(response.payload.hmac_sha1_generate.data));
@@ -962,7 +984,11 @@ static void cmd_hmac_sha1_generate() {
 
   /* check given key handle */
   uint32_t key_handle = read_uint32(request.payload.hmac_sha1_generate.key_handle);
-  if (key_handle != THSM_TEMP_KEY_HANDLE) {
+  if (request.bcnt > (sizeof(request.payload.hmac_sha1_generate) + 1)) {
+    response.payload.hmac_sha1_generate.status = THSM_STATUS_INVALID_PARAMETER;
+  } else if (request.payload.hmac_sha1_generate.data_len > sizeof(request.payload.hmac_sha1_generate.data)) {
+    response.payload.hmac_sha1_generate.status = THSM_STATUS_INVALID_PARAMETER;
+  } else if (key_handle != THSM_TEMP_KEY_HANDLE) {
     response.payload.hmac_sha1_generate.status = THSM_STATUS_KEY_HANDLE_INVALID;
   } else {
     /* init hmac */
@@ -992,9 +1018,6 @@ static void cmd_hmac_sha1_generate() {
 }
 
 static void cmd_ecb_decrypt() {
-  /* cap request length */
-  uint8_t max = sizeof(request.payload.ecb_decrypt) + 1;
-
   /* common response values */
   response.bcnt = sizeof(response.payload.ecb_decrypt) + 1;
   response.cmd = request.cmd | THSM_FLAG_RESPONSE;
@@ -1002,7 +1025,7 @@ static void cmd_ecb_decrypt() {
   memset(response.payload.ecb_decrypt.plaintext, 0, sizeof(response.payload.ecb_decrypt.plaintext));
 
   uint32_t key_handle = read_uint32(request.payload.ecb_decrypt.key_handle);
-  if (request.bcnt != max) {
+  if (request.bcnt != (sizeof(request.payload.ecb_decrypt) + 1)) {
     response.payload.ecb_decrypt.status = THSM_STATUS_INVALID_PARAMETER;
   } else if (key_handle != THSM_TEMP_KEY_HANDLE) {
     response.payload.ecb_decrypt.status = THSM_STATUS_KEY_HANDLE_INVALID;
@@ -1025,16 +1048,13 @@ static void cmd_ecb_decrypt() {
 }
 
 static void cmd_ecb_decrypt_cmp() {
-  /* cap request length */
-  uint8_t max = sizeof(request.payload.ecb_decrypt_cmp) + 1;
-
   /* common response values */
   response.bcnt = sizeof(response.payload.ecb_decrypt_cmp) + 1;
   response.cmd = request.cmd | THSM_FLAG_RESPONSE;
   memcpy(response.payload.ecb_decrypt_cmp.key_handle, request.payload.ecb_decrypt_cmp.key_handle, sizeof(request.payload.ecb_decrypt_cmp.key_handle));
 
   uint32_t key_handle = read_uint32(request.payload.ecb_decrypt_cmp.key_handle);
-  if (request.bcnt != max) {
+  if (request.bcnt != (sizeof(request.payload.ecb_decrypt_cmp) + 1)) {
     response.payload.ecb_decrypt_cmp.status = THSM_STATUS_INVALID_PARAMETER;
   } else if (key_handle != THSM_TEMP_KEY_HANDLE) {
     response.payload.ecb_decrypt_cmp.status = THSM_STATUS_KEY_HANDLE_INVALID;
@@ -1085,7 +1105,7 @@ static void cmd_buffer_load() {
 }
 
 static void cmd_buffer_random_load() {
-  /* loimit offset */
+  /* limit offset */
   uint8_t max_offset = sizeof(thsm_buffer.data) - 1;
   uint8_t offset = (request.payload.buffer_random_load.offset > max_offset) ? max_offset : request.payload.buffer_random_load.offset;
 
@@ -1101,6 +1121,42 @@ static void cmd_buffer_random_load() {
   response.bcnt = sizeof(response.payload.buffer_random_load) + 1;
   response.cmd = request.cmd | THSM_FLAG_RESPONSE;
   response.payload.buffer_random_load.length = thsm_buffer.data_len;
+
+  /* send response */
+  Serial.write((const char *)&response, response.bcnt + 1);
+}
+
+static void cmd_hsm_unlock() {
+  /* prepare response */
+  response.bcnt = sizeof(response.payload.hsm_unlock) + 1;
+  response.cmd = request.cmd | THSM_FLAG_RESPONSE;
+
+  /* TODO: add implementation */
+
+  /* check request byte count */
+  if (request.bcnt != (sizeof(request.payload.hsm_unlock) + 1)) {
+    response.payload.hsm_unlock.status = THSM_STATUS_INVALID_PARAMETER;
+  } else {
+    response.payload.hsm_unlock.status = THSM_STATUS_OK;
+  }
+
+  /* send response */
+  Serial.write((const char *)&response, response.bcnt + 1);
+}
+
+static void cmd_key_store_decrypt() {
+  /* prepare response */
+  response.bcnt = sizeof(response.payload.key_store_decrypt) + 1;
+  response.cmd = request.cmd | THSM_FLAG_RESPONSE;
+
+  /* TODO: add implementation */
+
+  /* check request byte count */
+  if (request.bcnt != (sizeof(request.payload.key_store_decrypt) + 1)) {
+    response.payload.key_store_decrypt.status = THSM_STATUS_INVALID_PARAMETER;
+  } else {
+    response.payload.key_store_decrypt.status = THSM_STATUS_OK;
+  }
 
   /* send response */
   Serial.write((const char *)&response, response.bcnt + 1);

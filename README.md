@@ -12,6 +12,8 @@ A Teensyduino based Yubikey HSM emulator.
 - Buffer loading
 - Buffer random loading
 - HMAC-SHA1 (limited to phantom key handle)
+- HSM unlock (dummy command)
+- Keystore decrypt (dummy command)
 
 ## How to Flash
 - Get Teensy duino [v3.1](http://www.pjrc.com/store/teensy31.html) or [v3.2](http://www.pjrc.com/store/teensy32.html)
