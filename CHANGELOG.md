@@ -1,5 +1,8 @@
 # Changelog
 
+## Nov 12, 2016
+- wrap AES common operation
+
 ## Nov 10, 2016
 - Added hsm unlock command (dummy command, need to add implementation)
 - Added keystore decryption command (dummy command, need to add implementation)

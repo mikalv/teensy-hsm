@@ -5,6 +5,8 @@
 //--------------------------------------------------------------------------------------------------
 // Changelog
 //--------------------------------------------------------------------------------------------------
+// Nov 12, 2016 - wrap AES common operation
+//
 // Nov 10, 2016 - Added hsm unlock command (dummy command, need to add implementation)
 //              - Added keystore decryption command (dummy command, need to add implementation)
 //              - Fixed HMAC-SHA1 generation
@@ -161,11 +163,6 @@
 //--------------------------------------------------------------------------------------------------
 // Data Structures
 //--------------------------------------------------------------------------------------------------
-typedef struct
-{
-  uint32_t words[SHA1_BLOCK_SIZE_WORDS];
-} sha1_block_t;
-
 typedef struct
 {
   uint8_t bytes[SHA1_BLOCK_SIZE_BYTES];
@@ -730,7 +727,7 @@ static const uint32_t td3[] = {
 
 };
 
-static const uint8_t rcon[] = {
+static const uint8_t rcons[] = {
   0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36
 };
 
@@ -745,12 +742,13 @@ static const uint8_t null_nonce[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 // Global Variables
 //--------------------------------------------------------------------------------------------------
 
+static ADC *adc = new ADC();
+static FastCRC32 CRC32;
+
 static THSM_PKT_REQ request;
 static THSM_PKT_RESP response;
 static aes_state_t phantom_key;
 static THSM_BUFFER thsm_buffer;
-static ADC *adc = new ADC();
-static FastCRC32 CRC32;
 static hmac_sha1_ctx_t hmac_sha1_ctx;
 
 //--------------------------------------------------------------------------------------------------
@@ -1346,14 +1344,11 @@ static void aes_init(aes_subkeys_t *sk, aes_state_t *ck) {
   aes_state_t *dst = &(sk->keys[1]);
 
   /* backup to temporary state */
-  src->words[0] = ck->words[0];
-  src->words[1] = ck->words[1];
-  src->words[2] = ck->words[2];
-  src->words[3] = ck->words[3];
+  aes_state_copy(src, ck);
 
   /* derive subkeys */
-  for (int i = 1; i < 11; i++) {
-    dst->bytes[ 0] = src->bytes[ 0] ^ te[src->bytes[13]] ^ rcon[i];
+  for (int i = 1; i < 11; i++, src++, dst++) {
+    dst->bytes[ 0] = src->bytes[ 0] ^ te[src->bytes[13]] ^ rcons[i];
     dst->bytes[ 1] = src->bytes[ 1] ^ te[src->bytes[14]];
     dst->bytes[ 2] = src->bytes[ 2] ^ te[src->bytes[15]];
     dst->bytes[ 3] = src->bytes[ 3] ^ te[src->bytes[12]];
@@ -1369,8 +1364,6 @@ static void aes_init(aes_subkeys_t *sk, aes_state_t *ck) {
     dst->bytes[13] = src->bytes[13] ^ dst->bytes[ 9];
     dst->bytes[14] = src->bytes[14] ^ dst->bytes[10];
     dst->bytes[15] = src->bytes[15] ^ dst->bytes[11];
-    src++;
-    dst++;
   }
 }
 
@@ -1378,10 +1371,7 @@ static void aes_encrypt(aes_state_t *ct, aes_state_t *pt, aes_subkeys_t *sk) {
   aes_state_t tmp;
 
   aes_state_t *key = &(sk->keys[0]);
-  tmp.words[0] = pt->words[0] ^ key->words[0];
-  tmp.words[1] = pt->words[1] ^ key->words[1];
-  tmp.words[2] = pt->words[2] ^ key->words[2];
-  tmp.words[3] = pt->words[3] ^ key->words[3];
+  aes_state_xor(&tmp, pt, key);
 
   for (int i = 0; i < 9; i++) {
     aes_encrypt_step(&tmp, ++key);
@@ -1393,11 +1383,7 @@ static void aes_decrypt(aes_state_t *pt, aes_state_t *ct, aes_subkeys_t *sk) {
   aes_state_t tmp;
 
   aes_state_t *key = &(sk->keys[10]);
-
-  tmp.words[0] = ct->words[0] ^ key->words[0];
-  tmp.words[1] = ct->words[1] ^ key->words[1];
-  tmp.words[2] = ct->words[2] ^ key->words[2];
-  tmp.words[3] = ct->words[3] ^ key->words[3];
+  aes_state_xor(&tmp, ct, key);
 
   for (int i = 0; i < 9; i++)
   {
@@ -1410,10 +1396,7 @@ static void aes_encrypt_step(aes_state_t *s, aes_state_t *k) {
   aes_state_t t;
 
   /* copy to temporary state */
-  t.words[0] = s->words[0];
-  t.words[1] = s->words[1];
-  t.words[2] = s->words[2];
-  t.words[3] = s->words[3];
+  aes_state_copy(&t, s);
 
   /* shift-row, substitute, mix-column & add-round-key */
   s->words[0] = te0[t.bytes[ 0]] ^ te1[t.bytes[ 5]] ^ te2[t.bytes[10]] ^ te3[t.bytes[15]] ^ k->words[0];
@@ -1472,16 +1455,10 @@ static void aes_encrypt_final(aes_state_t *c, aes_state_t *s, aes_state_t *k) {
   t.bytes[15] = te[s->bytes[11]];
 
   /* final add round key */
-  c->words[0] = t.words[0] ^ k->words[0];
-  c->words[1] = t.words[1] ^ k->words[1];
-  c->words[2] = t.words[2] ^ k->words[2];
-  c->words[3] = t.words[3] ^ k->words[3];
+  aes_state_xor(c, &t, k);
 
   /* cleanup temporary state */
-  t.words[0] = 0;
-  t.words[1] = 0;
-  t.words[2] = 0;
-  t.words[3] = 0;
+  memset(&t, 0, sizeof(t));
 }
 
 static void aes_decrypt_final(aes_state_t *p, aes_state_t *s, aes_state_t *k) {
@@ -1503,10 +1480,21 @@ static void aes_decrypt_final(aes_state_t *p, aes_state_t *s, aes_state_t *k) {
   p->bytes[15] = td[s->bytes[ 3]] ^ k->bytes[15];
 
   /* cleanup temporary state */
-  s->words[0] = 0;
-  s->words[1] = 0;
-  s->words[2] = 0;
-  s->words[3] = 0;
+  memset(s, 0, sizeof(aes_state_t));
+}
+
+static void aes_state_copy(aes_state_t *dst, aes_state_t *src) {
+  dst->words[0] = src->words[0];
+  dst->words[1] = src->words[1];
+  dst->words[2] = src->words[2];
+  dst->words[3] = src->words[3];
+}
+
+static void aes_state_xor(aes_state_t *dst, aes_state_t *src1, aes_state_t *src2) {
+  dst->words[0] = src1->words[0] ^ src2->words[0];
+  dst->words[1] = src1->words[1] ^ src2->words[1];
+  dst->words[2] = src1->words[2] ^ src2->words[2];
+  dst->words[3] = src1->words[3] ^ src2->words[3];
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1723,7 +1711,7 @@ static void sha1_final(sha1_ctx_t *ctx, uint8_t *digest)
 static void sha1_step(sha1_ctx_t *ctx)
 {
 
-  sha1_block_t block;
+  uint32_t words[SHA1_BLOCK_SIZE_WORDS];
   uint32_t a, b, c, d, e;
 
   /* load block */
@@ -1735,7 +1723,7 @@ static void sha1_step(sha1_ctx_t *ctx)
     tmp |= *p2++ << 16;
     tmp |= *p2++ << 8;
     tmp |= *p2++ << 0;
-    block.words[i] = tmp;
+    words[i] = tmp;
   }
 
   /* load hash */
@@ -1749,7 +1737,7 @@ static void sha1_step(sha1_ctx_t *ctx)
   {
     uint32_t w;
 
-    uint32_t t = (i < 16) ? block.words[i] : ROTL_1((ctx->words[i - 3] ^ ctx->words[i - 8] ^ ctx->words[i - 14] ^ ctx->words[i - 16]));
+    uint32_t t = (i < 16) ? words[i] : ROTL_1((ctx->words[i - 3] ^ ctx->words[i - 8] ^ ctx->words[i - 14] ^ ctx->words[i - 16]));
     ctx->words[i] = t;
 
     if (i < 20)
