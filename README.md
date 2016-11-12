@@ -16,6 +16,8 @@ A Teensyduino based Yubikey HSM emulator.
 - Keystore decrypt (dummy command)
 - Nonce get (nonce returned from ADC rng)
 - AEAD generate (limited to phantom key handle 0xffffffff)
+- AEAD generate from buffer (limited to phantom key handle 0xffffffff)
+- AEAD generate from random (limited to phantom key handle 0xffffffff)
 
 ## How to Flash
 - Get Teensy duino [v3.1](http://www.pjrc.com/store/teensy31.html) or [v3.2](http://www.pjrc.com/store/teensy32.html)

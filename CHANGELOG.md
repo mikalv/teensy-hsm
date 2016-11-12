@@ -1,7 +1,9 @@
 # Changelog
 
 ## Nov 12, 2016
-- wrap AES common operation
+- Wrap AES common operation
+- Implemented AEAD buffer generate
+- Implemented AEAD random generate
 
 ## Nov 10, 2016
 - Added hsm unlock command (dummy command, need to add implementation)
