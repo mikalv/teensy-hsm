@@ -1281,7 +1281,7 @@ static void cmd_aead_generate() {
     }
 
     /* FIXME load proper key */
-    aes_ccm_generate(dst_data, src_data, length, dst_nonce, &phantom_key, dst_nonce);
+    aes_ccm_encrypt(dst_data, src_data, length, dst_key, &phantom_key, dst_nonce);
 
     response.payload.aead_generate.data_len = length + THSM_AEAD_MAC_SIZE;
     response.bcnt += response.payload.aead_generate.data_len;
@@ -1322,7 +1322,7 @@ static void cmd_buffer_aead_generate() {
     }
 
     /* FIXME load proper key */
-    aes_ccm_generate(dst_data, thsm_buffer.data, length, dst_key, &phantom_key, dst_nonce);
+    aes_ccm_encrypt(dst_data, thsm_buffer.data, length, dst_key, &phantom_key, dst_nonce);
 
     response.payload.buffer_aead_generate.data_len = (length + THSM_AEAD_MAC_SIZE);
     response.bcnt += response.payload.buffer_aead_generate.data_len;
@@ -1366,7 +1366,7 @@ static void cmd_random_aead_generate() {
     adc_rng_read(random_buffer, random_length);
 
     /* FIXME load proper key */
-    aes_ccm_generate(dst_data, random_buffer, random_length, dst_key, &phantom_key, dst_nonce);
+    aes_ccm_encrypt(dst_data, random_buffer, random_length, dst_key, &phantom_key, dst_nonce);
 
     response.payload.random_aead_generate.data_len = random_length + THSM_AEAD_MAC_SIZE;
     response.bcnt += (random_length + THSM_AEAD_MAC_SIZE);
@@ -1621,7 +1621,7 @@ static void aes_state_xor(aes_state_t *dst, aes_state_t *src1, aes_state_t *src2
 //--------------------------------------------------------------------------------------------------
 // AES-CCM block cipher
 //--------------------------------------------------------------------------------------------------
-static uint8_t aes_ccm_generate(uint8_t *ct, uint8_t *pt, uint8_t len, uint8_t *kh, aes_state_t *ck, uint8_t *nonce) {
+static uint8_t aes_ccm_encrypt(uint8_t *ct, uint8_t *pt, uint8_t len, uint8_t *kh, aes_state_t *ck, uint8_t *nonce) {
   aes_subkeys_t sk;
   aes_state_t tmp;
   aes_state_t mac_in, mac_out;
