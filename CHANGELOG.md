@@ -1,5 +1,9 @@
 # Changelog
 
+## Nov 13, 2016
+- Implemented temporary key loadiong
+- Implemented aead_decrypt_cmp
+
 ## Nov 12, 2016
 - Wrap AES common operation
 - Implemented AEAD buffer generate
