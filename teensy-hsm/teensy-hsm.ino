@@ -1234,6 +1234,9 @@ static void cmd_hsm_unlock() {
 
   /* TODO: add implementation */
 
+  /* clear temporary key */
+  memset(&phantom_key, 0, sizeof(phantom_key));
+
   /* check request byte count */
   if (request.bcnt != (sizeof(request.payload.hsm_unlock) + 1)) {
     response.payload.hsm_unlock.status = THSM_STATUS_INVALID_PARAMETER;
