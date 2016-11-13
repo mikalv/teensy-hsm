@@ -1,5 +1,5 @@
 # teensy-hsm
-A Teensyduino based Yubikey HSM emulator.
+A Teensyduino based Yubikey HSM emulator. This code in under heavy development, some function may not working properly
 
 ## Implemented Commands
 - Get System Information
