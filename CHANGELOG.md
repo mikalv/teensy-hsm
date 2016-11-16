@@ -1,8 +1,10 @@
 # Changelog
 
 ## Nov 13, 2016
-- Implemented temporary key loadiong
+- Implemented temporary key loading
 - Implemented aead_decrypt_cmp
+- Do not send MAC unless its final
+- Clear phantom key on hsm_unlock
 
 ## Nov 12, 2016
 - Wrap AES common operation
