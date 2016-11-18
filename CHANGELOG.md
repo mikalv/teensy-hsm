@@ -10,6 +10,9 @@
     - `sha1.init`
     - `sha1.update`
     - `sha1.final`
+    - `hmac.sha1.init`
+    - `hmac.sha1.update`
+    - `hmac.sha1.final`
 - Fixed `aes_ccm_encrypt` and `aes_ccm_decrypt` implementation issue
 
 

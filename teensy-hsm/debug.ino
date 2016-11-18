@@ -3,8 +3,8 @@
 //--------------------------------------------------------------------------------------------------
 static uint8_t  debug_buffer[512];
 static uint16_t debug_buffer_len = 0;
-static sha1_ctx_t sha1_ctx;
-
+static sha1_ctx_t debug_sha1_ctx;
+static hmac_sha1_ctx_t debug_hmac_sha1_ctx;
 //--------------------------------------------------------------------------------------------------
 // Functions
 //--------------------------------------------------------------------------------------------------
@@ -70,6 +70,12 @@ static void debug_dispatch() {
     ret = debug_sha1_update(debug_buffer + 11);
   } else if (!memcmp(debug_buffer, "sha1.final", 10)) {
     ret = debug_sha1_final(debug_buffer + 10);
+  } else if (!memcmp(debug_buffer, "hmac.sha1.init", 14)) {
+    ret = debug_hmac_sha1_init(debug_buffer + 14);
+  } else if (!memcmp(debug_buffer, "hmac.sha1.update", 16)) {
+    ret = debug_hmac_sha1_update(debug_buffer + 16);
+  } else if (!memcmp(debug_buffer, "hmac.sha1.final", 15)) {
+    ret = debug_hmac_sha1_final(debug_buffer + 15);
   }
 
   if (!ret) {
@@ -222,7 +228,7 @@ static uint8_t debug_aes_ccm_decrypt(uint8_t *buffer) {
 }
 
 uint8_t debug_sha1_init(uint8_t *buffer) {
-  sha1_init(&sha1_ctx);
+  sha1_init(&debug_sha1_ctx);
   Serial.print("ok");
   return 1;
 }
@@ -232,14 +238,45 @@ uint8_t debug_sha1_update(uint8_t *buffer) {
 
   memset(data, 0, sizeof(data));
   uint16_t length = buffer_load_hex(data, &buffer, sizeof(data));
-  sha1_update(&sha1_ctx, data, length);
+  sha1_update(&debug_sha1_ctx, data, length);
   Serial.print("ok");
   return 1;
 }
 
 uint8_t debug_sha1_final(uint8_t *buffer) {
   uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
-  sha1_final(&sha1_ctx, digest);
+  sha1_final(&debug_sha1_ctx, digest);
+  dump_hex(digest, sizeof(digest));
+
+  return 1;
+}
+
+uint8_t debug_hmac_sha1_init(uint8_t *buffer) {
+  uint8_t data[64];
+
+  memset(data, 0, sizeof(data));
+  uint16_t length = buffer_load_hex(data, &buffer, sizeof(data));
+
+  hmac_sha1_init(&debug_hmac_sha1_ctx, data, length);
+  Serial.print("ok");
+  return 1;
+}
+
+uint8_t debug_hmac_sha1_update(uint8_t *buffer) {
+  uint8_t data[64];
+
+  memset(data, 0, sizeof(data));
+  uint16_t length = buffer_load_hex(data, &buffer, sizeof(data));
+
+  hmac_sha1_update(&debug_hmac_sha1_ctx, data, length);
+  Serial.print("ok");
+  return 1;
+
+}
+
+uint8_t debug_hmac_sha1_final(uint8_t *buffer) {
+  uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
+  hmac_sha1_final(&debug_hmac_sha1_ctx, digest);
   dump_hex(digest, sizeof(digest));
 
   return 1;

@@ -12,7 +12,7 @@ void hmac_reset() {
   memset(&hmac_sha1_ctx, 0, sizeof(hmac_sha1_ctx));
 }
 
-void hmac_sha1_init(hmac_sha1_ctx_t *ctx, uint8_t *key, uint8_t len)
+void hmac_sha1_init(hmac_sha1_ctx_t *ctx, uint8_t *key, uint16_t len)
 {
   /* clear and initialize context */
   memset(ctx, 0, sizeof(hmac_sha1_ctx_t));
@@ -40,7 +40,7 @@ void hmac_sha1_init(hmac_sha1_ctx_t *ctx, uint8_t *key, uint8_t len)
   sha1_update(&(ctx->hash), tmp, sizeof(tmp));
 }
 
-void hmac_sha1_update(hmac_sha1_ctx_t *ctx, uint8_t *data, uint8_t len)
+void hmac_sha1_update(hmac_sha1_ctx_t *ctx, uint8_t *data, uint16_t len)
 {
   /* update hash */
   sha1_update(&(ctx->hash), data, len);
