@@ -1,7 +1,15 @@
 # Changelog
 
 ## Nov 18, 2016
-- Implemented `aes.ecb.encrypt`, `aes.ecb.decrypt`, `aes.ccm.encrypt` and `aes.ccm.decrypt` debugging command
+- Implemented The following debugging commands:
+
+    - `aes.ecb.encrypt`
+    - `aes.ecb.decrypt`
+    - `aes.ccm.encrypt`
+    - `aes.ccm.decrypt`
+    - `sha1.init`
+    - `sha1.update`
+    - `sha1.final`
 - Fixed `aes_ccm_encrypt` and `aes_ccm_decrypt` implementation issue
 
 

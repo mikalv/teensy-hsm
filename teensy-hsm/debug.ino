@@ -3,6 +3,7 @@
 //--------------------------------------------------------------------------------------------------
 static uint8_t  debug_buffer[512];
 static uint16_t debug_buffer_len = 0;
+static sha1_ctx_t sha1_ctx;
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -63,6 +64,12 @@ static void debug_dispatch() {
     ret = debug_aes_ccm_encrypt(debug_buffer + 15);
   } else if (!memcmp(debug_buffer, "aes.ccm.decrypt", 15)) {
     ret = debug_aes_ccm_decrypt(debug_buffer + 15);
+  } else if (!memcmp(debug_buffer, "sha1.init", 9)) {
+    ret = debug_sha1_init(debug_buffer + 9);
+  } else if (!memcmp(debug_buffer, "sha1.update", 11)) {
+    ret = debug_sha1_update(debug_buffer + 11);
+  } else if (!memcmp(debug_buffer, "sha1.final", 10)) {
+    ret = debug_sha1_final(debug_buffer + 10);
   }
 
   if (!ret) {
@@ -212,4 +219,28 @@ static uint8_t debug_aes_ccm_decrypt(uint8_t *buffer) {
   dump_hex(plaintext, length);
 
   return matched;
+}
+
+uint8_t debug_sha1_init(uint8_t *buffer) {
+  sha1_init(&sha1_ctx);
+  Serial.print("ok");
+  return 1;
+}
+
+uint8_t debug_sha1_update(uint8_t *buffer) {
+  uint8_t data[64];
+
+  memset(data, 0, sizeof(data));
+  uint16_t length = buffer_load_hex(data, &buffer, sizeof(data));
+  sha1_update(&sha1_ctx, data, length);
+  Serial.print("ok");
+  return 1;
+}
+
+uint8_t debug_sha1_final(uint8_t *buffer) {
+  uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
+  sha1_final(&sha1_ctx, digest);
+  dump_hex(digest, sizeof(digest));
+
+  return 1;
 }
