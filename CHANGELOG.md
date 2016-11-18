@@ -1,5 +1,8 @@
 # Changelog
 
+## Nov 18, 2016
+- Implemented `aes.ecb.encrypt` and `aes.ecb.decrypt` debugging command
+
 ## Nov 13, 2016
 - Implemented temporary key loading
 - Implemented aead_decrypt_cmp

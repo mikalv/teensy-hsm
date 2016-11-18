@@ -8,6 +8,10 @@
 //--------------------------------------------------------------------------------------------------
 // HMAC-SHA1
 //--------------------------------------------------------------------------------------------------
+void hmac_reset() {
+  memset(&hmac_sha1_ctx, 0, sizeof(hmac_sha1_ctx));
+}
+
 void hmac_sha1_init(hmac_sha1_ctx_t *ctx, uint8_t *key, uint8_t len)
 {
   /* clear and initialize context */

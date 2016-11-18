@@ -3,47 +3,6 @@
 // Repo    : https://github.com/edipermadi/teensy-hsm
 
 //--------------------------------------------------------------------------------------------------
-// Changelog
-//--------------------------------------------------------------------------------------------------
-// Nov 13, 2016 - Implemented temporary key loading
-//              - Implemented aead_decrypt_cmp
-//              - Do not send mac unless its final
-//              - Clear phantom key on hsm_unlock
-//
-// Nov 12, 2016 - Wrap AES common operation
-//              - Implemented AEAD buffer generate
-//              - Implemented AEAD random generate
-//
-// Nov 10, 2016 - Added hsm unlock command (dummy command, need to add implementation)
-//              - Added keystore decryption command (dummy command, need to add implementation)
-//              - Fixed HMAC-SHA1 generation
-//              - Added ADC rng based nonce get command
-//              - Added aead_generate command (limited to phantom key handle 0xffffffff)
-//
-// Nov 07, 2016 - Implemented HMAC-SHA1 generation command (limited to phantom key handle 0xffffffff)
-//
-// Oct 25, 2016 - Implemented ECB decrypt and compare command
-//
-// Oct 24, 2016 - Whiten ADC noise with CRC32
-//
-// Oct 23, 2016 - Implemented ECB encryption command (limited to phantom key handle 0xffffffff)
-//              - Implemented ECB decryption command (limited to phantom key handle 0xffffffff)
-//              - Implemented buffer load command
-//              - Implemented buffer random load command
-//
-// Oct 21, 2016 - Request payload buffer overflow checking
-//              - Added random generation command (random taken from ADC noise)
-//              - Added random reseed command (dummy response)
-//
-// Oct 20, 2016 - Fixed echo command
-//              - Fixed information query command
-//              - Rename YHSM_XX to THSM_XX
-//
-// Oct 19, 2016 - Added echo command
-//              - Added information query command
-//
-
-//--------------------------------------------------------------------------------------------------
 // Board Setup
 //--------------------------------------------------------------------------------------------------
 // Setup
@@ -58,13 +17,6 @@
 #include <ADC.h>
 #include <EEPROM.h>
 #include <FastCRC.h>
-
-//--------------------------------------------------------------------------------------------------
-// Hardare Configuration
-//--------------------------------------------------------------------------------------------------
-#define PIN_LED  13
-#define PIN_ADC1 A9
-#define PIN_ADC2 A9
 
 //--------------------------------------------------------------------------------------------------
 // Commands
@@ -126,13 +78,6 @@
 // Flags
 //--------------------------------------------------------------------------------------------------
 #define THSM_FLAG_RESPONSE            0x80
-
-//--------------------------------------------------------------------------------------------------
-// States
-//--------------------------------------------------------------------------------------------------
-#define STATE_WAIT_BCNT     0
-#define STATE_WAIT_CMD      1
-#define STATE_WAIT_PAYLOAD  2
 
 //--------------------------------------------------------------------------------------------------
 // Status Code
@@ -206,6 +151,7 @@ typedef struct {
 } THSM_DB_KEY_ENTRY;
 
 typedef struct {
+  uint8_t hash[SHA1_DIGEST_SIZE_BYTES];
   THSM_DB_KEY_ENTRY entries[THSM_DB_KEY_ENTRIES];
 } THSM_DB_KEYS;
 
@@ -490,24 +436,22 @@ static const uint8_t null_nonce[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 // Global Variables
 //--------------------------------------------------------------------------------------------------
 
-static ADC *adc = new ADC();
-static FastCRC32 CRC32;
-
 static THSM_PKT_REQ    request;
 static THSM_PKT_RESP   response;
+static hmac_sha1_ctx_t hmac_sha1_ctx;
 static uint8_t         phantom_key[THSM_BLOCK_SIZE];
 static THSM_BUFFER     thsm_buffer;
-static hmac_sha1_ctx_t hmac_sha1_ctx;
-static THSM_DB_KEYS    db_keys;
+
 
 //--------------------------------------------------------------------------------------------------
 // Functions
 //--------------------------------------------------------------------------------------------------
 void setup() {
-  pinMode(PIN_LED, OUTPUT);
-  adc_init();
-  Serial.begin(9600);
-  reset();
+  led_init();
+  drbg_init();
+  parser_init();
+  hmac_reset();
+  keystore_init();
 
   /* TODO : implement proper phantom key loading unloading */
   memcpy(phantom_key, DUMMY_KEY, sizeof(DUMMY_KEY));
@@ -515,93 +459,7 @@ void setup() {
 }
 
 void loop() {
-  uint8_t idx = 0;
-  uint8_t remaining = 0;
-  uint8_t state = STATE_WAIT_BCNT;
-  uint8_t zero_ctr = 0;
-
-  while (1) {
-    if (Serial.available()) {
-      // read character from USB
-      uint8_t b = Serial.read();
-
-      /* detect reset */
-      zero_ctr = (!b) ? (zero_ctr + 1) : 0;
-      if (zero_ctr == THSM_MAX_PKT_SIZE)
-      {
-        reset();
-        zero_ctr = 0;
-        state = STATE_WAIT_BCNT;
-        continue;
-      }
-
-      // dispatch state
-      switch (state)
-      {
-        case STATE_WAIT_BCNT:
-          request.bcnt = (b > (THSM_MAX_PKT_SIZE + 1)) ? (THSM_MAX_PKT_SIZE + 1) : b;
-          remaining = b;
-          state = STATE_WAIT_CMD;
-          break;
-
-        case STATE_WAIT_CMD:
-          if (remaining-- > 0)
-          {
-            request.cmd = b;
-            if (!remaining)
-            {
-              execute_cmd();
-              zero_ctr = 0;
-              state = STATE_WAIT_BCNT;
-            }
-            else
-            {
-              idx = 0;
-              state = STATE_WAIT_PAYLOAD;
-            }
-          }
-          else
-          {
-            zero_ctr = 0;
-            state = STATE_WAIT_BCNT;
-          }
-          break;
-
-        case STATE_WAIT_PAYLOAD:
-          if (remaining-- > 0)
-          {
-            /* cap index by THSM_MAX_PKT_SIZE */
-            if (idx < THSM_MAX_PKT_SIZE) {
-              request.payload.raw[idx++] = b;
-            }
-          }
-
-          if (!remaining)
-          {
-            execute_cmd();
-            reset();
-            zero_ctr = 0;
-            state = STATE_WAIT_BCNT;
-          }
-          break;
-      }
-    }
-  }
+  parser_run();
 }
 
-static void reset()
-{
-  memset(&request,       0, sizeof(request));
-  memset(&response,      0, sizeof(response));
-  memset(&hmac_sha1_ctx, 0, sizeof(hmac_sha1_ctx));
-  memset(&db_keys,       0, sizeof(db_keys));
-}
 
-static void adc_init() {
-  pinMode(PIN_ADC1, INPUT); //pin 23 single ended
-  pinMode(PIN_ADC2, INPUT); //pin 23 single ended
-
-  adc->setReference(ADC_REF_1V2, ADC_0);
-  adc->setReference(ADC_REF_1V2, ADC_1);
-  adc->setSamplingSpeed(ADC_HIGH_SPEED);
-}

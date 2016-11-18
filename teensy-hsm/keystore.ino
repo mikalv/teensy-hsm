@@ -1,11 +1,20 @@
 //--------------------------------------------------------------------------------------------------
+// Global Variables
+//--------------------------------------------------------------------------------------------------
+static THSM_DB_KEYS    db_keys;
+
+//--------------------------------------------------------------------------------------------------
 // Key Store
 //--------------------------------------------------------------------------------------------------
+void keystore_init() {
+  memset(&db_keys,       0, sizeof(db_keys));
+
+}
 void keystore_unlock(uint8_t *cipherkey) {
   /* load flash */
   uint8_t tmp1[sizeof(THSM_DB_KEYS)];
   uint8_t tmp2[sizeof(THSM_DB_KEYS)];
-  
+
   flash_read(offsetof(THSM_FLASH_LAYOUT, keys), tmp1, sizeof(tmp1));
 
   /* decrypt flash */
@@ -20,7 +29,7 @@ void keystore_unlock(uint8_t *cipherkey) {
   memset(tmp2, 0, sizeof(tmp2));
 }
 
-uint8_t load_key(uint8_t *dst_key, uint8_t *dst_flags, uint32_t handle) {
+uint8_t keystore_load_key(uint8_t *dst_key, uint8_t *dst_flags, uint32_t handle) {
   /* check if phantom key requested */
   if (handle == 0xffffffff) {
     memcpy(dst_key, &phantom_key, sizeof(phantom_key));

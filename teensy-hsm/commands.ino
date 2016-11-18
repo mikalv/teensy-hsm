@@ -1,7 +1,6 @@
 void execute_cmd()
 {
-  /* switch on LED */
-  digitalWrite(PIN_LED, HIGH);
+  led_on();
 
   /* cleanup response and set flag */
   memset(&response, 0, sizeof(response));
@@ -78,8 +77,7 @@ void execute_cmd()
   /* send data */
   Serial.write((const char *)&response, (response.bcnt + 1));
 
-  /* switch off LED */
-  digitalWrite(PIN_LED, LOW);
+  led_off();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -118,7 +116,7 @@ static void cmd_random_generate() {
 
   response.bcnt = length + 2;
   response.payload.random_generate.bytes_len = length;
-  adc_rng_read(response.payload.random_generate.bytes, length);
+  drbg_read(response.payload.random_generate.bytes, length);
 }
 
 static void cmd_random_reseed() {
@@ -286,7 +284,7 @@ static void cmd_buffer_random_load() {
   uint8_t length      = (curr_length > max_length) ? max_length : curr_length;
 
   /* fill buffer with random */
-  adc_rng_read(&thsm_buffer.data[offset], length);
+  drbg_read(&thsm_buffer.data[offset], length);
   thsm_buffer.data_len = (offset > 0) ? (thsm_buffer.data_len + length) : length;
 
   /* prepare response */
@@ -336,7 +334,7 @@ static void cmd_nonce_get() {
   if (request.bcnt != (sizeof(request.payload.nonce_get) + 1)) {
     response.payload.nonce_get.status = THSM_STATUS_INVALID_PARAMETER;
   } else {
-    adc_rng_read(response.payload.nonce_get.nonce, THSM_AEAD_NONCE_SIZE);
+    drbg_read(response.payload.nonce_get.nonce, THSM_AEAD_NONCE_SIZE);
   }
 }
 
@@ -371,7 +369,7 @@ static void cmd_aead_generate() {
 
     /* generate nonce */
     if (!memcmp(dst_nonce, null_nonce, THSM_AEAD_NONCE_SIZE)) {
-      adc_rng_read(dst_nonce, THSM_AEAD_NONCE_SIZE);
+      drbg_read(dst_nonce, THSM_AEAD_NONCE_SIZE);
     }
 
     /* FIXME load proper key */
@@ -410,7 +408,7 @@ static void cmd_buffer_aead_generate() {
   } else {
     /* generate nonce */
     if (!memcmp(dst_nonce, null_nonce, THSM_AEAD_NONCE_SIZE)) {
-      adc_rng_read(dst_nonce, THSM_AEAD_NONCE_SIZE);
+      drbg_read(dst_nonce, THSM_AEAD_NONCE_SIZE);
     }
 
     /* FIXME load proper key */
@@ -448,12 +446,12 @@ static void cmd_random_aead_generate() {
   } else {
     /* generate nonce */
     if (!memcmp(dst_nonce, null_nonce, THSM_AEAD_NONCE_SIZE)) {
-      adc_rng_read(dst_nonce, THSM_AEAD_NONCE_SIZE);
+      drbg_read(dst_nonce, THSM_AEAD_NONCE_SIZE);
     }
 
     /* genarate random */
     uint8_t random_buffer[THSM_DATA_BUF_SIZE];
-    adc_rng_read(random_buffer, random_length);
+    drbg_read(random_buffer, random_length);
 
     /* FIXME load proper key */
     aes_ccm_encrypt(dst_data, random_buffer, random_length, dst_key, phantom_key, dst_nonce);
@@ -493,7 +491,7 @@ static void cmd_aead_decrypt_cmp() {
   } else {
     /* generate nonce */
     if (!memcmp(dst_nonce, null_nonce, THSM_AEAD_NONCE_SIZE)) {
-      adc_rng_read(dst_nonce, THSM_AEAD_NONCE_SIZE);
+      drbg_read(dst_nonce, THSM_AEAD_NONCE_SIZE);
     }
 
     /* calculate block length */
@@ -561,7 +559,7 @@ static void cmd_temp_key_load() {
 
     /* generate nonce */
     if (!memcmp(dst_nonce, null_nonce, THSM_AEAD_NONCE_SIZE)) {
-      adc_rng_read(dst_nonce, THSM_AEAD_NONCE_SIZE);
+      drbg_read(dst_nonce, THSM_AEAD_NONCE_SIZE);
     }
 
     uint8_t length = data_len - (sizeof(uint32_t) + THSM_AEAD_MAC_SIZE);
