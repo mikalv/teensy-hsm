@@ -12,8 +12,8 @@ static void write_uint32(uint8_t *d, uint32_t v) {
   *d++ = (uint8_t)(v >> 0);
 }
 
-uint8_t buffer_load_hex(uint8_t *dst, uint8_t **src, uint16_t length) {
-  uint8_t c, v;
+uint16_t buffer_load_hex(uint8_t *dst, uint8_t **src, uint16_t length) {
+  uint8_t c, v, parsed;
   uint8_t *ptr = *src;
 
   /* drop space */
@@ -29,6 +29,7 @@ uint8_t buffer_load_hex(uint8_t *dst, uint8_t **src, uint16_t length) {
   }
 
   /* parse hex string */
+  parsed = 0;
   while (length-- > 0) {
     v = 0;
 
@@ -40,7 +41,8 @@ uint8_t buffer_load_hex(uint8_t *dst, uint8_t **src, uint16_t length) {
     } else if ((c >= 'A') && (c <= 'F')) {
       v |= ((c - 55) << 4);
     } else {
-      return 0;
+      *src = ptr;
+      return parsed;
     }
 
     c = *ptr++;
@@ -51,15 +53,17 @@ uint8_t buffer_load_hex(uint8_t *dst, uint8_t **src, uint16_t length) {
     } else if ((c >= 'A') && (c <= 'F')) {
       v |= (c - 55);
     } else {
-      return 0;
+      *src = ptr;
+      return parsed;
     }
 
     *dst++ = v;
+    parsed++;
   }
 
   /* store pointer */
   *src = ptr;
-  return 1;
+  return parsed;
 }
 
 void dump_hex(uint8_t *data, uint16_t data_len) {

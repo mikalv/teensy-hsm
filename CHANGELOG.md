@@ -1,7 +1,9 @@
 # Changelog
 
 ## Nov 18, 2016
-- Implemented `aes.ecb.encrypt` and `aes.ecb.decrypt` debugging command
+- Implemented `aes.ecb.encrypt`, `aes.ecb.decrypt`, `aes.ccm.encrypt` and `aes.ccm.decrypt` debugging command
+- Fixed `aes_ccm_encrypt` and `aes_ccm_decrypt` implementation issue
+
 
 ## Nov 13, 2016
 - Implemented temporary key loading

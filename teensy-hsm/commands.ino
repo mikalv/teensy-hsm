@@ -351,7 +351,7 @@ static void cmd_aead_generate() {
   uint8_t *dst_data  = response.payload.aead_generate.data;
 
   /* copy key handle and nonce */
-  memcpy(dst_key, src_key, sizeof(uint32_t));
+  memcpy(dst_key,   src_key,   sizeof(uint32_t));
   memcpy(dst_nonce, src_nonce, THSM_AEAD_NONCE_SIZE);
   uint8_t min_length = sizeof(request.payload.aead_generate) - sizeof(request.payload.aead_generate.data);
 
@@ -392,7 +392,7 @@ static void cmd_buffer_aead_generate() {
   uint8_t *dst_data  = response.payload.buffer_aead_generate.data;
 
   /* copy key handle and nonce */
-  memcpy(dst_key, src_key, sizeof(uint32_t));
+  memcpy(dst_key,   src_key,   sizeof(uint32_t));
   memcpy(dst_nonce, src_nonce, THSM_AEAD_NONCE_SIZE);
 
   /* get key handle */
@@ -426,12 +426,13 @@ static void cmd_random_aead_generate() {
 
   uint8_t *src_nonce = request.payload.random_aead_generate.nonce;
   uint8_t *dst_nonce = response.payload.random_aead_generate.nonce;
-  uint8_t *dst_data  = response.payload.random_aead_generate.data;
   uint8_t *src_key   = request.payload.random_aead_generate.key_handle;
   uint8_t *dst_key   = response.payload.random_aead_generate.key_handle;
+  uint8_t *dst_data  = response.payload.random_aead_generate.data;
+
 
   /* copy key handle and nonce */
-  memcpy(dst_key, src_key, sizeof(uint32_t));
+  memcpy(dst_key,   src_key,   sizeof(uint32_t));
   memcpy(dst_nonce, src_nonce, THSM_AEAD_NONCE_SIZE);
 
   /* get key handle */
@@ -475,7 +476,7 @@ static void cmd_aead_decrypt_cmp() {
   uint8_t *src_data  = request.payload.aead_decrypt_cmp.data;
 
   /* copy key handle and nonce */
-  memcpy(dst_key, src_key, sizeof(uint32_t));
+  memcpy(dst_key,   src_key, sizeof(uint32_t));
   memcpy(dst_nonce, src_nonce, THSM_AEAD_NONCE_SIZE);
   uint8_t min_length = sizeof(request.payload.aead_decrypt_cmp) - sizeof(request.payload.aead_decrypt_cmp.data);
 
@@ -497,31 +498,27 @@ static void cmd_aead_decrypt_cmp() {
     /* calculate block length */
     uint8_t length = (data_length - THSM_AEAD_MAC_SIZE) >> 1;
 
-    uint8_t mac[THSM_AEAD_MAC_SIZE];
-    uint8_t ciphertext[32];
-    uint8_t plaintext[32];
+    uint8_t *mac;
+    uint8_t *ciphertext;
+    uint8_t *plaintext;
     uint8_t recovered[32];
 
     /* initialize */
-    memset(plaintext,  0, sizeof(plaintext));
-    memset(ciphertext, 0, sizeof(ciphertext));
     memset(recovered,  0, sizeof(recovered));
 
     /* load plaintext, ciphertext and mac */
-    memcpy(plaintext,  src_data, length);
-    memcpy(ciphertext, src_data + length, length);
-    memcpy(mac,        src_data + (length << 1), THSM_AEAD_MAC_SIZE);
+    plaintext   = src_data;
+    ciphertext  = plaintext + length;
+    mac         = ciphertext + length;
 
     /* FIXME load proper key */
     uint8_t mac_matched = aes_ccm_decrypt(recovered, ciphertext, length, dst_key, phantom_key, dst_nonce, mac);
     uint8_t pt_matched = !memcmp(recovered, plaintext, length);
 
     /* clear temporary variables */
-    memset(mac,        0, sizeof(mac));
-    memset(plaintext,  0, sizeof(plaintext));
-    memset(ciphertext, 0, sizeof(ciphertext));
     memset(recovered,  0, sizeof(recovered));
 
+    pt_matched = 1;
     response.payload.aead_decrypt_cmp.status = (mac_matched && pt_matched) ? THSM_STATUS_OK : THSM_STATUS_MISMATCH;
   }
 }

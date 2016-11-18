@@ -54,16 +54,23 @@ void debug_run() {
 }
 
 static void debug_dispatch() {
+  uint8_t ret = 0;
   if (!memcmp(debug_buffer, "aes.ecb.encrypt", 15)) {
-    debug_aes_ecb_encrypt(debug_buffer + 15);
+    ret = debug_aes_ecb_encrypt(debug_buffer + 15);
   } else if (!memcmp(debug_buffer, "aes.ecb.decrypt", 15)) {
-    debug_aes_ecb_decrypt(debug_buffer + 15);
-  } else {
+    ret = debug_aes_ecb_decrypt(debug_buffer + 15);
+  } else if (!memcmp(debug_buffer, "aes.ccm.encrypt", 15)) {
+    ret = debug_aes_ccm_encrypt(debug_buffer + 15);
+  } else if (!memcmp(debug_buffer, "aes.ccm.decrypt", 15)) {
+    ret = debug_aes_ccm_decrypt(debug_buffer + 15);
+  }
+
+  if (!ret) {
     Serial.print("err");
   }
 }
 
-static void debug_aes_ecb_encrypt(uint8_t *buffer) {
+static uint8_t debug_aes_ecb_encrypt(uint8_t *buffer) {
   uint8_t plaintext [THSM_BLOCK_SIZE];
   uint8_t ciphertext[THSM_BLOCK_SIZE];
   uint8_t cipherkey [THSM_BLOCK_SIZE];
@@ -73,22 +80,22 @@ static void debug_aes_ecb_encrypt(uint8_t *buffer) {
   memset(ciphertext, 0, sizeof(ciphertext));
   memset(cipherkey,  0, sizeof(cipherkey));
 
-  if (!buffer_load_hex(plaintext, &buffer, sizeof(plaintext))) {
-    Serial.print("err");
-    return;
+  if (buffer_load_hex(plaintext, &buffer, sizeof(plaintext)) != sizeof(plaintext)) {
+    return 0;
   }
 
-  if (!buffer_load_hex(cipherkey, &buffer, sizeof(cipherkey))) {
-    Serial.print("err");
-    return;
+  if (buffer_load_hex(cipherkey, &buffer, sizeof(cipherkey)) != sizeof(cipherkey)) {
+    return 0;
   }
 
   /* perform AES ECB encryption */
   aes_ecb_encrypt(ciphertext, plaintext, cipherkey);
   dump_hex(ciphertext, sizeof(ciphertext));
+
+  return 1;
 }
 
-static void debug_aes_ecb_decrypt(uint8_t *buffer) {
+static uint8_t debug_aes_ecb_decrypt(uint8_t *buffer) {
   uint8_t plaintext [THSM_BLOCK_SIZE];
   uint8_t ciphertext[THSM_BLOCK_SIZE];
   uint8_t cipherkey [THSM_BLOCK_SIZE];
@@ -98,17 +105,111 @@ static void debug_aes_ecb_decrypt(uint8_t *buffer) {
   memset(ciphertext, 0, sizeof(ciphertext));
   memset(cipherkey,  0, sizeof(cipherkey));
 
-  if (!buffer_load_hex(ciphertext, &buffer, sizeof(plaintext))) {
-    Serial.print("err");
-    return;
+  if (buffer_load_hex(ciphertext, &buffer, sizeof(plaintext)) != sizeof(plaintext)) {
+    return 0 ;
   }
 
-  if (!buffer_load_hex(cipherkey, &buffer, sizeof(cipherkey))) {
-    Serial.print("err");
-    return;
+  if (buffer_load_hex(cipherkey, &buffer, sizeof(cipherkey)) != sizeof(cipherkey)) {
+    return 0;
   }
 
   /* perform AES ECB decryption */
   aes_ecb_decrypt(plaintext, ciphertext, cipherkey);
   dump_hex(plaintext, sizeof(plaintext));
+
+  return 1;
+}
+
+static uint8_t debug_aes_ccm_encrypt(uint8_t *buffer) {
+  uint16_t parsed;
+  uint16_t length;
+  uint8_t plaintext  [(THSM_BLOCK_SIZE * 4)];
+  uint8_t ciphertext [(THSM_BLOCK_SIZE * 4) + THSM_AEAD_MAC_SIZE];
+  uint8_t cipherkey  [THSM_BLOCK_SIZE];
+  uint8_t key_handle [sizeof(uint32_t)];
+  uint8_t nonce      [THSM_AEAD_NONCE_SIZE];
+
+  /* clear buffers */
+  memset(plaintext,  0, sizeof(plaintext));
+  memset(ciphertext, 0, sizeof(ciphertext));
+  memset(cipherkey,  0, sizeof(cipherkey));
+  memset(key_handle, 0, sizeof(key_handle));
+  memset(nonce,      0, sizeof(nonce));
+
+  /* parse plaintext */
+  if ((length = buffer_load_hex(plaintext, &buffer, sizeof(plaintext))) == 0) {
+    return 0;
+  }
+
+  /* parse cipherkey */
+  if (buffer_load_hex(cipherkey, &buffer, sizeof(cipherkey)) != sizeof(cipherkey)) {
+    return 0;
+  }
+
+  /* parse key handle */
+  if (buffer_load_hex(key_handle, &buffer, sizeof(key_handle)) != sizeof(key_handle)) {
+    return 0;
+  }
+
+  /* parse nonce */
+  if (buffer_load_hex(nonce, &buffer, sizeof(nonce)) != sizeof(nonce)) {
+    return 0;
+  }
+
+  /* perform AES ECB encryption */
+  aes_ccm_encrypt(ciphertext, plaintext, length, key_handle, cipherkey, nonce);
+  dump_hex(ciphertext, length + THSM_AEAD_MAC_SIZE);
+  return 1;
+}
+
+static uint8_t debug_aes_ccm_decrypt(uint8_t *buffer) {
+  uint16_t parsed;
+  uint16_t length;
+  uint8_t plaintext  [(THSM_BLOCK_SIZE * 4)];
+  uint8_t ciphertext [(THSM_BLOCK_SIZE * 4) + THSM_AEAD_MAC_SIZE];
+  uint8_t cipherkey  [THSM_BLOCK_SIZE];
+  uint8_t key_handle [sizeof(uint32_t)];
+  uint8_t nonce      [THSM_AEAD_NONCE_SIZE];
+  uint8_t *mac;
+
+  /* clear buffers */
+  memset(plaintext,  0, sizeof(plaintext));
+  memset(ciphertext, 0, sizeof(ciphertext));
+  memset(cipherkey,  0, sizeof(cipherkey));
+  memset(key_handle, 0, sizeof(key_handle));
+  memset(nonce,      0, sizeof(nonce));
+
+  /* parse plaintext */
+  if ((parsed = buffer_load_hex(ciphertext, &buffer, sizeof(ciphertext))) == 0) {
+    return 0;
+  }
+
+  if (parsed <= THSM_AEAD_MAC_SIZE) {
+    return 0;
+  }
+
+  /* get length */
+  length = parsed - THSM_AEAD_MAC_SIZE;
+  mac    = ciphertext + length;
+
+  /* parse cipherkey */
+  if (buffer_load_hex(cipherkey, &buffer, sizeof(cipherkey)) != sizeof(cipherkey)) {
+    return 0;
+  }
+
+  /* parse key handle */
+  if (buffer_load_hex(key_handle, &buffer, sizeof(key_handle)) != sizeof(key_handle)) {
+    return 0;
+  }
+
+  /* parse nonce */
+  if (buffer_load_hex(nonce, &buffer, sizeof(nonce)) != sizeof(nonce)) {
+    return 0;
+  }
+
+  /* perform AES ECB encryption */
+  uint8_t matched = aes_ccm_decrypt(plaintext, ciphertext, length, key_handle, cipherkey, nonce, mac);
+  dump_hex(plaintext, length);
+
+  return matched;
 }
