@@ -1,9 +1,9 @@
 //--------------------------------------------------------------------------------------------------
 // Global variables
 //--------------------------------------------------------------------------------------------------
-static uint8_t  debug_buffer[512];
-static uint16_t debug_buffer_len = 0;
-static sha1_ctx_t debug_sha1_ctx;
+static uint8_t         debug_buffer[512];
+static uint16_t        debug_buffer_len = 0;
+static sha1_ctx_t      debug_sha1_ctx;
 static hmac_sha1_ctx_t debug_hmac_sha1_ctx;
 //--------------------------------------------------------------------------------------------------
 // Functions
