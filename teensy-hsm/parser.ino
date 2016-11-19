@@ -48,13 +48,20 @@ void parser_run() {
       {
         parser_reset();
         zero_ctr = 0;
+        tab_ctr  = 0;
         state = STATE_WAIT_BCNT;
         continue;
       }
 #if DEBUG_CONSOLE > 0
       else if (tab_ctr == '\t') {
-        tab_ctr = 0;
         debug_run();
+
+        /* reset parser */
+        parser_reset();
+        zero_ctr = 0;
+        tab_ctr  = 0;
+        state = STATE_WAIT_BCNT;
+        continue;
       }
 #endif
 

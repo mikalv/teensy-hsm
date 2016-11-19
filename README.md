@@ -22,6 +22,20 @@ A Teensyduino based Yubikey HSM emulator. This code in under heavy development, 
 - Temporary key loading
 - Debugging console
 
+## Debugging Commands
+- `aes.ecb.encrypt`
+- `aes.ecb.decrypt`
+- `aes.ccm.encrypt`
+- `aes.ccm.decrypt`
+- `sha1.init`
+- `sha1.update`
+- `sha1.final`
+- `hmac.sha1.init`
+- `hmac.sha1.update`
+- `hmac.sha1.final`
+- `flash.dump`
+- `buffer.dump`
+
 ## How to Flash
 - Get Teensy duino [v3.1](http://www.pjrc.com/store/teensy31.html) or [v3.2](http://www.pjrc.com/store/teensy32.html)
 - Follow Teensyduino [getting started](http://www.pjrc.com/teensy/td_download.html)

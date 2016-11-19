@@ -1,5 +1,8 @@
 # Changelog
 
+## Nov 19, 2016
+- Implemented `flash.dump` debuging command
+- Implemented `buffer.dump` debuging command
 ## Nov 18, 2016
 - Implemented The following debugging commands:
 

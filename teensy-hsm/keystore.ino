@@ -15,7 +15,7 @@ void keystore_unlock(uint8_t *cipherkey) {
   uint8_t tmp1[sizeof(THSM_DB_KEYS)];
   uint8_t tmp2[sizeof(THSM_DB_KEYS)];
 
-  flash_read(offsetof(THSM_FLASH_LAYOUT, keys), tmp1, sizeof(tmp1));
+  flash_read(tmp1, offsetof(THSM_FLASH_LAYOUT, keys), sizeof(tmp1));
 
   /* decrypt flash */
   aes_cbc_decrypt(tmp2, tmp1, sizeof(tmp1), cipherkey);

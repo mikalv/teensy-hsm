@@ -76,6 +76,10 @@ static void debug_dispatch() {
     ret = debug_hmac_sha1_update(debug_buffer + 16);
   } else if (!memcmp(debug_buffer, "hmac.sha1.final", 15)) {
     ret = debug_hmac_sha1_final(debug_buffer + 15);
+  } else if (!memcmp(debug_buffer, "flash.dump", 10)) {
+    ret = debug_flash_dump(debug_buffer + 10);
+  } else if (!memcmp(debug_buffer, "buffer.dump", 11)) {
+    ret = debug_buffer_dump(debug_buffer + 11);
   }
 
   if (!ret) {
@@ -227,13 +231,13 @@ static uint8_t debug_aes_ccm_decrypt(uint8_t *buffer) {
   return matched;
 }
 
-uint8_t debug_sha1_init(uint8_t *buffer) {
+static uint8_t debug_sha1_init(uint8_t *buffer) {
   sha1_init(&debug_sha1_ctx);
   Serial.print("ok");
   return 1;
 }
 
-uint8_t debug_sha1_update(uint8_t *buffer) {
+static uint8_t debug_sha1_update(uint8_t *buffer) {
   uint8_t data[64];
 
   memset(data, 0, sizeof(data));
@@ -243,7 +247,7 @@ uint8_t debug_sha1_update(uint8_t *buffer) {
   return 1;
 }
 
-uint8_t debug_sha1_final(uint8_t *buffer) {
+static uint8_t debug_sha1_final(uint8_t *buffer) {
   uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
   sha1_final(&debug_sha1_ctx, digest);
   dump_hex(digest, sizeof(digest));
@@ -251,7 +255,7 @@ uint8_t debug_sha1_final(uint8_t *buffer) {
   return 1;
 }
 
-uint8_t debug_hmac_sha1_init(uint8_t *buffer) {
+static uint8_t debug_hmac_sha1_init(uint8_t *buffer) {
   uint8_t data[64];
 
   memset(data, 0, sizeof(data));
@@ -262,7 +266,7 @@ uint8_t debug_hmac_sha1_init(uint8_t *buffer) {
   return 1;
 }
 
-uint8_t debug_hmac_sha1_update(uint8_t *buffer) {
+static uint8_t debug_hmac_sha1_update(uint8_t *buffer) {
   uint8_t data[64];
 
   memset(data, 0, sizeof(data));
@@ -278,6 +282,48 @@ uint8_t debug_hmac_sha1_final(uint8_t *buffer) {
   uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
   hmac_sha1_final(&debug_hmac_sha1_ctx, digest);
   dump_hex(digest, sizeof(digest));
+
+  return 1;
+}
+
+static uint8_t debug_flash_dump(uint8_t *buffer) {
+  uint8_t data[2048];
+
+  flash_read(data, 0, sizeof(data));
+
+  for (int i = 0; i < sizeof(data); i++) {
+    uint8_t v = data[i];
+    Serial.print((v >> 4) & 0x0f, HEX);
+    Serial.print((v >> 0) & 0x0f, HEX);
+    if (i == 0) {
+      /* do nothing */
+    } else if (((i + 1) %  32) == 0) {
+      Serial.print("\r\n");
+    } else if (((i + 1) %  4) == 0) {
+      Serial.print(' ');
+    }
+  }
+
+  return 1;
+}
+
+static uint8_t debug_buffer_dump(uint8_t *buffer) {
+  uint16_t length = thsm_buffer.data_len;
+
+  Serial.print("length : ");
+  Serial.println(length);
+  for (int i = 0; i < length; i++) {
+    uint8_t v = thsm_buffer.data[i];
+    Serial.print((v >> 4) & 0x0f, HEX);
+    Serial.print((v >> 0) & 0x0f, HEX);
+    if (i == 0) {
+      /* do nothing */
+    } else if (((i + 1) %  32) == 0) {
+      Serial.print("\r\n");
+    } else if (((i + 1) %  4) == 0) {
+      Serial.print(' ');
+    }
+  }
 
   return 1;
 }
