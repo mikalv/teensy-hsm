@@ -109,6 +109,12 @@
 //--------------------------------------------------------------------------------------------------
 // Data Structures
 //--------------------------------------------------------------------------------------------------
+typedef struct {
+  uint8_t value   [THSM_BLOCK_SIZE];
+  uint8_t key     [THSM_BLOCK_SIZE];
+  uint8_t counter [THSM_CTR_DRBG_SEED_SIZE];
+} drbg_ctx_t;
+
 typedef struct
 {
   uint8_t bytes[SHA1_BLOCK_SIZE_BYTES];

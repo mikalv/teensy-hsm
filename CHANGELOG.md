@@ -1,5 +1,9 @@
 # Changelog
 
+## Nov 20, 2016
+- Implemented SP800-90 based AES-CTR-DRBG
+- Added DRBG reseed implementation to random reseed command 
+
 ## Nov 19, 2016
 - Implemented `flash.dump` debuging command
 - Implemented `buffer.dump` debuging command

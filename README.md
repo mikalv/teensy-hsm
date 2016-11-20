@@ -22,6 +22,12 @@ A Teensyduino based Yubikey HSM emulator. This code in under heavy development, 
 - Temporary key loading
 - Debugging console
 
+## Algorithms
+Teensy HSM uses the following algorithms:
+- AES-128 (ECB,CCM)
+- SHA1-HMAC
+- AES-128 based SP800-90 CTR-DRBG
+
 ## Debugging Commands
 - `aes.ecb.encrypt`
 - `aes.ecb.decrypt`

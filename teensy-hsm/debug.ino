@@ -138,7 +138,6 @@ static uint8_t debug_aes_ecb_decrypt(uint8_t *buffer) {
 }
 
 static uint8_t debug_aes_ccm_encrypt(uint8_t *buffer) {
-  uint16_t parsed;
   uint16_t length;
   uint8_t plaintext  [(THSM_BLOCK_SIZE * 4)];
   uint8_t ciphertext [(THSM_BLOCK_SIZE * 4) + THSM_AEAD_MAC_SIZE];
@@ -291,7 +290,7 @@ static uint8_t debug_flash_dump(uint8_t *buffer) {
 
   flash_read(data, 0, sizeof(data));
 
-  for (int i = 0; i < sizeof(data); i++) {
+  for (uint16_t i = 0; i < sizeof(data); i++) {
     uint8_t v = data[i];
     Serial.print((v >> 4) & 0x0f, HEX);
     Serial.print((v >> 0) & 0x0f, HEX);
@@ -312,7 +311,7 @@ static uint8_t debug_buffer_dump(uint8_t *buffer) {
 
   Serial.print("length : ");
   Serial.println(length);
-  for (int i = 0; i < length; i++) {
+  for (uint16_t i = 0; i < length; i++) {
     uint8_t v = thsm_buffer.data[i];
     Serial.print((v >> 4) & 0x0f, HEX);
     Serial.print((v >> 0) & 0x0f, HEX);

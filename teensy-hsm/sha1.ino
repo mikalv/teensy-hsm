@@ -30,7 +30,7 @@ void hmac_sha1_init(hmac_sha1_ctx_t *ctx, uint8_t *key, uint16_t len)
 
   /* xor key with ipad */
   uint8_t tmp[SHA1_BLOCK_SIZE_BYTES];
-  for (int i = 0; i < sizeof(tmp); i++)
+  for (uint16_t i = 0; i < sizeof(tmp); i++)
   {
     tmp[i] = 0x36 ^ ctx->key[i];
   }
@@ -55,7 +55,7 @@ void hmac_sha1_final(hmac_sha1_ctx_t *ctx, uint8_t *mac)
   sha1_final(&(ctx->hash), digest);
 
   /* xor key with opad */
-  for (int i = 0; i < sizeof(tmp); i++)
+  for (uint16_t i = 0; i < sizeof(tmp); i++)
   {
     tmp[i] = 0x5c ^ ctx->key[i];
   }
@@ -138,7 +138,7 @@ static void sha1_final(sha1_ctx_t *ctx, uint8_t *digest)
   /* run last round */
   sha1_step(ctx);
 
-  for (int i = 0; i < SHA1_DIGEST_SIZE_WORDS; i++)
+  for (uint16_t i = 0; i < SHA1_DIGEST_SIZE_WORDS; i++)
   {
     *digest++ = (uint8_t) (ctx->hashes[i] >> 24);
     *digest++ = (uint8_t) (ctx->hashes[i] >> 16);
@@ -155,7 +155,7 @@ static void sha1_step(sha1_ctx_t *ctx)
 
   /* load block */
   uint8_t *p2 = ctx->buffer.bytes;
-  for (int i = 0; i < SHA1_BLOCK_SIZE_WORDS; i++)
+  for (uint16_t i = 0; i < SHA1_BLOCK_SIZE_WORDS; i++)
   {
     uint32_t tmp = 0;
     tmp |= *p2++ << 24;
@@ -172,7 +172,7 @@ static void sha1_step(sha1_ctx_t *ctx)
   d = ctx->hashes[3];
   e = ctx->hashes[4];
 
-  for (uint32_t i = 0; i < 80; i++)
+  for (uint16_t i = 0; i < 80; i++)
   {
     uint32_t w;
 

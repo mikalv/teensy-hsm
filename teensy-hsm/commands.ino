@@ -122,6 +122,9 @@ static void cmd_random_generate() {
 static void cmd_random_reseed() {
   response.bcnt = 2;
   response.payload.random_reseed.status = THSM_STATUS_OK;
+
+  /* reseed drbg */
+  drbg_reseed(request.payload.random_reseed.seed);
 }
 
 static void cmd_hmac_sha1_generate() {
