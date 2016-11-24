@@ -20,13 +20,15 @@ void execute_cmd()
     case THSM_CMD_AEAD_DECRYPT_CMP:
       cmd_aead_decrypt_cmp();
       break;
-    case THSM_CMD_DB_YUBIKEY_AEAD_STORE:
+    case THSM_CMD_DB_AEAD_STORE:
+      cmd_db_aead_store();
       break;
-    case THSM_CMD_AEAD_YUBIKEY_OTP_DECODE:
+    case THSM_CMD_AEAD_OTP_DECODE:
       break;
     case THSM_CMD_DB_OTP_VALIDATE:
       break;
-    case THSM_CMD_DB_YUBIKEY_AEAD_STORE2:
+    case THSM_CMD_DB_AEAD_STORE2:
+      cmd_db_aead_store2();
       break;
     case THSM_CMD_AES_ECB_BLOCK_ENCRYPT:
       cmd_ecb_encrypt();
@@ -194,7 +196,7 @@ static void cmd_ecb_encrypt() {
     response.payload.ecb_encrypt.status = THSM_STATUS_KEY_HANDLE_INVALID;
   } else {
     /* perform encryption */
-    aes_ecb_encrypt(ciphertext, plaintext, phantom_key);
+    aes_ecb_encrypt(ciphertext, plaintext, phantom_key, THSM_KEY_SIZE);
   }
 }
 
@@ -218,7 +220,7 @@ static void cmd_ecb_decrypt() {
     response.payload.ecb_decrypt.status = THSM_STATUS_KEY_HANDLE_INVALID;
   } else {
     /* perform decryption */
-    aes_ecb_decrypt(plaintext, ciphertext, phantom_key);
+    aes_ecb_decrypt(plaintext, ciphertext, phantom_key, THSM_KEY_SIZE);
   }
 }
 
@@ -243,7 +245,7 @@ static void cmd_ecb_decrypt_cmp() {
 
     /* perform decryption */
     uint8_t recovered[THSM_BLOCK_SIZE];
-    aes_ecb_decrypt(recovered, ciphertext, phantom_key);
+    aes_ecb_decrypt(recovered, ciphertext, phantom_key, THSM_KEY_SIZE);
 
     /* compare plaintext */
     uint8_t matched = memcmp(recovered, plaintext, THSM_BLOCK_SIZE);
@@ -364,7 +366,7 @@ static void cmd_aead_generate() {
   uint8_t length = request.payload.aead_generate.data_len;
   if (request.bcnt != (min_length + request.payload.aead_generate.data_len + 1)) {
     response.payload.aead_generate.status = THSM_STATUS_INVALID_PARAMETER;
-  } else if (key_handle != 0xffffffff) {
+  } else if (key_handle != THSM_TEMP_KEY_HANDLE) {
     response.payload.aead_generate.status = THSM_STATUS_KEY_HANDLE_INVALID;
   } else if ((length < 1) || (length > sizeof(request.payload.aead_generate.data))) {
     response.payload.aead_generate.status = THSM_STATUS_INVALID_PARAMETER;
@@ -376,7 +378,7 @@ static void cmd_aead_generate() {
     }
 
     /* FIXME load proper key */
-    aes_ccm_encrypt(dst_data, src_data, length, dst_key, phantom_key, dst_nonce);
+    aes128_ccm_encrypt(dst_data, NULL, src_data, length, dst_key, phantom_key, dst_nonce);
 
     response.payload.aead_generate.data_len = length + THSM_AEAD_MAC_SIZE;
     response.bcnt += response.payload.aead_generate.data_len;
@@ -404,7 +406,7 @@ static void cmd_buffer_aead_generate() {
   uint8_t length = thsm_buffer.data_len;
   if (request.bcnt != (sizeof(request.payload.buffer_aead_generate) + 1)) {
     response.payload.buffer_aead_generate.status = THSM_STATUS_INVALID_PARAMETER;
-  } else if (key_handle != 0xffffffff) {
+  } else if (key_handle != THSM_TEMP_KEY_HANDLE) {
     response.payload.buffer_aead_generate.status = THSM_STATUS_KEY_HANDLE_INVALID;
   } else if (length < 1) {
     response.payload.buffer_aead_generate.status = THSM_STATUS_INVALID_PARAMETER;
@@ -415,7 +417,7 @@ static void cmd_buffer_aead_generate() {
     }
 
     /* FIXME load proper key */
-    aes_ccm_encrypt(dst_data, thsm_buffer.data, length, dst_key, phantom_key, dst_nonce);
+    aes128_ccm_encrypt(dst_data, NULL, thsm_buffer.data, length, dst_key, phantom_key, dst_nonce);
 
     response.payload.buffer_aead_generate.data_len = (length + THSM_AEAD_MAC_SIZE);
     response.bcnt += response.payload.buffer_aead_generate.data_len;
@@ -443,7 +445,7 @@ static void cmd_random_aead_generate() {
   uint8_t random_length = request.payload.random_aead_generate.random_len;
   if (request.bcnt != (sizeof(request.payload.random_aead_generate) + 1)) {
     response.payload.random_aead_generate.status = THSM_STATUS_INVALID_PARAMETER;
-  } else if (key_handle != 0xffffffff) {
+  } else if (key_handle != THSM_TEMP_KEY_HANDLE) {
     response.payload.random_aead_generate.status = THSM_STATUS_KEY_HANDLE_INVALID;
   } else if ((random_length < 1) || (random_length > THSM_DATA_BUF_SIZE)) {
     response.payload.random_aead_generate.status = THSM_STATUS_INVALID_PARAMETER;
@@ -458,7 +460,7 @@ static void cmd_random_aead_generate() {
     drbg_read(random_buffer, random_length);
 
     /* FIXME load proper key */
-    aes_ccm_encrypt(dst_data, random_buffer, random_length, dst_key, phantom_key, dst_nonce);
+    aes128_ccm_encrypt(dst_data, NULL, random_buffer, random_length, dst_key, phantom_key, dst_nonce);
 
     response.payload.random_aead_generate.data_len = random_length + THSM_AEAD_MAC_SIZE;
     response.bcnt += (random_length + THSM_AEAD_MAC_SIZE);
@@ -488,7 +490,7 @@ static void cmd_aead_decrypt_cmp() {
   uint8_t data_length = request.payload.aead_decrypt_cmp.data_len;
   if (request.bcnt != (min_length + request.payload.aead_decrypt_cmp.data_len + 1)) {
     response.payload.aead_decrypt_cmp.status = THSM_STATUS_INVALID_PARAMETER;
-  } else if (key_handle != 0xffffffff) {
+  } else if (key_handle != THSM_TEMP_KEY_HANDLE) {
     response.payload.aead_decrypt_cmp.status = THSM_STATUS_KEY_HANDLE_INVALID;
   } else if ((data_length < 8) || (data_length > 72) || (data_length & 0x01)) {
     response.payload.aead_decrypt_cmp.status = THSM_STATUS_KEY_HANDLE_INVALID;
@@ -510,18 +512,16 @@ static void cmd_aead_decrypt_cmp() {
     memset(recovered,  0, sizeof(recovered));
 
     /* load plaintext, ciphertext and mac */
-    plaintext   = src_data;
-    ciphertext  = plaintext + length;
-    mac         = ciphertext + length;
+    plaintext  = src_data;
+    ciphertext = plaintext  + length;
+    mac        = ciphertext + length;
 
     /* FIXME load proper key */
-    uint8_t mac_matched = aes_ccm_decrypt(recovered, ciphertext, length, dst_key, phantom_key, dst_nonce, mac);
-    uint8_t pt_matched = !memcmp(recovered, plaintext, length);
+    uint8_t mac_matched = aes128_ccm_decrypt(recovered, ciphertext, length, dst_key, phantom_key, dst_nonce, mac);
+    uint8_t pt_matched  = !memcmp(recovered, plaintext, length);
 
     /* clear temporary variables */
     memset(recovered,  0, sizeof(recovered));
-
-    pt_matched = 1;
     response.payload.aead_decrypt_cmp.status = (mac_matched && pt_matched) ? THSM_STATUS_OK : THSM_STATUS_MISMATCH;
   }
 }
@@ -545,7 +545,7 @@ static void cmd_temp_key_load() {
   uint8_t data_len = request.payload.temp_key_load.data_len;
   if (request.bcnt != sizeof(request.payload.temp_key_load) + 1) {
     response.payload.temp_key_load.status = THSM_STATUS_INVALID_PARAMETER;
-  } else if (key_handle != 0xffffffff) {
+  } else if (key_handle != THSM_TEMP_KEY_HANDLE) {
     response.payload.aead_decrypt_cmp.status = THSM_STATUS_KEY_HANDLE_INVALID;
   } else if ((data_len != 12) || (data_len != 28) || (data_len != 32) || (data_len != 36) || (data_len != 44)) {
     response.payload.temp_key_load.status = THSM_STATUS_INVALID_PARAMETER;
@@ -577,14 +577,12 @@ static void cmd_temp_key_load() {
     memcpy(mac,        src_data + length, THSM_AEAD_MAC_SIZE);
     memcpy(flags,      src_data + length + THSM_AEAD_MAC_SIZE, sizeof(uint32_t));
 
-    uint8_t matched = aes_ccm_decrypt(plaintext, ciphertext, length, dst_key, phantom_key, dst_nonce, mac);
+    uint8_t matched = aes128_ccm_decrypt(plaintext, ciphertext, length, dst_key, phantom_key, dst_nonce, mac);
 
     /* Copy to phantom key */
     /* FIXME: what about 20, 24, and 32 bytes key? */
     if (matched) {
-      for (int i = 0; i < THSM_BLOCK_SIZE; i++) {
-        phantom_key[i] = plaintext[i];
-      }
+      memcpy(phantom_key, plaintext, THSM_KEY_SIZE);
     }
 
     /* clear temporary variables */
@@ -594,5 +592,66 @@ static void cmd_temp_key_load() {
     memset(flags,      0, sizeof(flags));
 
     response.payload.temp_key_load.status = matched ? THSM_STATUS_OK : THSM_STATUS_MISMATCH;
+  }
+}
+
+static void cmd_db_aead_store() {
+  uint8_t *src_key   = request.payload.db_aead_store.key_handle;
+  uint8_t *dst_key   = response.payload.db_aead_store.key_handle;
+  uint8_t *src_data  = request.payload.db_aead_store.aead;
+  uint8_t *src_pub   = request.payload.db_aead_store.public_id;
+  uint8_t *dst_pub   = response.payload.db_aead_store.public_id;
+
+  /* copy key handle and public id */
+  memcpy(dst_key, src_key, sizeof(uint32_t));
+  memcpy(dst_pub, src_pub, THSM_UID_SIZE);
+
+  uint32_t key_handle = read_uint32(request.payload.db_aead_store.key_handle);
+  if (key_handle != THSM_TEMP_KEY_HANDLE) {
+    response.payload.db_aead_store.status = THSM_STATUS_KEY_HANDLE_INVALID;
+  } else {
+    uint8_t length      = (THSM_UID_SIZE + THSM_KEY_SIZE);
+    uint8_t *ciphertext = src_data;
+    uint8_t *mac        = src_data + length;
+    uint8_t recovered[THSM_KEY_SIZE];
+
+    uint8_t matched = aes128_ccm_decrypt(recovered, ciphertext, length, dst_key, phantom_key, src_pub, mac);
+    response.payload.db_aead_store.status = matched ? THSM_STATUS_OK : THSM_STATUS_MISMATCH;
+
+    /* TODO : store decrypted value */
+
+    /* clear recovered */
+    memset(recovered, 0, sizeof(recovered));
+  }
+}
+
+static void cmd_db_aead_store2() {
+  uint8_t *src_key   = request.payload.db_aead_store2.key_handle;
+  uint8_t *dst_key   = response.payload.db_aead_store2.key_handle;
+  uint8_t *src_data  = request.payload.db_aead_store2.aead;
+  uint8_t *src_pub   = request.payload.db_aead_store2.public_id;
+  uint8_t *dst_pub   = response.payload.db_aead_store2.public_id;
+  uint8_t *src_nonce = request.payload.db_aead_store2.nonce;
+
+  /* copy key handle and public id */
+  memcpy(dst_key, src_key, sizeof(uint32_t));
+  memcpy(dst_pub, src_pub, THSM_UID_SIZE);
+
+  uint32_t key_handle = read_uint32(request.payload.db_aead_store2.key_handle);
+  if (key_handle != THSM_TEMP_KEY_HANDLE) {
+    response.payload.db_aead_store2.status = THSM_STATUS_KEY_HANDLE_INVALID;
+  } else {
+    uint8_t length      = (THSM_UID_SIZE + THSM_KEY_SIZE);
+    uint8_t *ciphertext = src_data;
+    uint8_t *mac        = src_data + length;
+    uint8_t recovered[THSM_KEY_SIZE];
+
+    uint8_t matched = aes128_ccm_decrypt(recovered, ciphertext, length, dst_key, phantom_key, src_nonce, mac);
+    response.payload.db_aead_store2.status = matched ? THSM_STATUS_OK : THSM_STATUS_MISMATCH;
+
+    /* TODO : store decrypted value */
+
+    /* clear recovered */
+    memset(recovered, 0, sizeof(recovered));
   }
 }

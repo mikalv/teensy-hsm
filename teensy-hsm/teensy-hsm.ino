@@ -26,10 +26,10 @@
 #define THSM_CMD_BUFFER_AEAD_GENERATE      0x02
 #define THSM_CMD_RANDOM_AEAD_GENERATE      0x03
 #define THSM_CMD_AEAD_DECRYPT_CMP          0x04
-#define THSM_CMD_DB_YUBIKEY_AEAD_STORE     0x05
-#define THSM_CMD_AEAD_YUBIKEY_OTP_DECODE   0x06
+#define THSM_CMD_DB_AEAD_STORE             0x05
+#define THSM_CMD_AEAD_OTP_DECODE           0x06
 #define THSM_CMD_DB_OTP_VALIDATE           0x07
-#define THSM_CMD_DB_YUBIKEY_AEAD_STORE2    0x08
+#define THSM_CMD_DB_AEAD_STORE2            0x08
 #define THSM_CMD_AES_ECB_BLOCK_ENCRYPT     0x0d
 #define THSM_CMD_AES_ECB_BLOCK_DECRYPT     0x0e
 #define THSM_CMD_AES_ECB_BLOCK_DECRYPT_CMP 0x0f
@@ -58,6 +58,7 @@
 #define THSM_PUBLIC_ID_SIZE         6 // Size of public id for std OTP validation
 #define THSM_OTP_SIZE              16 // Size of OTP
 #define THSM_BLOCK_SIZE            16 // Size of block operations
+#define THSM_KEY_SIZE              16 // Size of key
 #define THSM_MAX_KEY_SIZE          32 // Max size of CCMkey
 #define THSM_DATA_BUF_SIZE         64 // Size of internal data buffer
 #define THSM_AEAD_NONCE_SIZE        6 // Size of AEAD nonce (excluding size of key handle)
@@ -73,6 +74,7 @@
 #define THSM_SYSTEM_ID_SIZE        12
 #define THSM_UID_SIZE               6
 #define THSM_DB_KEY_ENTRIES        40
+#define THSM_DB_SECRET_ENTRIES     32
 
 //--------------------------------------------------------------------------------------------------
 // Flags
@@ -142,7 +144,7 @@ typedef union
 } aes_state_t;
 
 typedef struct {
-  aes_state_t keys[11];
+  aes_state_t keys[15];
 } aes_subkeys_t;
 
 typedef union {
@@ -152,18 +154,37 @@ typedef union {
 
 typedef struct {
   uint8_t handle[sizeof(uint32_t)];
-  uint8_t flags[sizeof(uint32_t)];
-  uint8_t bytes[THSM_BLOCK_SIZE];
+  uint8_t flags [sizeof(uint32_t)];
+  uint8_t key   [THSM_KEY_SIZE];
 } THSM_DB_KEY_ENTRY;
 
 typedef struct {
-  uint8_t hash[SHA1_DIGEST_SIZE_BYTES];
+  uint8_t nonce[THSM_AEAD_NONCE_SIZE];
+  uint8_t key  [THSM_KEY_SIZE];
+} THSM_DB_SECRET_ENTRY;
+typedef struct {
   THSM_DB_KEY_ENTRY entries[THSM_DB_KEY_ENTRIES];
 } THSM_DB_KEYS;
 
 typedef struct {
-  THSM_DB_KEYS keys;
-} THSM_FLASH_LAYOUT;
+  THSM_DB_SECRET_ENTRY entries[THSM_DB_SECRET_ENTRIES];
+} THSM_DB_SECRETS;
+
+typedef struct {
+  THSM_DB_SECRETS secrets;
+  THSM_DB_KEYS    keys;
+} THSM_FLASH_DB;
+
+typedef struct {
+  uint8_t         mac1[THSM_AEAD_MAC_SIZE];
+  uint8_t         mac2[THSM_AEAD_MAC_SIZE];
+} THSM_FLASH_MAC;
+
+typedef struct {
+  uint8_t         header[sizeof(uint32_t)];
+  THSM_FLASH_MAC  macs;
+  THSM_FLASH_DB   db;
+} THSM_FLASH_STORAGE;
 
 typedef struct {
   uint8_t data_len;
@@ -262,6 +283,19 @@ typedef struct {
   uint8_t data_len;
   uint8_t data[THSM_MAX_KEY_SIZE + sizeof(uint32_t) + THSM_AEAD_MAC_SIZE];
 } THSM_TEMP_KEY_LOAD_REQ;
+
+typedef struct {
+  uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t aead[(THSM_UID_SIZE + THSM_KEY_SIZE + THSM_AEAD_MAC_SIZE)];
+} THSM_DB_AEAD_STORE_REQ;
+
+typedef struct {
+  uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t aead[(THSM_UID_SIZE + THSM_KEY_SIZE + THSM_AEAD_MAC_SIZE)];
+  uint8_t nonce[THSM_AEAD_NONCE_SIZE];
+} THSM_DB_AEAD_STORE2_REQ;
 
 typedef struct
 {
@@ -368,6 +402,18 @@ typedef struct {
   uint8_t status;
 } THSM_TEMP_KEY_LOAD_RESP;
 
+typedef struct {
+  uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t status;
+} THSM_DB_AEAD_STORE_RESP;
+
+typedef struct {
+  uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t status;
+} THSM_DB_AEAD_STORE2_RESP;
+
 typedef union
 {
   uint8_t                        raw[THSM_MAX_PKT_SIZE];
@@ -388,6 +434,8 @@ typedef union
   THSM_RANDOM_AEAD_GENERATE_REQ  random_aead_generate;
   THSM_AEAD_DECRYPT_CMP_REQ      aead_decrypt_cmp;
   THSM_TEMP_KEY_LOAD_REQ         temp_key_load;
+  THSM_DB_AEAD_STORE_REQ         db_aead_store;
+  THSM_DB_AEAD_STORE2_REQ        db_aead_store2;
 } THSM_PAYLOAD_REQ;
 
 typedef union
@@ -411,6 +459,8 @@ typedef union
   THSM_RANDOM_AEAD_GENERATE_RESP  random_aead_generate;
   THSM_AEAD_DECRYPT_CMP_RESP      aead_decrypt_cmp;
   THSM_TEMP_KEY_LOAD_RESP         temp_key_load;
+  THSM_DB_AEAD_STORE_RESP         db_aead_store;
+  THSM_DB_AEAD_STORE2_RESP        db_aead_store2;
 } THSM_PAYLOAD_RESP;
 
 typedef struct
@@ -432,9 +482,9 @@ typedef struct
 //--------------------------------------------------------------------------------------------------
 
 /* TODO : implement proper phantom key loading unloading */
-static const uint8_t DUMMY_KEY[THSM_BLOCK_SIZE] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-                                                   0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff
-                                                  };
+static const uint8_t DUMMY_KEY[THSM_KEY_SIZE] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+                                                 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff
+                                                };
 
 static const uint8_t null_nonce[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
@@ -445,7 +495,7 @@ static const uint8_t null_nonce[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 static THSM_PKT_REQ    request;
 static THSM_PKT_RESP   response;
 static hmac_sha1_ctx_t hmac_sha1_ctx;
-static uint8_t         phantom_key[THSM_BLOCK_SIZE];
+static uint8_t         phantom_key[THSM_KEY_SIZE];
 static THSM_BUFFER     thsm_buffer;
 
 

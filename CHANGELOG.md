@@ -1,5 +1,10 @@
 # Changelog
 
+## Nov 25, 2016
+- Implemented AES-256 key derivation
+- Implemented AEAD store to DB
+- Implemented AEAD store to DB with specified nonce
+
 ## Nov 20, 2016
 - Implemented SP800-90 based AES-CTR-DRBG
 - Added DRBG reseed implementation to random reseed command 

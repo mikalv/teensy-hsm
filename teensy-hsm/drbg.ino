@@ -64,9 +64,9 @@ static void ctr_drbg_update(drbg_ctx_t *ctx) {
   uint8_t *ptr2 = ciphertext + THSM_BLOCK_SIZE;
 
   drbg_state_inc(ctx->value, 1);
-  aes_ecb_encrypt(ptr1, ctx->value, ctx->key);
+  aes_ecb_encrypt(ptr1, ctx->value, ctx->key, THSM_KEY_SIZE);
   drbg_state_inc(ctx->value, 1);
-  aes_ecb_encrypt(ptr2, ctx->value, ctx->key);
+  aes_ecb_encrypt(ptr2, ctx->value, ctx->key, THSM_KEY_SIZE);
 
   /* xor ciphertext with data */
   for (uint16_t i = 0; i < sizeof(ciphertext); i++) {
@@ -106,7 +106,7 @@ static uint8_t ctr_drbg_generate(drbg_ctx_t *ctx, uint8_t *output, uint16_t leng
     uint8_t step = (length > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : length;
     drbg_state_inc(ctx->value, 1);
     memset(buffer, 0, sizeof(buffer));
-    aes_ecb_encrypt(buffer, ctx->value, ctx->key);
+    aes_ecb_encrypt(buffer, ctx->value, ctx->key, THSM_KEY_SIZE);
     memcpy(output, buffer, step);
 
     /* update output pointer and length counter */

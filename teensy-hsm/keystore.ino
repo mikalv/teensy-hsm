@@ -1,32 +1,28 @@
 //--------------------------------------------------------------------------------------------------
 // Global Variables
 //--------------------------------------------------------------------------------------------------
-static THSM_DB_KEYS    db_keys;
+static THSM_FLASH_STORAGE flash_cache;
 
 //--------------------------------------------------------------------------------------------------
 // Key Store
 //--------------------------------------------------------------------------------------------------
 void keystore_init() {
-  memset(&db_keys,       0, sizeof(db_keys));
-
+  memset(&flash_cache, 0, sizeof(flash_cache));
 }
+
 void keystore_unlock(uint8_t *cipherkey) {
   /* load flash */
-  uint8_t tmp1[sizeof(THSM_DB_KEYS)];
-  uint8_t tmp2[sizeof(THSM_DB_KEYS)];
+  uint8_t tmp[sizeof(THSM_FLASH_DB)];
 
-  flash_read(tmp1, offsetof(THSM_FLASH_LAYOUT, keys), sizeof(tmp1));
+  /* read entire flash */
+  flash_read(tmp, 0, sizeof(tmp));
+  memcpy(tmp, &flash_cache.db, sizeof(flash_cache.db));
 
   /* decrypt flash */
-  aes_cbc_decrypt(tmp2, tmp1, sizeof(tmp1), cipherkey);
-  aes_cbc_decrypt(tmp1, tmp2, sizeof(tmp2), cipherkey + THSM_BLOCK_SIZE);
-
-  /* copy decrypted key database */
-  memcpy(&db_keys, tmp1, sizeof(db_keys));
+  // aes_cbc_decrypt(tmp2, tmp1, sizeof(tmp1), cipherkey);
 
   /* clear temporary buffer */
-  memset(tmp1, 0, sizeof(tmp1));
-  memset(tmp2, 0, sizeof(tmp2));
+  memset(tmp, 0, sizeof(tmp));
 }
 
 uint8_t keystore_load_key(uint8_t *dst_key, uint8_t *dst_flags, uint32_t handle) {
@@ -37,13 +33,11 @@ uint8_t keystore_load_key(uint8_t *dst_key, uint8_t *dst_flags, uint32_t handle)
   }
 
   for (uint i = 0; i < THSM_DB_KEY_ENTRIES; i++) {
-    uint32_t tmp = read_uint32(db_keys.entries[i].handle);
+    uint32_t tmp = read_uint32(flash_cache.db.keys.entries[i].handle);
     if (tmp == handle) {
-      uint32_t flags = read_uint32(db_keys.entries[i].flags);
+      uint32_t flags = read_uint32(flash_cache.db.keys.entries[i].flags);
       write_uint32(dst_flags, flags);
-      for (int j = 0; j < THSM_BLOCK_SIZE; j++) {
-        dst_key[j] = db_keys.entries[i].bytes[j];
-      }
+      memcpy(dst_key, flash_cache.db.keys.entries[i].key, THSM_KEY_SIZE);
 
       return 1;
     }

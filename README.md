@@ -19,6 +19,8 @@ A Teensyduino based Yubikey HSM emulator. This code in under heavy development, 
 - AEAD generate from buffer (limited to phantom key handle 0xffffffff)
 - AEAD generate from random (limited to phantom key handle 0xffffffff)
 - AEAD decrypt and compare (limited to phantom key handle 0xffffffff)
+- AEAD store to db
+- AEAD store to db with specified nonce
 - Temporary key loading
 - Debugging console
 

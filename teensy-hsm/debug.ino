@@ -56,10 +56,10 @@ void debug_run() {
 
 static void debug_dispatch() {
   uint8_t ret = 0;
-  if (!memcmp(debug_buffer, "aes.ecb.encrypt", 15)) {
-    ret = debug_aes_ecb_encrypt(debug_buffer + 15);
-  } else if (!memcmp(debug_buffer, "aes.ecb.decrypt", 15)) {
-    ret = debug_aes_ecb_decrypt(debug_buffer + 15);
+  if (!memcmp(debug_buffer, "aes.128.ecb.encrypt", 19)) {
+    ret = debug_aes_ecb_encrypt(debug_buffer + 19, THSM_KEY_SIZE);
+  } else if (!memcmp(debug_buffer, "aes.128.ecb.decrypt", 19)) {
+    ret = debug_aes_ecb_decrypt(debug_buffer + 19, THSM_KEY_SIZE);
   } else if (!memcmp(debug_buffer, "aes.ccm.encrypt", 15)) {
     ret = debug_aes_ccm_encrypt(debug_buffer + 15);
   } else if (!memcmp(debug_buffer, "aes.ccm.decrypt", 15)) {
@@ -87,10 +87,10 @@ static void debug_dispatch() {
   }
 }
 
-static uint8_t debug_aes_ecb_encrypt(uint8_t *buffer) {
+static uint8_t debug_aes_ecb_encrypt(uint8_t *buffer, uint8_t key_length) {
   uint8_t plaintext [THSM_BLOCK_SIZE];
   uint8_t ciphertext[THSM_BLOCK_SIZE];
-  uint8_t cipherkey [THSM_BLOCK_SIZE];
+  uint8_t cipherkey [THSM_KEY_SIZE * 2];
 
   /* clear buffers */
   memset(plaintext,  0, sizeof(plaintext));
@@ -101,21 +101,22 @@ static uint8_t debug_aes_ecb_encrypt(uint8_t *buffer) {
     return 0;
   }
 
-  if (buffer_load_hex(cipherkey, &buffer, sizeof(cipherkey)) != sizeof(cipherkey)) {
+
+  if (buffer_load_hex(cipherkey, &buffer, key_length) != key_length) {
     return 0;
   }
 
   /* perform AES ECB encryption */
-  aes_ecb_encrypt(ciphertext, plaintext, cipherkey);
+  aes_ecb_encrypt(ciphertext, plaintext, cipherkey, key_length);
   dump_hex(ciphertext, sizeof(ciphertext));
 
   return 1;
 }
 
-static uint8_t debug_aes_ecb_decrypt(uint8_t *buffer) {
+static uint8_t debug_aes_ecb_decrypt(uint8_t *buffer, uint8_t key_length) {
   uint8_t plaintext [THSM_BLOCK_SIZE];
   uint8_t ciphertext[THSM_BLOCK_SIZE];
-  uint8_t cipherkey [THSM_BLOCK_SIZE];
+  uint8_t cipherkey [THSM_KEY_SIZE * 2];
 
   /* clear buffers */
   memset(plaintext,  0, sizeof(plaintext));
@@ -126,12 +127,12 @@ static uint8_t debug_aes_ecb_decrypt(uint8_t *buffer) {
     return 0 ;
   }
 
-  if (buffer_load_hex(cipherkey, &buffer, sizeof(cipherkey)) != sizeof(cipherkey)) {
+  if (buffer_load_hex(cipherkey, &buffer, key_length) != key_length) {
     return 0;
   }
 
   /* perform AES ECB decryption */
-  aes_ecb_decrypt(plaintext, ciphertext, cipherkey);
+  aes_ecb_decrypt(plaintext, ciphertext, cipherkey, key_length);
   dump_hex(plaintext, sizeof(plaintext));
 
   return 1;
@@ -173,7 +174,7 @@ static uint8_t debug_aes_ccm_encrypt(uint8_t *buffer) {
   }
 
   /* perform AES ECB encryption */
-  aes_ccm_encrypt(ciphertext, plaintext, length, key_handle, cipherkey, nonce);
+  aes128_ccm_encrypt(ciphertext, NULL, plaintext, length, key_handle, cipherkey, nonce);
   dump_hex(ciphertext, length + THSM_AEAD_MAC_SIZE);
   return 1;
 }
@@ -224,7 +225,7 @@ static uint8_t debug_aes_ccm_decrypt(uint8_t *buffer) {
   }
 
   /* perform AES ECB encryption */
-  uint8_t matched = aes_ccm_decrypt(plaintext, ciphertext, length, key_handle, cipherkey, nonce, mac);
+  uint8_t matched = aes128_ccm_decrypt(plaintext, ciphertext, length, key_handle, cipherkey, nonce, mac);
   dump_hex(plaintext, length);
 
   return matched;
