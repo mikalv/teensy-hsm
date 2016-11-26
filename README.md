@@ -31,8 +31,10 @@ Teensy HSM uses the following algorithms:
 - AES-128 based SP800-90 CTR-DRBG
 
 ## Debugging Commands
-- `aes.ecb.encrypt`
-- `aes.ecb.decrypt`
+- `aes.128.ecb.encrypt`
+- `aes.128.ecb.decrypt`
+- `aes.256.ecb.encrypt`
+- `aes.256.ecb.decrypt`
 - `aes.ccm.encrypt`
 - `aes.ccm.decrypt`
 - `sha1.init`
@@ -43,6 +45,8 @@ Teensy HSM uses the following algorithms:
 - `hmac.sha1.final`
 - `flash.dump`
 - `buffer.dump`
+- `random.dump`
+- `random.seed`
 
 ## How to Flash
 - Get Teensy duino [v3.1](http://www.pjrc.com/store/teensy31.html) or [v3.2](http://www.pjrc.com/store/teensy32.html)

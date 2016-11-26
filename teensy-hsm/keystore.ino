@@ -32,7 +32,7 @@ uint8_t keystore_load_key(uint8_t *dst_key, uint8_t *dst_flags, uint32_t handle)
     return 1;
   }
 
-  for (uint i = 0; i < THSM_DB_KEY_ENTRIES; i++) {
+  for (uint16_t i = 0; i < THSM_DB_KEY_ENTRIES; i++) {
     uint32_t tmp = read_uint32(flash_cache.db.keys.entries[i].handle);
     if (tmp == handle) {
       uint32_t flags = read_uint32(flash_cache.db.keys.entries[i].flags);

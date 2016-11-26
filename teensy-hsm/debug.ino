@@ -60,6 +60,10 @@ static void debug_dispatch() {
     ret = debug_aes_ecb_encrypt(debug_buffer + 19, THSM_KEY_SIZE);
   } else if (!memcmp(debug_buffer, "aes.128.ecb.decrypt", 19)) {
     ret = debug_aes_ecb_decrypt(debug_buffer + 19, THSM_KEY_SIZE);
+  } else if (!memcmp(debug_buffer, "aes.256.ecb.encrypt", 19)) {
+    ret = debug_aes_ecb_encrypt(debug_buffer + 19, (THSM_KEY_SIZE * 2));
+  } else if (!memcmp(debug_buffer, "aes.256.ecb.decrypt", 19)) {
+    ret = debug_aes_ecb_decrypt(debug_buffer + 19, (THSM_KEY_SIZE * 2));
   } else if (!memcmp(debug_buffer, "aes.ccm.encrypt", 15)) {
     ret = debug_aes_ccm_encrypt(debug_buffer + 15);
   } else if (!memcmp(debug_buffer, "aes.ccm.decrypt", 15)) {
@@ -80,6 +84,10 @@ static void debug_dispatch() {
     ret = debug_flash_dump(debug_buffer + 10);
   } else if (!memcmp(debug_buffer, "buffer.dump", 11)) {
     ret = debug_buffer_dump(debug_buffer + 11);
+  } else if (!memcmp(debug_buffer, "random.dump", 11)) {
+    ret = debug_random_dump(debug_buffer + 11);
+  } else if (!memcmp(debug_buffer, "random.seed", 11)) {
+    ret = debug_random_seed(debug_buffer + 11);
   }
 
   if (!ret) {
@@ -324,6 +332,39 @@ static uint8_t debug_buffer_dump(uint8_t *buffer) {
       Serial.print(' ');
     }
   }
+
+  return 1;
+}
+
+static uint8_t debug_random_dump(uint8_t *buffer) {
+  uint8_t length = 0;
+  uint8_t data[256];
+
+  /* parse cipherkey */
+  if (buffer_load_hex(&length, &buffer, sizeof(length)) != sizeof(length)) {
+    return 0;
+  }
+
+  /* return error if reseed required */
+  if (!drbg_read(data, length)) {
+    return 0;
+  }
+
+  dump_hex(data, sizeof(data));
+  return 1;
+}
+
+static uint8_t debug_random_seed(uint8_t *buffer) {
+  uint8_t seed[THSM_CTR_DRBG_SEED_SIZE];
+
+  /* parse cipherkey */
+  if (buffer_load_hex(seed, &buffer, sizeof(seed)) != sizeof(seed)) {
+    return 0;
+  }
+
+  /* reseed DRBG */
+  drbg_reseed(seed);
+  Serial.print("ok");
 
   return 1;
 }

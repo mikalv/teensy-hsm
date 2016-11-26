@@ -33,7 +33,7 @@ uint8_t drbg_read(uint8_t *buffer, uint16_t length)
   return ctr_drbg_generate(&drbg_ctx, buffer, length);
 }
 
-uint8_t drbg_reseed(uint8_t *seed) {
+void drbg_reseed(uint8_t *seed) {
   uint8_t entropy[THSM_CTR_DRBG_SEED_SIZE];
 
   /* get entropy*/
@@ -93,7 +93,7 @@ static void ctr_drbg_reseed(drbg_ctx_t *ctx, uint8_t *entropy, uint8_t *input) {
 }
 
 static uint8_t ctr_drbg_generate(drbg_ctx_t *ctx, uint8_t *output, uint16_t length) {
-  uint64_t counter = read_uint32(ctx->counter + 24);
+  uint32_t counter = read_uint32(ctx->counter + 8);
 
   /* reseed required */
   if (counter >= 0x10000) {

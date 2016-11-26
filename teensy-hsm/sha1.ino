@@ -90,10 +90,10 @@ static void sha1_update(sha1_ctx_t *state, uint8_t *data, uint16_t length)
 
   while (length > 0)
   {
-    uint32_t written = state->buffer.length;
+    uint16_t written = state->buffer.length;
     if (written < sizeof(state->buffer.bytes))
     {
-      uint32_t max = (sizeof(state->buffer.bytes) - written);
+      uint32_t max = sizeof(state->buffer.bytes) - written;
       uint32_t step = (length > max) ? max : length;
       memcpy(&state->buffer.bytes[written], data, step);
 
