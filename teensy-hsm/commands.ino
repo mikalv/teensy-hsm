@@ -24,8 +24,10 @@ void execute_cmd()
       cmd_db_aead_store();
       break;
     case THSM_CMD_AEAD_OTP_DECODE:
+      cmd_aead_otp_decode();
       break;
     case THSM_CMD_DB_OTP_VALIDATE:
+      cmd_db_otp_validate();
       break;
     case THSM_CMD_DB_AEAD_STORE2:
       cmd_db_aead_store2();
@@ -339,7 +341,8 @@ static void cmd_nonce_get() {
   if (request.bcnt != (sizeof(request.payload.nonce_get) + 1)) {
     response.payload.nonce_get.status = THSM_STATUS_INVALID_PARAMETER;
   } else {
-    drbg_read(response.payload.nonce_get.nonce, THSM_AEAD_NONCE_SIZE);
+    uint16_t step = (request.payload.nonce_get.post_inc[0] << 8) | request.payload.nonce_get.post_inc[1];
+    nonce_pool_read(response.payload.nonce_get.nonce, step);
   }
 }
 
@@ -374,7 +377,7 @@ static void cmd_aead_generate() {
 
     /* generate nonce */
     if (!memcmp(dst_nonce, null_nonce, THSM_AEAD_NONCE_SIZE)) {
-      drbg_read(dst_nonce, THSM_AEAD_NONCE_SIZE);
+      nonce_pool_read(dst_nonce, 1);
     }
 
     /* FIXME load proper key */
@@ -413,7 +416,7 @@ static void cmd_buffer_aead_generate() {
   } else {
     /* generate nonce */
     if (!memcmp(dst_nonce, null_nonce, THSM_AEAD_NONCE_SIZE)) {
-      drbg_read(dst_nonce, THSM_AEAD_NONCE_SIZE);
+      nonce_pool_read(dst_nonce, 1);
     }
 
     /* FIXME load proper key */
@@ -452,7 +455,7 @@ static void cmd_random_aead_generate() {
   } else {
     /* generate nonce */
     if (!memcmp(dst_nonce, null_nonce, THSM_AEAD_NONCE_SIZE)) {
-      drbg_read(dst_nonce, THSM_AEAD_NONCE_SIZE);
+      nonce_pool_read(dst_nonce, 1);
     }
 
     /* genarate random */
@@ -497,7 +500,7 @@ static void cmd_aead_decrypt_cmp() {
   } else {
     /* generate nonce */
     if (!memcmp(dst_nonce, null_nonce, THSM_AEAD_NONCE_SIZE)) {
-      drbg_read(dst_nonce, THSM_AEAD_NONCE_SIZE);
+      nonce_pool_read(dst_nonce, 1);
     }
 
     /* calculate block length */
@@ -559,7 +562,7 @@ static void cmd_temp_key_load() {
 
     /* generate nonce */
     if (!memcmp(dst_nonce, null_nonce, THSM_AEAD_NONCE_SIZE)) {
-      drbg_read(dst_nonce, THSM_AEAD_NONCE_SIZE);
+      nonce_pool_read(dst_nonce, 1);
     }
 
     uint8_t length = data_len - (sizeof(uint32_t) + THSM_AEAD_MAC_SIZE);
@@ -654,4 +657,10 @@ static void cmd_db_aead_store2() {
     /* clear recovered */
     memset(recovered, 0, sizeof(recovered));
   }
+}
+
+static void cmd_aead_otp_decode() {
+}
+
+static void cmd_db_otp_validate() {
 }

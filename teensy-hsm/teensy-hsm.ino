@@ -162,6 +162,7 @@ typedef struct {
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
   uint8_t key  [THSM_KEY_SIZE];
 } THSM_DB_SECRET_ENTRY;
+
 typedef struct {
   THSM_DB_KEY_ENTRY entries[THSM_DB_KEY_ENTRIES];
 } THSM_DB_KEYS;
@@ -491,13 +492,11 @@ static const uint8_t null_nonce[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 //--------------------------------------------------------------------------------------------------
 // Global Variables
 //--------------------------------------------------------------------------------------------------
-
 static THSM_PKT_REQ    request;
 static THSM_PKT_RESP   response;
 static hmac_sha1_ctx_t hmac_sha1_ctx;
 static uint8_t         phantom_key[THSM_KEY_SIZE];
 static THSM_BUFFER     thsm_buffer;
-
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -512,6 +511,9 @@ void setup() {
   /* TODO : implement proper phantom key loading unloading */
   memcpy(phantom_key, DUMMY_KEY, sizeof(DUMMY_KEY));
   memset(&thsm_buffer, 0, sizeof(thsm_buffer));
+
+  /* init nonce pool */
+  nonce_pool_init();
 }
 
 void loop() {

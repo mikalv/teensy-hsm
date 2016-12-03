@@ -1,5 +1,8 @@
 # Changelog
 
+## Nov 4, 2016
+- Implemented nonce pool
+
 ## Nov 26, 2016
 - Implemented AES-256 CBC debugging command
 - Implemented DRBD reseed and generate debugging command
