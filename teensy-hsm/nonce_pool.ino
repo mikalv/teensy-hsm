@@ -12,13 +12,13 @@ void nonce_pool_init() {
 }
 
 void nonce_pool_read(uint8_t *buffer, uint16_t step) {
+  /* copy nonce pool to buffer */
+  memcpy(buffer, nonce_pool, THSM_AEAD_NONCE_SIZE);
+
   /* increment pool */
   while (step--) {
     nonce_pool_increment();
   }
-
-  /* copy nonce pool to buffer */
-  memcpy(buffer, nonce_pool, THSM_AEAD_NONCE_SIZE);
 }
 
 
