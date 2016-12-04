@@ -1,6 +1,10 @@
 # teensy-hsm
 A Teensyduino based Yubikey HSM emulator. This code in under heavy development, some function may not working properly. TeensyHSM is inspired by [YubiHSM Manual](https://www.yubico.com/wp-content/uploads/2015/04/YubiHSM-Manual_1_5_0.pdf) and [python-pyhsm](https://github.com/Yubico/python-pyhsm)
 
+## Architecture
+
+![TeensyHSM architecture](doc/architecture.png)
+
 ## Disclaimer
 Please read this carefully
 - TeensyHSM **is not** intended to replace YubiHSM
