@@ -1,5 +1,13 @@
 # teensy-hsm
-A Teensyduino based Yubikey HSM emulator. This code in under heavy development, some function may not working properly
+A Teensyduino based Yubikey HSM emulator. This code in under heavy development, some function may not working properly. TeensyHSM is inspired by [YubiHSM Manual](https://www.yubico.com/wp-content/uploads/2015/04/YubiHSM-Manual_1_5_0.pdf) and [python-pyhsm](https://github.com/Yubico/python-pyhsm)
+
+## Disclaimer
+Please read this carefully
+- TeensyHSM **is not** intended to replace YubiHSM
+- TeensyHSM **is not** FIPS 140-2 certified
+- TeensyHSM entropy source is based on sampled ADC noise  while YubiHSM uses PN-junction avalance noise based entropy source. If you need security **please use** YubiHSM instead
+- TeensyHSM **is not** temper resistant and **vulnerable** to side channel attack (DPA, EMF emission pickup)
+- Use at your own risk
 
 ## Implemented Commands
 - Get System Information
@@ -76,7 +84,7 @@ Port /dev/ttyACM0, 23:44:24
 Press CTRL-A Z for help on special keys
 
 
-$ aes.ecb.encrypt 00000000000000000000000000000000 10a58869d74be5a374cf867cfb473859
+$ aes.128.ecb.encrypt 00000000000000000000000000000000 10a58869d74be5a374cf867cfb473859
 6D251E6944B051E04EAA6FB4DBF78465
 $ aes.ecb.decrypt 6d251e6944b051e04eaa6fb4dbf78465 10a58869d74be5a374cf867cfb473859
 00000000000000000000000000000000

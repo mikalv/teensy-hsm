@@ -25,7 +25,7 @@ void keystore_unlock(uint8_t *cipherkey) {
   memset(tmp, 0, sizeof(tmp));
 }
 
-uint8_t keystore_load_key(uint8_t *dst_key, uint8_t *dst_flags, uint32_t handle) {
+uint8_t keystore_load_key(uint8_t *dst_key, uint32_t *dst_flags, uint32_t handle) {
   /* check if phantom key requested */
   if (handle == 0xffffffff) {
     memcpy(dst_key, &phantom_key, sizeof(phantom_key));
@@ -36,7 +36,7 @@ uint8_t keystore_load_key(uint8_t *dst_key, uint8_t *dst_flags, uint32_t handle)
     uint32_t tmp = read_uint32(flash_cache.db.keys.entries[i].handle);
     if (tmp == handle) {
       uint32_t flags = read_uint32(flash_cache.db.keys.entries[i].flags);
-      write_uint32(dst_flags, flags);
+      *dst_flags = flags;
       memcpy(dst_key, flash_cache.db.keys.entries[i].key, THSM_KEY_SIZE);
 
       return 1;

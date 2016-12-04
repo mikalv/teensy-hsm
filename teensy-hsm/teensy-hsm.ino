@@ -75,6 +75,7 @@
 #define THSM_UID_SIZE               6
 #define THSM_DB_KEY_ENTRIES        40
 #define THSM_DB_SECRET_ENTRIES     32
+#define THSM_AEAD_SIZE           (THSM_KEY_SIZE + THSM_PUBLIC_ID_SIZE + THSM_AEAD_MAC_SIZE)
 
 //--------------------------------------------------------------------------------------------------
 // Flags
@@ -298,6 +299,13 @@ typedef struct {
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
 } THSM_DB_AEAD_STORE2_REQ;
 
+typedef struct {
+  uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t otp[THSM_OTP_SIZE];
+  uint8_t aead[THSM_AEAD_SIZE];
+} THSM_AEAD_OTP_DECODE_REQ;
+
 typedef struct
 {
   uint8_t data_len;
@@ -415,6 +423,13 @@ typedef struct {
   uint8_t status;
 } THSM_DB_AEAD_STORE2_RESP;
 
+typedef struct {
+  uint8_t  public_id[THSM_PUBLIC_ID_SIZE];
+  uint8_t  key_handle[sizeof(uint32_t)];
+  uint8_t  counter_timestamp[THSM_AEAD_NONCE_SIZE]; // uint16_use_ctr | uint8_session_ctr | uint24_timestamp
+  uint8_t  status;
+} THSM_AEAD_OTP_DECODE_RESP;
+
 typedef union
 {
   uint8_t                        raw[THSM_MAX_PKT_SIZE];
@@ -437,6 +452,7 @@ typedef union
   THSM_TEMP_KEY_LOAD_REQ         temp_key_load;
   THSM_DB_AEAD_STORE_REQ         db_aead_store;
   THSM_DB_AEAD_STORE2_REQ        db_aead_store2;
+  THSM_AEAD_OTP_DECODE_REQ       aead_otp_decode;
 } THSM_PAYLOAD_REQ;
 
 typedef union
@@ -462,6 +478,7 @@ typedef union
   THSM_TEMP_KEY_LOAD_RESP         temp_key_load;
   THSM_DB_AEAD_STORE_RESP         db_aead_store;
   THSM_DB_AEAD_STORE2_RESP        db_aead_store2;
+  THSM_AEAD_OTP_DECODE_RESP       aead_otp_decode;
 } THSM_PAYLOAD_RESP;
 
 typedef struct
