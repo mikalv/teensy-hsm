@@ -10,7 +10,7 @@ Please read this carefully
 - TeensyHSM **is not** intended to replace YubiHSM
 - TeensyHSM **is not** FIPS 140-2 certified
 - TeensyHSM entropy source is based on sampled ADC noise  while YubiHSM uses PN-junction avalance noise based entropy source. If you need security **please use** YubiHSM instead
-- TeensyHSM **is not** temper resistant and **vulnerable** to side channel attack (DPA, EMF emission pickup)
+- TeensyHSM **is not** tamper resistant and **vulnerable** to side channel attack (DPA, EMF emission pickup)
 - Use at your own risk
 
 ## Implemented Commands
@@ -90,7 +90,7 @@ Press CTRL-A Z for help on special keys
 
 $ aes.128.ecb.encrypt 00000000000000000000000000000000 10a58869d74be5a374cf867cfb473859
 6D251E6944B051E04EAA6FB4DBF78465
-$ aes.ecb.decrypt 6d251e6944b051e04eaa6fb4dbf78465 10a58869d74be5a374cf867cfb473859
+$ aes.128.ecb.decrypt 6d251e6944b051e04eaa6fb4dbf78465 10a58869d74be5a374cf867cfb473859
 00000000000000000000000000000000
 $ 
 exit
