@@ -6,7 +6,7 @@ A Teensyduino based Yubikey HSM emulator. This code in under heavy development, 
 ![TeensyHSM architecture](doc/architecture.png)
 
 ## EEPROM Layout
-![EEPROM Layout](doc/eeprom layout.png)
+![EEPROM Layout](doc/eeprom_layout.png)
 Description:
 - EEPROM header contains header identifier and SHA1 digest of decrypted EEPROM body
 - EEPROM body contains 40 entries of keys and 32 entries of secrets 
