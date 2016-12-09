@@ -145,6 +145,9 @@ static void sha1_final(sha1_ctx_t *ctx, uint8_t *digest)
     *digest++ = (uint8_t) (ctx->hashes[i] >> 8);
     *digest++ = (uint8_t) (ctx->hashes[i]);
   }
+
+  /* clear context */
+  memset(ctx, 0, sizeof(sha1_ctx_t));
 }
 
 static void sha1_step(sha1_ctx_t *ctx)

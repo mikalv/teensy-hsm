@@ -1,5 +1,8 @@
 # Changelog
 
+## Dec 10, 2016
+- Added AES CBC implementation
+
 ## Nov 4, 2016
 - Implemented nonce pool
 

@@ -143,7 +143,7 @@ static void cmd_hmac_sha1_generate() {
   uint8_t *dst_data = response.payload.hmac_sha1_generate.data;
 
   /* copy key handle */
-  memcpy(dst_key, src_key, sizeof(uint32_t));
+  memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
 
   /* check given key handle */
   uint8_t length = request.payload.hmac_sha1_generate.data_len;
@@ -189,7 +189,7 @@ static void cmd_ecb_encrypt() {
   uint8_t *ciphertext = response.payload.ecb_encrypt.ciphertext;
 
   /* copy key handle */
-  memcpy(dst_key, src_key, sizeof(uint32_t));
+  memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
 
   uint32_t key_handle = read_uint32(src_key);
   if (request.bcnt != (sizeof(request.payload.ecb_encrypt) + 1)) {
@@ -213,7 +213,7 @@ static void cmd_ecb_decrypt() {
   uint8_t *ciphertext = request.payload.ecb_decrypt.ciphertext;
 
   /* copy key handle */
-  memcpy(dst_key, src_key, sizeof(uint32_t));
+  memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
 
   uint32_t key_handle = read_uint32(src_key);
   if (request.bcnt != (sizeof(request.payload.ecb_decrypt) + 1)) {
@@ -236,7 +236,7 @@ static void cmd_ecb_decrypt_cmp() {
   uint8_t *ciphertext = request.payload.ecb_decrypt_cmp.ciphertext;
 
   /* copy key handle */
-  memcpy(dst_key, src_key, sizeof(uint32_t));
+  memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
 
   uint32_t key_handle = read_uint32(src_key);
   if (request.bcnt != (sizeof(request.payload.ecb_decrypt_cmp) + 1)) {
@@ -320,16 +320,20 @@ static void cmd_key_store_decrypt() {
   /* prepare response */
   response.bcnt = sizeof(response.payload.key_store_decrypt) + 1;
 
-  uint8_t *src_key = request.payload.key_store_decrypt.key;
-
-  /* unlock keystore */
-  keystore_unlock(src_key);
-
   /* check request byte count */
   if (request.bcnt != (sizeof(request.payload.key_store_decrypt) + 1)) {
     response.payload.key_store_decrypt.status = THSM_STATUS_INVALID_PARAMETER;
   } else {
-    response.payload.key_store_decrypt.status = THSM_STATUS_OK;
+    /* unlock keystore */
+    uint8_t *key = request.payload.key_store_decrypt.key;
+    uint8_t ret  = keystore_unlock(key);
+    if (ret == 0) {
+      response.payload.key_store_decrypt.status = THSM_STATUS_MEMORY_ERROR;
+    } else if (ret == 1) {
+      response.payload.key_store_decrypt.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+    } else {
+      response.payload.key_store_decrypt.status = THSM_STATUS_OK;
+    }
   }
 }
 
@@ -359,7 +363,7 @@ static void cmd_aead_generate() {
   uint8_t *dst_data  = response.payload.aead_generate.data;
 
   /* copy key handle and nonce */
-  memcpy(dst_key,   src_key,   sizeof(uint32_t));
+  memcpy(dst_key,   src_key,   THSM_KEY_HANDLE_SIZE);
   memcpy(dst_nonce, src_nonce, THSM_AEAD_NONCE_SIZE);
   uint8_t min_length = sizeof(request.payload.aead_generate) - sizeof(request.payload.aead_generate.data);
 
@@ -400,7 +404,7 @@ static void cmd_buffer_aead_generate() {
   uint8_t *dst_data  = response.payload.buffer_aead_generate.data;
 
   /* copy key handle and nonce */
-  memcpy(dst_key,   src_key,   sizeof(uint32_t));
+  memcpy(dst_key,   src_key,   THSM_KEY_HANDLE_SIZE);
   memcpy(dst_nonce, src_nonce, THSM_AEAD_NONCE_SIZE);
 
   /* get key handle */
@@ -440,7 +444,7 @@ static void cmd_random_aead_generate() {
 
 
   /* copy key handle and nonce */
-  memcpy(dst_key,   src_key,   sizeof(uint32_t));
+  memcpy(dst_key,   src_key,   THSM_KEY_HANDLE_SIZE);
   memcpy(dst_nonce, src_nonce, THSM_AEAD_NONCE_SIZE);
 
   /* get key handle */
@@ -484,7 +488,7 @@ static void cmd_aead_decrypt_cmp() {
   uint8_t *src_data  = request.payload.aead_decrypt_cmp.data;
 
   /* copy key handle and nonce */
-  memcpy(dst_key,   src_key, sizeof(uint32_t));
+  memcpy(dst_key,   src_key, THSM_KEY_HANDLE_SIZE);
   memcpy(dst_nonce, src_nonce, THSM_AEAD_NONCE_SIZE);
   uint8_t min_length = sizeof(request.payload.aead_decrypt_cmp) - sizeof(request.payload.aead_decrypt_cmp.data);
 
@@ -541,11 +545,11 @@ static void cmd_temp_key_load() {
   uint8_t *src_data  = request.payload.temp_key_load.data;
 
   /* copy key handle and nonce */
-  memcpy(dst_key, src_key, sizeof(uint32_t));
+  memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
   memcpy(dst_nonce, src_nonce, THSM_AEAD_NONCE_SIZE);
 
   uint32_t key_handle = read_uint32(src_key);
-  uint8_t data_len = request.payload.temp_key_load.data_len;
+  uint8_t  data_len   = request.payload.temp_key_load.data_len;
   if (request.bcnt != sizeof(request.payload.temp_key_load) + 1) {
     response.payload.temp_key_load.status = THSM_STATUS_INVALID_PARAMETER;
   } else if (key_handle != THSM_TEMP_KEY_HANDLE) {
@@ -565,11 +569,11 @@ static void cmd_temp_key_load() {
       nonce_pool_read(dst_nonce, 1);
     }
 
-    uint8_t length = data_len - (sizeof(uint32_t) + THSM_AEAD_MAC_SIZE);
+    uint8_t length = data_len - (THSM_KEY_HANDLE_SIZE + THSM_AEAD_MAC_SIZE);
     uint8_t ciphertext[32];
     uint8_t plaintext[32];
     uint8_t mac[THSM_AEAD_MAC_SIZE];
-    uint8_t flags[sizeof(uint32_t)];
+    uint8_t flags[THSM_KEY_FLAGS_SIZE];
 
     /* initialize */
     memset(ciphertext, 0, sizeof(ciphertext));
@@ -578,7 +582,7 @@ static void cmd_temp_key_load() {
     /* load mac and ciphertext */
     memcpy(ciphertext, src_data, length);
     memcpy(mac,        src_data + length, THSM_AEAD_MAC_SIZE);
-    memcpy(flags,      src_data + length + THSM_AEAD_MAC_SIZE, sizeof(uint32_t));
+    memcpy(flags,      src_data + length + THSM_AEAD_MAC_SIZE, THSM_KEY_FLAGS_SIZE);
 
     uint8_t matched = aes128_ccm_decrypt(plaintext, ciphertext, length, dst_key, phantom_key, dst_nonce, mac);
 
@@ -606,7 +610,7 @@ static void cmd_db_aead_store() {
   uint8_t *dst_pub   = response.payload.db_aead_store.public_id;
 
   /* copy key handle and public id */
-  memcpy(dst_key, src_key, sizeof(uint32_t));
+  memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
   memcpy(dst_pub, src_pub, THSM_UID_SIZE);
 
   uint32_t key_handle = read_uint32(src_key);
@@ -637,7 +641,7 @@ static void cmd_db_aead_store2() {
   uint8_t *src_nonce = request.payload.db_aead_store2.nonce;
 
   /* copy key handle and public id */
-  memcpy(dst_key, src_key, sizeof(uint32_t));
+  memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
   memcpy(dst_pub, src_pub, THSM_UID_SIZE);
 
   uint32_t key_handle = read_uint32(src_key);
@@ -663,13 +667,13 @@ static void cmd_aead_otp_decode() {
   uint32_t flags = 0;
   uint8_t key[THSM_KEY_SIZE];
 
-  uint8_t *src_key   = request.payload.aead_otp_decode.key_handle;
-  uint8_t *dst_key   = response.payload.aead_otp_decode.key_handle;
-  uint8_t *src_pub   = request.payload.aead_otp_decode.public_id;
-  uint8_t *dst_pub   = response.payload.aead_otp_decode.public_id;
+  uint8_t *src_key = request.payload.aead_otp_decode.key_handle;
+  uint8_t *dst_key = response.payload.aead_otp_decode.key_handle;
+  uint8_t *src_pub = request.payload.aead_otp_decode.public_id;
+  uint8_t *dst_pub = response.payload.aead_otp_decode.public_id;
 
   /* copy key handle, public id */
-  memcpy(dst_key, src_key, sizeof(uint32_t));
+  memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
   memcpy(dst_pub, src_pub, THSM_UID_SIZE);
 
   /* get key handle */
@@ -680,7 +684,7 @@ static void cmd_aead_otp_decode() {
 
   if (!keystore_load_key(key, &flags, key_handle)) {
     response.payload.aead_otp_decode.status = THSM_STATUS_KEY_HANDLE_INVALID;
-  }else if(!keystore_load_secret)
+  }
 }
 
 static void cmd_db_otp_validate() {

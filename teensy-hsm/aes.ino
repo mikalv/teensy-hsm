@@ -327,37 +327,35 @@ static const uint8_t rcons[] = {
 //--------------------------------------------------------------------------------------------------
 // AES-CCM block cipher
 //--------------------------------------------------------------------------------------------------
-void aes128_ccm_encrypt(uint8_t *ct, uint8_t *mac, uint8_t *pt, uint8_t len, uint8_t *kh, uint8_t *cipherkey, uint8_t *nonce) {
+void aes128_ccm_encrypt(uint8_t *ct, uint8_t *mac, uint8_t *pt, uint16_t length, uint8_t *kh, uint8_t *cipherkey, uint8_t *nonce) {
   aes_subkeys_t sk;
-  aes_state_t tmp;
-  aes_state_t mac_in, mac_out;
-  aes_state_t cipher_in, cipher_out;
+  aes_state_t   tmp;
+  aes_state_t   mac_in, mac_out;
+  aes_state_t   cipher_in, cipher_out;
 
   /* set MAC IV */
   memset(&mac_in, 0, sizeof(mac_in));
   mac_in.bytes[0] = 0x19; /* 8 bytes mac and 2 bytes counter */
-  memcpy(&(mac_in.bytes[1]), kh,    4);
-  memcpy(&(mac_in.bytes[5]), nonce, 6);
-  mac_in.bytes[15] = len;
+  memcpy(&(mac_in.bytes[1]), kh,    THSM_KEY_HANDLE_SIZE);
+  memcpy(&(mac_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
+  mac_in.bytes[15] = length;
 
   /* set cipher IV */
   memset(&cipher_in, 0, sizeof(cipher_in));
   cipher_in.bytes[0] = 0x01; /* 2 bytes counter */
-  memcpy(&(cipher_in.bytes[1]), kh,    4);
-  memcpy(&(cipher_in.bytes[5]), nonce, 6);
+  memcpy(&(cipher_in.bytes[1]), kh,    THSM_KEY_HANDLE_SIZE);
+  memcpy(&(cipher_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
   cipher_in.bytes[15] = 1;
 
   /* derive subkeys */
   aes_init(&sk, cipherkey, THSM_KEY_SIZE);
 
-  /* derive sub-keys */
-  uint8_t remaining = len;
-  while (remaining > 0) {
+  /* perform encryption */
+  while (length > 0) {
     /* load plaintext */
-    uint8_t step = (remaining > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : remaining;
-    for (int i = 0; i < THSM_BLOCK_SIZE; i++) {
-      tmp.bytes[i] = (i < step) ? *pt++ : 0;
-    }
+    uint8_t step = (length > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : length;
+    memset(&tmp,       0, sizeof(tmp));
+    memcpy(tmp.bytes, pt, step);
 
     /* perform encryption */
     aes_encrypt(&mac_out,    &mac_in,    &sk, THSM_KEY_SIZE);
@@ -370,9 +368,7 @@ void aes128_ccm_encrypt(uint8_t *ct, uint8_t *mac, uint8_t *pt, uint8_t len, uin
     aes_state_xor(&tmp, &tmp, &cipher_out);
 
     /* append to ciphertext */
-    for (int j = 0; j < step; j++) {
-      *ct++ = tmp.bytes[j];
-    }
+    memcpy(ct, tmp.bytes, step);
 
     if (cipher_in.bytes[15] == 0xff) {
       cipher_in.bytes[15] = 0;
@@ -382,7 +378,9 @@ void aes128_ccm_encrypt(uint8_t *ct, uint8_t *mac, uint8_t *pt, uint8_t len, uin
     }
 
     /* update counter */
-    remaining -= step;
+    length -= step;
+    pt     += step;
+    ct     += step;
   }
 
   aes_encrypt(&tmp, &mac_in, &sk, THSM_KEY_SIZE);
@@ -391,7 +389,7 @@ void aes128_ccm_encrypt(uint8_t *ct, uint8_t *mac, uint8_t *pt, uint8_t len, uin
   memset(&mac_in, 0, sizeof(mac_in));
   mac_in.bytes[0] = 0x19; /* 8 bytes mac and 2 bytes counter */
   memcpy(&(mac_in.bytes[1]), kh,    4);
-  memcpy(&(mac_in.bytes[5]), nonce, 6);
+  memcpy(&(mac_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
 
   /* perform encryption */
   aes_encrypt(&mac_out, &mac_in, &sk, THSM_KEY_SIZE);
@@ -415,37 +413,35 @@ void aes128_ccm_encrypt(uint8_t *ct, uint8_t *mac, uint8_t *pt, uint8_t len, uin
   memset(&cipher_out, 0, sizeof(cipher_out));
 }
 
-uint8_t aes128_ccm_decrypt(uint8_t *pt, uint8_t *ct, uint8_t len, uint8_t *kh, uint8_t *cipherkey, uint8_t *nonce, uint8_t *mac) {
+uint8_t aes128_ccm_decrypt(uint8_t *pt, uint8_t *ct, uint16_t length, uint8_t *kh, uint8_t *cipherkey, uint8_t *nonce, uint8_t *mac) {
   aes_subkeys_t sk;
-  aes_state_t tmp;
-  aes_state_t mac_in, mac_out;
-  aes_state_t cipher_in, cipher_out;
+  aes_state_t   tmp;
+  aes_state_t   mac_in, mac_out;
+  aes_state_t   cipher_in, cipher_out;
 
   /* set MAC IV */
   memset(&mac_in, 0, sizeof(mac_in));
   mac_in.bytes[0] = 0x19; /* 8 bytes mac and 2 bytes counter */
   memcpy(&(mac_in.bytes[1]), kh,    4);
-  memcpy(&(mac_in.bytes[5]), nonce, 6);
-  mac_in.bytes[15] = len;
+  memcpy(&(mac_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
+  mac_in.bytes[15] = length;
 
   /* set cipher IV */
   memset(&cipher_in, 0, sizeof(cipher_in));
   cipher_in.bytes[0] = 0x01; /* 2 bytes counter */
   memcpy(&(cipher_in.bytes[1]), kh,    4);
-  memcpy(&(cipher_in.bytes[5]), nonce, 6);
+  memcpy(&(cipher_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
   cipher_in.bytes[15] = 1;
 
   /* derive subkeys */
   aes_init(&sk, cipherkey, THSM_KEY_SIZE);
 
-  /* derive sub-keys */
-  uint8_t remaining = len;
-  while (remaining > 0) {
+  /* perform decryption */
+  while (length > 0) {
     /* load ciphertext */
-    uint8_t step = (remaining > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : remaining;
-    for (int i = 0; i < THSM_BLOCK_SIZE; i++) {
-      tmp.bytes[i] = (i < step) ? *ct++ : 0;
-    }
+    uint8_t step = (length > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : length;
+    memset(&tmp,       0, sizeof(tmp));
+    memcpy(tmp.bytes, ct, step);
 
     /* perform encryption */
     aes_encrypt(&mac_out,    &mac_in,    &sk, THSM_KEY_SIZE);
@@ -456,9 +452,7 @@ uint8_t aes128_ccm_decrypt(uint8_t *pt, uint8_t *ct, uint8_t len, uint8_t *kh, u
     aes_state_xor(&mac_in, &mac_out, &tmp);
 
     /* append to plaintext */
-    for (int j = 0; j < step; j++) {
-      *pt++ = tmp.bytes[j];
-    }
+    memcpy(pt, tmp.bytes, step);
 
     if (cipher_in.bytes[15] == 0xff) {
       cipher_in.bytes[15] = 0;
@@ -468,7 +462,9 @@ uint8_t aes128_ccm_decrypt(uint8_t *pt, uint8_t *ct, uint8_t len, uint8_t *kh, u
     }
 
     /* update counter */
-    remaining -= step;
+    length -= step;
+    pt     += step;
+    ct     += step;
   }
 
   aes_encrypt(&tmp, &mac_in, &sk, THSM_KEY_SIZE);
@@ -477,13 +473,14 @@ uint8_t aes128_ccm_decrypt(uint8_t *pt, uint8_t *ct, uint8_t len, uint8_t *kh, u
   memset(&mac_in, 0, sizeof(mac_in));
   mac_in.bytes[0] = 0x19; /* 8 bytes mac and 2 bytes counter */
   memcpy(&(mac_in.bytes[1]), kh,    4);
-  memcpy(&(mac_in.bytes[5]), nonce, 6);
+  memcpy(&(mac_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
 
   /* perform encryption */
   aes_encrypt(&mac_out, &mac_in, &sk, THSM_KEY_SIZE);
   aes_state_xor(&tmp, &tmp, &mac_out);
 
-  uint8_t matched = memcmp(&tmp.bytes, mac, THSM_AEAD_MAC_SIZE) == 0;
+  /* compare known mac vs recovered mac */
+  uint8_t matched = !memcmp(&tmp.bytes, mac, THSM_AEAD_MAC_SIZE);
 
   /* cleanup temporary variables */
   memset(&sk,         0, sizeof(sk));
@@ -497,11 +494,77 @@ uint8_t aes128_ccm_decrypt(uint8_t *pt, uint8_t *ct, uint8_t len, uint8_t *kh, u
 }
 
 //--------------------------------------------------------------------------------------------------
+// AES-CBC block cipher
+//--------------------------------------------------------------------------------------------------
+void aes_cbc_encrypt(uint8_t *ciphertext, uint8_t *plaintext, uint16_t length, uint8_t *cipherkey, uint16_t key_length) {
+  aes_subkeys_t sk;
+  aes_state_t   ct, pt;
+
+  /* derive sub-keys and clear iv */
+  memset(&ct, 0, sizeof(ct));
+  aes_init(&sk, cipherkey, key_length);
+
+  while (length > 0)
+  {
+    uint8_t step = (length > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : step;
+
+    /* load plaintext */
+    memset(&pt, 0, sizeof(pt));
+    memcpy(pt.bytes, plaintext, step);
+
+    /* xor plaintext */
+    aes_state_xor(&pt, &pt, &ct);
+
+    /* encrypt */
+    aes_encrypt(&ct, &pt, &sk, key_length);
+
+    /* copy to output */
+    memcpy(ciphertext, ct.bytes, step);
+
+    length     -= step;
+    ciphertext += step;
+    plaintext  += step;
+  }
+}
+
+void aes_cbc_decrypt(uint8_t *plaintext, uint8_t *ciphertext, uint16_t length, uint8_t *cipherkey, uint16_t key_length) {
+  aes_subkeys_t sk;
+  aes_state_t   ct, pt, iv;
+
+  /* derive sub-keys and clear iv */
+  memset(&iv, 0, sizeof(iv));
+  aes_init(&sk, cipherkey, key_length);
+
+  while (length > 0)
+  {
+    uint8_t step = (length > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : step;
+
+    /* load ciphertext */
+    memset(&ct, 0, sizeof(ct));
+    memcpy(ct.bytes, ciphertext, step);
+
+    /* decrypt */
+    aes_decrypt(&pt, &ct, &sk, key_length);
+
+    /* xor plaintext, update iv */
+    aes_state_xor(&pt, &pt, &iv);
+    memcpy(&iv, &ct, sizeof(ct));
+
+    /* copy to plaintext */
+    memcpy(plaintext, pt.bytes, step);
+
+    length     -= step;
+    ciphertext += step;
+    plaintext  += step;
+  }
+}
+
+//--------------------------------------------------------------------------------------------------
 // AES-ECB block cipher
 //--------------------------------------------------------------------------------------------------
-void aes_ecb_encrypt(uint8_t *ciphertext, uint8_t *plaintext, uint8_t *cipherkey, uint8_t key_length) {
+void aes_ecb_encrypt(uint8_t *ciphertext, uint8_t *plaintext, uint8_t *cipherkey, uint16_t key_length) {
   aes_subkeys_t sk;
-  aes_state_t ct, pt;
+  aes_state_t   ct, pt;
 
   /* derive sub-keys */
   aes_init(&sk, cipherkey, key_length);
@@ -515,7 +578,7 @@ void aes_ecb_encrypt(uint8_t *ciphertext, uint8_t *plaintext, uint8_t *cipherkey
   memset(&sk, 0, sizeof(sk));
 }
 
-void aes_ecb_decrypt(uint8_t *plaintext, uint8_t *ciphertext, uint8_t *cipherkey, uint8_t key_length) {
+void aes_ecb_decrypt(uint8_t *plaintext, uint8_t *ciphertext, uint8_t *cipherkey, uint16_t key_length) {
   aes_subkeys_t sk;
   aes_state_t ct, pt;
 
@@ -534,7 +597,7 @@ void aes_ecb_decrypt(uint8_t *plaintext, uint8_t *ciphertext, uint8_t *cipherkey
 //--------------------------------------------------------------------------------------------------
 // AES Core
 //--------------------------------------------------------------------------------------------------
-static void aes_init(aes_subkeys_t *sk, uint8_t *key, uint8_t key_length) {
+static void aes_init(aes_subkeys_t *sk, uint8_t *key, uint16_t key_length) {
   /* clear subkeys */
   memset(sk, 0, sizeof(aes_subkeys_t));
 
@@ -547,7 +610,7 @@ static void aes_init(aes_subkeys_t *sk, uint8_t *key, uint8_t key_length) {
     memcpy(src->bytes, key, THSM_KEY_SIZE);
 
     /* derive subkeys */
-    for (int i = 1; i < 11; i++, src++, dst++) {
+    for (uint16_t i = 1; i < 11; i++, src++, dst++) {
       dst->bytes[ 0] = src->bytes[ 0] ^ te[src->bytes[13]] ^ rcons[i];
       dst->bytes[ 1] = src->bytes[ 1] ^ te[src->bytes[14]];
       dst->bytes[ 2] = src->bytes[ 2] ^ te[src->bytes[15]];
@@ -574,7 +637,7 @@ static void aes_init(aes_subkeys_t *sk, uint8_t *key, uint8_t key_length) {
     memcpy(src0->bytes, key,                 THSM_KEY_SIZE);
     memcpy(src1->bytes, key + THSM_KEY_SIZE, THSM_KEY_SIZE);
 
-    for (int i = 1; i <= 7; i++) {
+    for (uint16_t i = 1; i <= 7; i++) {
       dst0->bytes[ 0] = src0->bytes[ 0] ^ te[src1->bytes[13]] ^ rcons[i];
       dst0->bytes[ 1] = src0->bytes[ 1] ^ te[src1->bytes[14]];
       dst0->bytes[ 2] = src0->bytes[ 2] ^ te[src1->bytes[15]];
@@ -618,10 +681,10 @@ static void aes_init(aes_subkeys_t *sk, uint8_t *key, uint8_t key_length) {
   }
 }
 
-static void aes_encrypt(aes_state_t *ct, aes_state_t *pt, aes_subkeys_t *sk, uint8_t key_length) {
-
+static void aes_encrypt(aes_state_t *ct, aes_state_t *pt, aes_subkeys_t *sk, uint16_t key_length) {
   aes_state_t  tmp;
-  aes_state_t *key    = &(sk->keys[0]);
+  aes_state_t *key = &(sk->keys[0]);
+
   aes_state_xor(&tmp, pt, key);
 
   uint16_t rounds = (key_length == THSM_KEY_SIZE) ? 9 : 13;
@@ -631,12 +694,14 @@ static void aes_encrypt(aes_state_t *ct, aes_state_t *pt, aes_subkeys_t *sk, uin
   aes_encrypt_final(ct, &tmp, ++key);
 }
 
-static void aes_decrypt(aes_state_t *pt, aes_state_t *ct, aes_subkeys_t *sk, uint8_t key_length) {
+static void aes_decrypt(aes_state_t *pt, aes_state_t *ct, aes_subkeys_t *sk, uint16_t key_length) {
   aes_state_t  tmp;
-  aes_state_t *key    = &(sk->keys[10]);
+  aes_state_t *key = &(sk->keys[10]);
+
   aes_state_xor(&tmp, ct, key);
 
-  for (uint16_t i = 0; i < 9; i++)
+  uint16_t rounds = (key_length == THSM_KEY_SIZE) ? 9 : 13;
+  for (uint16_t i = 0; i < rounds; i++)
   {
     aes_decrypt_step(&tmp, --key);
   }

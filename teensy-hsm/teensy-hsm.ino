@@ -55,6 +55,8 @@
 //--------------------------------------------------------------------------------------------------
 // Sizes
 //--------------------------------------------------------------------------------------------------
+#define THSM_KEY_HANDLE_SIZE        4
+#define THSM_KEY_FLAGS_SIZE         4
 #define THSM_PUBLIC_ID_SIZE         6 // Size of public id for std OTP validation
 #define THSM_OTP_SIZE              16 // Size of OTP
 #define THSM_BLOCK_SIZE            16 // Size of block operations
@@ -175,17 +177,16 @@ typedef struct {
 typedef struct {
   THSM_DB_SECRETS secrets;
   THSM_DB_KEYS    keys;
-} THSM_FLASH_DB;
+} THSM_FLASH_BODY;
 
 typedef struct {
-  uint8_t         mac1[THSM_AEAD_MAC_SIZE];
-  uint8_t         mac2[THSM_AEAD_MAC_SIZE];
-} THSM_FLASH_MAC;
+  uint8_t magic[sizeof(uint32_t)];
+  uint8_t digest[SHA1_DIGEST_SIZE_BYTES]; 
+} THSM_FLASH_HEADER;
 
 typedef struct {
-  uint8_t         header[sizeof(uint32_t)];
-  THSM_FLASH_MAC  macs;
-  THSM_FLASH_DB   db;
+  THSM_FLASH_HEADER header;
+  THSM_FLASH_BODY   body;
 } THSM_FLASH_STORAGE;
 
 typedef struct {
@@ -208,17 +209,17 @@ typedef struct {
 } THSM_RANDOM_RESEED_REQ;
 
 typedef struct {
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t plaintext[THSM_BLOCK_SIZE];
 } THSM_ECB_BLOCK_ENCRYPT_REQ;
 
 typedef struct {
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t ciphertext[THSM_BLOCK_SIZE];
 } THSM_ECB_BLOCK_DECRYPT_REQ;
 
 typedef struct {
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t ciphertext[THSM_BLOCK_SIZE];
   uint8_t plaintext [THSM_BLOCK_SIZE];
 } THSM_ECB_BLOCK_DECRYPT_CMP_REQ;
@@ -235,7 +236,7 @@ typedef struct {
 } THSM_BUFFER_RANDOM_LOAD_REQ;
 
 typedef struct {
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t flags;
   uint8_t data_len;
   uint8_t data[THSM_MAX_PKT_SIZE - 6];
@@ -256,52 +257,52 @@ typedef struct {
 
 typedef struct {
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t data_len;
   uint8_t data[THSM_DATA_BUF_SIZE];
 } THSM_AEAD_GENERATE_REQ;
 
 typedef struct {
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
 } THSM_BUFFER_AEAD_GENERATE_REQ;
 
 typedef struct {
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t random_len;
 } THSM_RANDOM_AEAD_GENERATE_REQ;
 
 typedef struct {
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t data_len;
   uint8_t data[THSM_MAX_PKT_SIZE - 0x10];
 } THSM_AEAD_DECRYPT_CMP_REQ;
 
 typedef struct {
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t data_len;
   uint8_t data[THSM_MAX_KEY_SIZE + sizeof(uint32_t) + THSM_AEAD_MAC_SIZE];
 } THSM_TEMP_KEY_LOAD_REQ;
 
 typedef struct {
   uint8_t public_id[THSM_PUBLIC_ID_SIZE];
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t aead[(THSM_UID_SIZE + THSM_KEY_SIZE + THSM_AEAD_MAC_SIZE)];
 } THSM_DB_AEAD_STORE_REQ;
 
 typedef struct {
   uint8_t public_id[THSM_PUBLIC_ID_SIZE];
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t aead[(THSM_UID_SIZE + THSM_KEY_SIZE + THSM_AEAD_MAC_SIZE)];
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
 } THSM_DB_AEAD_STORE2_REQ;
 
 typedef struct {
   uint8_t public_id[THSM_PUBLIC_ID_SIZE];
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t otp[THSM_OTP_SIZE];
   uint8_t aead[THSM_AEAD_SIZE];
 } THSM_AEAD_OTP_DECODE_REQ;
@@ -331,19 +332,19 @@ typedef struct {
 } THSM_RANDOM_RESEED_RESP;
 
 typedef struct {
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t ciphertext[THSM_BLOCK_SIZE];
   uint8_t status;
 } THSM_ECB_BLOCK_ENCRYPT_RESP;
 
 typedef struct {
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t plaintext[THSM_BLOCK_SIZE];
   uint8_t status;
 } THSM_ECB_BLOCK_DECRYPT_RESP;
 
 typedef struct {
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t status;
 } THSM_ECB_BLOCK_DECRYPT_CMP_RESP;
 
@@ -356,7 +357,7 @@ typedef struct {
 } THSM_BUFFER_RANDOM_LOAD_RESP;
 
 typedef struct {
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t status;
   uint8_t data_len;
   uint8_t data[THSM_SHA1_HASH_SIZE];
@@ -377,7 +378,7 @@ typedef struct {
 
 typedef struct {
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t status;
   uint8_t data_len;
   uint8_t data[THSM_AEAD_MAX_SIZE];
@@ -385,7 +386,7 @@ typedef struct {
 
 typedef struct {
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t status;
   uint8_t data_len;
   uint8_t data[THSM_AEAD_MAX_SIZE];
@@ -393,7 +394,7 @@ typedef struct {
 
 typedef struct {
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t status;
   uint8_t data_len;
   uint8_t data[THSM_AEAD_MAX_SIZE];
@@ -401,31 +402,31 @@ typedef struct {
 
 typedef struct {
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t status;
 } THSM_AEAD_DECRYPT_CMP_RESP;
 
 typedef struct {
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t status;
 } THSM_TEMP_KEY_LOAD_RESP;
 
 typedef struct {
   uint8_t public_id[THSM_PUBLIC_ID_SIZE];
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t status;
 } THSM_DB_AEAD_STORE_RESP;
 
 typedef struct {
   uint8_t public_id[THSM_PUBLIC_ID_SIZE];
-  uint8_t key_handle[sizeof(uint32_t)];
+  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t status;
 } THSM_DB_AEAD_STORE2_RESP;
 
 typedef struct {
   uint8_t  public_id[THSM_PUBLIC_ID_SIZE];
-  uint8_t  key_handle[sizeof(uint32_t)];
+  uint8_t  key_handle[THSM_KEY_HANDLE_SIZE];
   uint8_t  counter_timestamp[THSM_AEAD_NONCE_SIZE]; // uint16_use_ctr | uint8_session_ctr | uint24_timestamp
   uint8_t  status;
 } THSM_AEAD_OTP_DECODE_RESP;
