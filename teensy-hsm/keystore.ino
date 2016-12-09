@@ -10,13 +10,6 @@ void keystore_init() {
   memset(&flash_cache, 0, sizeof(flash_cache));
 }
 
-/**
-   Unlock digest
-   error code:
-   0 no error
-   1 flash not initialized
-   2 wrong cipherkey
-*/
 uint8_t keystore_unlock(uint8_t *cipherkey) {
   uint8_t body[sizeof(THSM_FLASH_BODY)];
   uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
@@ -27,7 +20,7 @@ uint8_t keystore_unlock(uint8_t *cipherkey) {
 
   uint32_t magic = read_uint32(flash_cache.header.magic);
   if (magic != 0xdeadbeef) {
-    return 1;
+    return THSM_STATUS_MEMORY_ERROR;
   }
 
   /* decrypt flash */
@@ -48,17 +41,23 @@ uint8_t keystore_unlock(uint8_t *cipherkey) {
   /* clear flash cache if decryption failed */
   if (!matched) {
     memset(&flash_cache, 0, sizeof(flash_cache));
-    return 2;
+    return THSM_STATUS_KEY_STORAGE_LOCKED;
   }
 
-  return 0;
+  return THSM_STATUS_OK;
 }
 
 uint8_t keystore_load_key(uint8_t *dst_key, uint32_t *dst_flags, uint32_t handle) {
   /* check if phantom key requested */
   if (handle == 0xffffffff) {
     memcpy(dst_key, &phantom_key, sizeof(phantom_key));
-    return 1;
+    return THSM_STATUS_OK;
+  }
+
+  /* check EEPROM header identifier */
+  uint32_t magic = read_uint32(flash_cache.header.magic);
+  if (magic != 0xdeadbeef) {
+    return THSM_STATUS_KEY_STORAGE_LOCKED;
   }
 
   THSM_FLASH_BODY *body = &flash_cache.body;
@@ -69,9 +68,9 @@ uint8_t keystore_load_key(uint8_t *dst_key, uint32_t *dst_flags, uint32_t handle
       *dst_flags = flags;
       memcpy(dst_key, body->keys.entries[i].key, THSM_KEY_SIZE);
 
-      return 1;
+      return THSM_STATUS_OK;
     }
   }
 
-  return 0;
+  return THSM_STATUS_KEY_HANDLE_INVALID;
 }

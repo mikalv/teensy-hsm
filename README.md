@@ -25,19 +25,19 @@ Please read this carefully
 - Echo
 - Random Generation
 - Random Reseed
-- ECB Encryption (limited to phantom key handle 0xffffffff)
-- ECB Decryption (limited to phantom key handle 0xffffffff)
-- ECB decrypt & compare (limited to phantom key handle 0xffffffff)
+- ECB Encryption
+- ECB Decryption
+- ECB decrypt & compare
 - Buffer loading
 - Buffer random loading
-- HMAC-SHA1 (limited to phantom key handle 0xffffffff)
+- HMAC-SHA1
 - HSM unlock (dummy command)
-- Keystore decrypt (dummy command)
-- Nonce get (nonce returned from ADC rng)
-- AEAD generate (limited to phantom key handle 0xffffffff)
-- AEAD generate from buffer (limited to phantom key handle 0xffffffff)
-- AEAD generate from random (limited to phantom key handle 0xffffffff)
-- AEAD decrypt and compare (limited to phantom key handle 0xffffffff)
+- Keystore decrypt
+- Nonce get
+- AEAD generate
+- AEAD generate from buffer
+- AEAD generate from random
+- AEAD decrypt and compare
 - AEAD store to db
 - AEAD store to db with specified nonce
 - Temporary key loading
@@ -45,8 +45,9 @@ Please read this carefully
 
 ## Algorithms
 Teensy HSM uses the following algorithms:
-- AES-128 (ECB,CCM)
+- AES-128 (ECB, CBC, CCM)
 - SHA1-HMAC
+- SHA1
 - AES-128 based SP800-90 CTR-DRBG
 
 ## Debugging Commands

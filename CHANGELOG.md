@@ -2,6 +2,7 @@
 
 ## Dec 10, 2016
 - Added AES CBC implementation
+- Implemented keystore based key loading
 
 ## Nov 4, 2016
 - Implemented nonce pool
