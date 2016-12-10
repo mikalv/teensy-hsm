@@ -4,6 +4,7 @@
 - Added AES CBC implementation
 - Implemented keystore based key loading
 - Implemented secret of THSM_CMD_DB_AEAD_STORE and THSM_CMD_DB_AEAD_STORE2
+- Implemented AEAD OTP decode and DB OTP validate
 
 ## Nov 4, 2016
 - Implemented nonce pool

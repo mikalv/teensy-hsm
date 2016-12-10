@@ -1,3 +1,11 @@
+//--------------------------------------------------------------------------------------------------
+// GLobal variables
+//--------------------------------------------------------------------------------------------------
+static FastCRC16 CRC16;
+
+//--------------------------------------------------------------------------------------------------
+// Functions
+//--------------------------------------------------------------------------------------------------
 void execute_cmd()
 {
   led_on();
@@ -183,6 +191,9 @@ static void cmd_hmac_sha1_generate() {
       }
     }
   }
+
+  /* clear key */
+  memset(key, 0, sizeof(key));
 }
 
 static void cmd_ecb_encrypt() {
@@ -210,10 +221,10 @@ static void cmd_ecb_encrypt() {
   } else {
     /* perform encryption */
     aes_ecb_encrypt(ciphertext, plaintext, key, sizeof(key));
-
-    /* clear key */
-    memset(key, 0, sizeof(key));
   }
+
+  /* clear key */
+  memset(key, 0, sizeof(key));
 }
 
 static void cmd_ecb_decrypt() {
@@ -242,6 +253,9 @@ static void cmd_ecb_decrypt() {
     /* perform decryption */
     aes_ecb_decrypt(plaintext, ciphertext, phantom_key, THSM_KEY_SIZE);
   }
+
+  /* clear key */
+  memset(key, 0, sizeof(key));
 }
 
 static void cmd_ecb_decrypt_cmp() {
@@ -276,9 +290,11 @@ static void cmd_ecb_decrypt_cmp() {
     response.payload.ecb_decrypt_cmp.status = matched ? THSM_STATUS_MISMATCH : THSM_STATUS_OK;
 
     /* clear temporary variables */
-    memset(key,       0, sizeof(key));
     memset(recovered, 0, sizeof(recovered));
   }
+
+  /* clear key */
+  memset(key, 0, sizeof(key));
 }
 
 static void cmd_buffer_load() {
@@ -415,10 +431,10 @@ static void cmd_aead_generate() {
     /* set response */
     response.payload.aead_generate.data_len = length + THSM_AEAD_MAC_SIZE;
     response.bcnt += response.payload.aead_generate.data_len;
-
-    /* clear temporary */
-    memset(key, 0, sizeof(key));
   }
+
+  /* clear key */
+  memset(key, 0, sizeof(key));
 }
 
 static void cmd_buffer_aead_generate() {
@@ -463,10 +479,10 @@ static void cmd_buffer_aead_generate() {
     /* set response */
     response.payload.buffer_aead_generate.data_len = (length + THSM_AEAD_MAC_SIZE);
     response.bcnt += response.payload.buffer_aead_generate.data_len;
-
-    /* clear temporary buffers */
-    memset(key, 0, sizeof(key));
   }
+
+  /* clear key */
+  memset(key, 0, sizeof(key));
 }
 
 static void cmd_random_aead_generate() {
@@ -519,6 +535,9 @@ static void cmd_random_aead_generate() {
     /* clear random buffer */
     memset(random_buffer, 0, sizeof(random_buffer));
   }
+
+  /* clear key */
+  memset(key, 0, sizeof(key));
 }
 
 static void cmd_aead_decrypt_cmp() {
@@ -552,27 +571,21 @@ static void cmd_aead_decrypt_cmp() {
   } else if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK) {
     response.payload.aead_decrypt_cmp.status = status;
   } else {
+    /* calculate length */
+    uint8_t length = (data_length - THSM_AEAD_MAC_SIZE) >> 1;
+
+    uint8_t recovered[32];
+    uint8_t *plaintext  = src_data;
+    uint8_t *ciphertext = plaintext  + length;
+    uint8_t *mac        = ciphertext + length;
+
+    /* initialize */
+    memset(recovered,  0, sizeof(recovered));
 
     /* generate nonce */
     if (!memcmp(dst_nonce, null_nonce, THSM_AEAD_NONCE_SIZE)) {
       nonce_pool_read(dst_nonce, 1);
     }
-
-    /* calculate block length */
-    uint8_t length = (data_length - THSM_AEAD_MAC_SIZE) >> 1;
-
-    uint8_t *mac;
-    uint8_t *ciphertext;
-    uint8_t *plaintext;
-    uint8_t recovered[32];
-
-    /* initialize */
-    memset(recovered,  0, sizeof(recovered));
-
-    /* load plaintext, ciphertext and mac */
-    plaintext  = src_data;
-    ciphertext = plaintext  + length;
-    mac        = ciphertext + length;
 
     /* perform AES CCM decryption */
     uint8_t mac_matched = aes128_ccm_decrypt(recovered, ciphertext, length, dst_key, key, dst_nonce, mac);
@@ -583,8 +596,10 @@ static void cmd_aead_decrypt_cmp() {
 
     /* clear temporary variables */
     memset(recovered,  0, sizeof(recovered));
-    memset(key,        0, sizeof(key));
   }
+
+  /* clear key */
+  memset(key, 0, sizeof(key));
 }
 
 static void cmd_temp_key_load() {
@@ -659,8 +674,10 @@ static void cmd_temp_key_load() {
     memset(plaintext,  0, sizeof(plaintext));
     memset(mac,        0, sizeof(mac));
     memset(flags,      0, sizeof(flags));
-    memset(key,        0, sizeof(key));
   }
+
+  /* clear key */
+  memset(key, 0, sizeof(key));
 }
 
 static void cmd_db_aead_store() {
@@ -700,13 +717,15 @@ static void cmd_db_aead_store() {
     if (matched) {
       response.payload.db_aead_store.status = keystore_store_secret(src_pub, recovered);
     } else {
-      response.payload.db_aead_store.status = THSM_STATUS_MISMATCH;
+      response.payload.db_aead_store.status = THSM_STATUS_AEAD_INVALID;
     }
 
     /* clear recovered */
     memset(recovered, 0, sizeof(recovered));
-    memset(key,       0, sizeof(key));
   }
+
+  /* clear key */
+  memset(key, 0, sizeof(key));
 }
 
 static void cmd_db_aead_store2() {
@@ -747,42 +766,127 @@ static void cmd_db_aead_store2() {
     if (matched) {
       response.payload.db_aead_store.status = keystore_store_secret(src_pub, recovered);
     } else {
-      response.payload.db_aead_store.status = THSM_STATUS_MISMATCH;
+      response.payload.db_aead_store.status = THSM_STATUS_AEAD_INVALID;
     }
 
     /* clear recovered */
     memset(recovered, 0, sizeof(recovered));
-    memset(key,       0, sizeof(key));
   }
+
+  /* clear key */
+  memset(key, 0, sizeof(key));
 }
 
 static void cmd_aead_otp_decode() {
   uint32_t flags = 0;
   uint8_t key[THSM_KEY_SIZE];
 
-  uint8_t *src_key = request.payload.aead_otp_decode.key_handle;
-  uint8_t *dst_key = response.payload.aead_otp_decode.key_handle;
-  uint8_t *src_pub = request.payload.aead_otp_decode.public_id;
-  uint8_t *dst_pub = response.payload.aead_otp_decode.public_id;
+  uint8_t *src_key  = request.payload.aead_otp_decode.key_handle;
+  uint8_t *dst_key  = response.payload.aead_otp_decode.key_handle;
+  uint8_t *src_pub  = request.payload.aead_otp_decode.public_id;
+  uint8_t *dst_pub  = response.payload.aead_otp_decode.public_id;
+  uint8_t *src_otp  = request.payload.aead_otp_decode.otp;
+  uint8_t *src_aead = request.payload.aead_otp_decode.aead;
 
-  if (request.bcnt)
-    /* copy key handle, public id */
-    memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
+
+  /* copy key handle, public id */
+  memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
   memcpy(dst_pub, src_pub, THSM_PUBLIC_ID_SIZE);
 
   /* get key handle */
+  uint8_t status      = THSM_STATUS_OK;
   uint32_t key_handle = read_uint32(src_key);
 
-  /* clear key buffer */
-  memset(key, 0, sizeof(key));
-
-  uint8_t status = THSM_STATUS_OK;
-
-  if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK) {
+  /* check parameters */
+  if (request.bcnt > (sizeof(request.payload.aead_otp_decode) + 1)) {
+    response.payload.aead_otp_decode.status = THSM_STATUS_INVALID_PARAMETER;
+  } else if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK) {
     response.payload.aead_otp_decode.status = status;
-    return;
+  } else {
+    uint8_t recovered[THSM_KEY_SIZE + THSM_PUBLIC_ID_SIZE];
+    uint8_t length      = (THSM_KEY_SIZE + THSM_PUBLIC_ID_SIZE);
+    uint8_t *ciphertext = src_aead;
+    uint8_t *mac        = src_aead + length;
+    uint8_t *public_id  = recovered + THSM_KEY_SIZE;
+
+    /* init buffer */
+    memset(recovered, 0, sizeof(recovered));
+
+    /* perform AES CCM decryption */
+    uint8_t matched = aes128_ccm_decrypt(recovered, ciphertext, length, dst_key, key, src_pub, mac);
+    if (matched) {
+      uint8_t decoded[THSM_BLOCK_SIZE]; // CRC16 || uid || counter || rand
+
+      /* perform AES ECB decryption */
+      aes_ecb_decrypt(decoded, src_otp, recovered, THSM_KEY_SIZE);
+
+      /* compare CRC-16 */
+      uint16_t crc = (decoded[0] << 8) | decoded[1];
+      if (crc != CRC16.ccitt(decoded + 2, 14)) {
+        response.payload.aead_otp_decode.status = THSM_STATUS_OTP_INVALID;
+      } else if (memcmp(public_id, decoded + 2, THSM_PUBLIC_ID_SIZE)) {
+        response.payload.aead_otp_decode.status = THSM_STATUS_OTP_INVALID;
+      } else {
+        /* copy counter */
+        memcpy(response.payload.aead_otp_decode.counter_timestamp, decoded + 8, THSM_PUBLIC_ID_SIZE);
+      }
+
+      /* clear temporary buffer */
+      memset(decoded, 0, sizeof(decoded));
+    } else {
+      response.payload.aead_otp_decode.status = THSM_STATUS_AEAD_INVALID;
+    }
+
+    /* clear*/
+    memset(recovered, 0, sizeof(recovered));
   }
+
+  /* clear temporary buffer */
+  memset(key, 0, sizeof(key));
 }
 
 static void cmd_db_otp_validate() {
+  uint8_t  secret[THSM_KEY_SIZE + THSM_AEAD_NONCE_SIZE];
+
+  uint8_t *src_pub  = request.payload.db_otp_validate.public_id;
+  uint8_t *dst_pub  = response.payload.db_otp_validate.public_id;
+  uint8_t *src_otp  = request.payload.db_otp_validate.otp;
+
+  /* copy public id */
+  memcpy(dst_pub, src_pub, THSM_PUBLIC_ID_SIZE);
+
+  /* get key handle */
+  uint8_t status = THSM_STATUS_OK;
+
+  /* check parameters */
+  if (request.bcnt > (sizeof(request.payload.db_otp_validate) + 1)) {
+    response.payload.db_otp_validate.status = THSM_STATUS_INVALID_PARAMETER;
+  } else if ((status = keystore_load_secret(secret, src_pub)) != THSM_STATUS_OK) {
+    response.payload.db_otp_validate.status = status;
+  } else {
+    uint8_t decoded[THSM_BLOCK_SIZE]; // CRC16 || uid || counter || rand
+    uint8_t *key = secret;
+    uint8_t *uid_ref = secret  + THSM_KEY_SIZE;
+    uint8_t *uid_act = decoded + 2;
+
+    /* perform AES ECB decryption */
+    aes_ecb_decrypt(decoded, src_otp, key, THSM_KEY_SIZE);
+
+    /* compare CRC-16 */
+    uint16_t crc = (decoded[0] << 8) | decoded[1];
+    if (crc != CRC16.ccitt(decoded + 2, 14)) {
+      response.payload.db_otp_validate.status = THSM_STATUS_OTP_INVALID;
+    } else if (memcmp(uid_ref, uid_act, THSM_PUBLIC_ID_SIZE)) {
+      response.payload.db_otp_validate.status = THSM_STATUS_OTP_INVALID;
+    } else {
+      /* copy counter */
+      memcpy(response.payload.db_otp_validate.counter_timestamp, decoded + 8, THSM_PUBLIC_ID_SIZE);
+    }
+
+    /* clear temporary buffer */
+    memset(decoded, 0, sizeof(decoded));
+  }
+
+  /* clear key buffer */
+  memset(secret, 0, sizeof(secret));
 }

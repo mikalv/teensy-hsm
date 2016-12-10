@@ -42,6 +42,8 @@ Please read this carefully
 - AEAD store to db with specified nonce
 - Temporary key loading
 - Debugging console
+- AEAD OTP decode
+- Database OTP validate
 
 ## Algorithms
 Teensy HSM uses the following algorithms:

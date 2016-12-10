@@ -307,6 +307,12 @@ typedef struct {
   uint8_t aead[THSM_AEAD_SIZE];
 } THSM_AEAD_OTP_DECODE_REQ;
 
+
+typedef struct {
+  uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+  uint8_t otp[THSM_OTP_SIZE];
+} THSM_DB_OTP_VALIDATE_REQ;
+
 typedef struct
 {
   uint8_t data_len;
@@ -431,6 +437,12 @@ typedef struct {
   uint8_t  status;
 } THSM_AEAD_OTP_DECODE_RESP;
 
+typedef struct {
+  uint8_t  public_id[THSM_PUBLIC_ID_SIZE];
+  uint8_t  counter_timestamp[THSM_AEAD_NONCE_SIZE]; // uint16_use_ctr | uint8_session_ctr | uint24_timestamp
+  uint8_t  status;
+} THSM_DB_OTP_VALIDATE_RESP;
+
 typedef union
 {
   uint8_t                        raw[THSM_MAX_PKT_SIZE];
@@ -454,6 +466,7 @@ typedef union
   THSM_DB_AEAD_STORE_REQ         db_aead_store;
   THSM_DB_AEAD_STORE2_REQ        db_aead_store2;
   THSM_AEAD_OTP_DECODE_REQ       aead_otp_decode;
+  THSM_DB_OTP_VALIDATE_REQ       db_otp_validate;
 } THSM_PAYLOAD_REQ;
 
 typedef union
@@ -480,6 +493,7 @@ typedef union
   THSM_DB_AEAD_STORE_RESP         db_aead_store;
   THSM_DB_AEAD_STORE2_RESP        db_aead_store2;
   THSM_AEAD_OTP_DECODE_RESP       aead_otp_decode;
+  THSM_DB_OTP_VALIDATE_RESP       db_otp_validate;
 } THSM_PAYLOAD_RESP;
 
 typedef struct

@@ -48,16 +48,16 @@ uint8_t keystore_unlock(uint8_t *cipherkey) {
 }
 
 uint8_t keystore_load_key(uint8_t *dst_key, uint32_t *dst_flags, uint32_t handle) {
-  /* check if phantom key requested */
-  if (handle == 0xffffffff) {
-    memcpy(dst_key, &phantom_key, sizeof(phantom_key));
-    return THSM_STATUS_OK;
-  }
-
   /* check EEPROM header identifier */
   uint32_t magic = read_uint32(flash_cache.header.magic);
   if (magic != 0xdeadbeef) {
     return THSM_STATUS_KEY_STORAGE_LOCKED;
+  }
+
+  /* check if phantom key requested */
+  if (handle == 0xffffffff) {
+    memcpy(dst_key, &phantom_key, sizeof(phantom_key));
+    return THSM_STATUS_OK;
   }
 
   /* scan through key enrties */
