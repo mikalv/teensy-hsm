@@ -511,17 +511,6 @@ typedef struct
 } THSM_PKT_RESP;
 
 //--------------------------------------------------------------------------------------------------
-// Lookup Tables
-//--------------------------------------------------------------------------------------------------
-
-/* TODO : implement proper phantom key loading unloading */
-static const uint8_t DUMMY_KEY[THSM_KEY_SIZE] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-                                                 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff
-                                                };
-
-static const uint8_t null_nonce[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
-//--------------------------------------------------------------------------------------------------
 // Global Variables
 //--------------------------------------------------------------------------------------------------
 static THSM_PKT_REQ    request;
@@ -540,8 +529,6 @@ void setup() {
   hmac_reset();
   keystore_init();
 
-  /* TODO : implement proper phantom key loading unloading */
-  memcpy(phantom_key, DUMMY_KEY, sizeof(DUMMY_KEY));
   memset(&thsm_buffer, 0, sizeof(thsm_buffer));
 
   /* init nonce pool */
