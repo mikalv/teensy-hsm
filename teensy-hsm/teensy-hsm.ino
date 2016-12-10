@@ -57,7 +57,6 @@
 //--------------------------------------------------------------------------------------------------
 #define THSM_KEY_HANDLE_SIZE        4
 #define THSM_KEY_FLAGS_SIZE         4
-#define THSM_PUBLIC_ID_SIZE         6 // Size of public id for std OTP validation
 #define THSM_OTP_SIZE              16 // Size of OTP
 #define THSM_BLOCK_SIZE            16 // Size of block operations
 #define THSM_KEY_SIZE              16 // Size of key
@@ -74,7 +73,7 @@
 #define THSM_HMAC_FINAL          0x02
 #define THSM_HMAC_SHA1_TO_BUFFER 0x04
 #define THSM_SYSTEM_ID_SIZE        12
-#define THSM_UID_SIZE               6
+#define THSM_PUBLIC_ID_SIZE         6
 #define THSM_DB_KEY_ENTRIES        40
 #define THSM_DB_SECRET_ENTRIES     32
 #define THSM_AEAD_SIZE           (THSM_KEY_SIZE + THSM_PUBLIC_ID_SIZE + THSM_AEAD_MAC_SIZE)
@@ -162,8 +161,8 @@ typedef struct {
 } THSM_DB_KEY_ENTRY;
 
 typedef struct {
-  uint8_t nonce[THSM_AEAD_NONCE_SIZE];
-  uint8_t key  [THSM_KEY_SIZE];
+  uint8_t public_id [THSM_PUBLIC_ID_SIZE];
+  uint8_t secret    [THSM_KEY_SIZE + THSM_AEAD_NONCE_SIZE];
 } THSM_DB_SECRET_ENTRY;
 
 typedef struct {
@@ -181,12 +180,13 @@ typedef struct {
 
 typedef struct {
   uint8_t magic[sizeof(uint32_t)];
-  uint8_t digest[SHA1_DIGEST_SIZE_BYTES]; 
+  uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
 } THSM_FLASH_HEADER;
 
 typedef struct {
   THSM_FLASH_HEADER header;
   THSM_FLASH_BODY   body;
+  uint8_t           cmd_flags;
 } THSM_FLASH_STORAGE;
 
 typedef struct {
@@ -288,15 +288,15 @@ typedef struct {
 } THSM_TEMP_KEY_LOAD_REQ;
 
 typedef struct {
-  uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+  uint8_t public_id [THSM_PUBLIC_ID_SIZE];
   uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
-  uint8_t aead[(THSM_UID_SIZE + THSM_KEY_SIZE + THSM_AEAD_MAC_SIZE)];
+  uint8_t aead      [THSM_AEAD_SIZE]; // key || nonce || mac
 } THSM_DB_AEAD_STORE_REQ;
 
 typedef struct {
   uint8_t public_id[THSM_PUBLIC_ID_SIZE];
   uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
-  uint8_t aead[(THSM_UID_SIZE + THSM_KEY_SIZE + THSM_AEAD_MAC_SIZE)];
+  uint8_t aead[THSM_AEAD_SIZE]; // key || nonce || mac
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
 } THSM_DB_AEAD_STORE2_REQ;
 

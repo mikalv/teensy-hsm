@@ -135,15 +135,15 @@ static void cmd_hmac_sha1_generate() {
   uint8_t  key[THSM_KEY_SIZE];
   uint32_t flags;
 
-  /* set common response */
-  response.bcnt = (sizeof(response.payload.hmac_sha1_generate) - sizeof(response.payload.hmac_sha1_generate.data)) + 1;
-  response.payload.hmac_sha1_generate.data_len = 0;
-  response.payload.hmac_sha1_generate.status = THSM_STATUS_OK;
-
   uint8_t *src_key  = request.payload.hmac_sha1_generate.key_handle;
   uint8_t *dst_key  = response.payload.hmac_sha1_generate.key_handle;
   uint8_t *src_data = request.payload.hmac_sha1_generate.data;
   uint8_t *dst_data = response.payload.hmac_sha1_generate.data;
+
+  /* set common response */
+  response.bcnt = (sizeof(response.payload.hmac_sha1_generate) - sizeof(response.payload.hmac_sha1_generate.data)) + 1;
+  response.payload.hmac_sha1_generate.data_len = 0;
+  response.payload.hmac_sha1_generate.status = THSM_STATUS_OK;
 
   /* copy key handle */
   memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
@@ -675,31 +675,33 @@ static void cmd_db_aead_store() {
 
   /* copy key handle and public id */
   memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
-  memcpy(dst_pub, src_pub, THSM_UID_SIZE);
+  memcpy(dst_pub, src_pub, THSM_PUBLIC_ID_SIZE);
 
   /* get key handle */
   uint32_t key_handle = read_uint32(src_key);
   uint8_t  status     = THSM_STATUS_OK;
 
   /* load key */
-  if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK) {
+  if (request.bcnt > (sizeof(request.payload.db_aead_store) + 1)) {
+    response.payload.db_aead_store.status = THSM_STATUS_INVALID_PARAMETER;
+  } else if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK) {
     response.payload.db_aead_store.status = status;
   } else {
-    uint8_t length      = (THSM_UID_SIZE + THSM_KEY_SIZE);
+    uint8_t length      = (THSM_KEY_SIZE + THSM_AEAD_NONCE_SIZE);
     uint8_t *ciphertext = src_data;
     uint8_t *mac        = src_data + length;
-    uint8_t recovered[THSM_KEY_SIZE];
+    uint8_t recovered[THSM_KEY_SIZE + THSM_AEAD_NONCE_SIZE];
 
     /* clear buffer */
     memset(recovered, 0, sizeof(recovered));
 
     /* perform AES CCM decryption */
-    uint8_t matched = aes128_ccm_decrypt(recovered, ciphertext, length, dst_key, phantom_key, src_pub, mac);
-
-    /* TODO : store decrypted value */
-
-    /* set response */
-    response.payload.db_aead_store.status = matched ? THSM_STATUS_OK : THSM_STATUS_MISMATCH;
+    uint8_t matched = aes128_ccm_decrypt(recovered, ciphertext, length, dst_key, key, src_pub, mac);
+    if (matched) {
+      response.payload.db_aead_store.status = keystore_store_secret(src_pub, recovered);
+    } else {
+      response.payload.db_aead_store.status = THSM_STATUS_MISMATCH;
+    }
 
     /* clear recovered */
     memset(recovered, 0, sizeof(recovered));
@@ -720,32 +722,33 @@ static void cmd_db_aead_store2() {
 
   /* copy key handle and public id */
   memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
-  memcpy(dst_pub, src_pub, THSM_UID_SIZE);
+  memcpy(dst_pub, src_pub, THSM_PUBLIC_ID_SIZE);
 
   /* read key handle */
   uint32_t key_handle = read_uint32(src_key);
   uint8_t  status     = THSM_STATUS_OK;
 
   /* load key */
-  if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK) {
+  if (request.bcnt > (sizeof(request.payload.db_aead_store) + 1)) {
+    response.payload.db_aead_store2.status = THSM_STATUS_INVALID_PARAMETER;
+  } else if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK) {
     response.payload.db_aead_store2.status = status;
   } else {
-    uint8_t length      = (THSM_UID_SIZE + THSM_KEY_SIZE);
+    uint8_t length      = (THSM_KEY_SIZE + THSM_AEAD_NONCE_SIZE);
     uint8_t *ciphertext = src_data;
     uint8_t *mac        = src_data + length;
-    uint8_t recovered[THSM_KEY_SIZE];
+    uint8_t recovered[THSM_KEY_SIZE + THSM_PUBLIC_ID_SIZE];
 
     /* init buffer */
     memset(recovered, 0, sizeof(recovered));
 
     /* perform AES CCM decryption */
-    uint8_t matched = aes128_ccm_decrypt(recovered, ciphertext, length, dst_key, phantom_key, src_nonce, mac);
-
-
-    /* TODO : store decrypted value */
-
-    /* set response */
-    response.payload.db_aead_store2.status = matched ? THSM_STATUS_OK : THSM_STATUS_MISMATCH;
+    uint8_t matched = aes128_ccm_decrypt(recovered, ciphertext, length, dst_key, key, src_nonce, mac);
+    if (matched) {
+      response.payload.db_aead_store.status = keystore_store_secret(src_pub, recovered);
+    } else {
+      response.payload.db_aead_store.status = THSM_STATUS_MISMATCH;
+    }
 
     /* clear recovered */
     memset(recovered, 0, sizeof(recovered));
@@ -762,9 +765,10 @@ static void cmd_aead_otp_decode() {
   uint8_t *src_pub = request.payload.aead_otp_decode.public_id;
   uint8_t *dst_pub = response.payload.aead_otp_decode.public_id;
 
-  /* copy key handle, public id */
-  memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
-  memcpy(dst_pub, src_pub, THSM_UID_SIZE);
+  if (request.bcnt)
+    /* copy key handle, public id */
+    memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
+  memcpy(dst_pub, src_pub, THSM_PUBLIC_ID_SIZE);
 
   /* get key handle */
   uint32_t key_handle = read_uint32(src_key);
@@ -772,13 +776,11 @@ static void cmd_aead_otp_decode() {
   /* clear key buffer */
   memset(key, 0, sizeof(key));
 
-  uint8_t ret = keystore_load_key(key, &flags, key_handle);
-  if (ret == 0) {
-    /* TODO add implementation */
-  } else  if (ret == 1) {
-    response.payload.aead_otp_decode.status = THSM_STATUS_KEY_HANDLE_INVALID;
-  } else {
-    response.payload.aead_otp_decode.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+  uint8_t status = THSM_STATUS_OK;
+
+  if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK) {
+    response.payload.aead_otp_decode.status = status;
+    return;
   }
 }
 

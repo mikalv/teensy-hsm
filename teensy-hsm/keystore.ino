@@ -60,13 +60,14 @@ uint8_t keystore_load_key(uint8_t *dst_key, uint32_t *dst_flags, uint32_t handle
     return THSM_STATUS_KEY_STORAGE_LOCKED;
   }
 
-  THSM_FLASH_BODY *body = &flash_cache.body;
+  /* scan through key enrties */
+  THSM_DB_KEYS *keys = &flash_cache.body.keys;
   for (uint16_t i = 0; i < THSM_DB_KEY_ENTRIES; i++) {
-    uint32_t tmp = read_uint32(body->keys.entries[i].handle);
+    uint32_t tmp = read_uint32(keys->entries[i].handle);
     if (tmp == handle) {
-      uint32_t flags = read_uint32(body->keys.entries[i].flags);
+      uint32_t flags = read_uint32(keys->entries[i].flags);
       *dst_flags = flags;
-      memcpy(dst_key, body->keys.entries[i].key, THSM_KEY_SIZE);
+      memcpy(dst_key, keys->entries[i].key, THSM_KEY_SIZE);
 
       return THSM_STATUS_OK;
     }
@@ -74,3 +75,44 @@ uint8_t keystore_load_key(uint8_t *dst_key, uint32_t *dst_flags, uint32_t handle
 
   return THSM_STATUS_KEY_HANDLE_INVALID;
 }
+
+uint8_t keystore_store_secret(uint8_t *public_id, uint8_t *secret) {
+  /* check EEPROM header identifier */
+  uint32_t magic = read_uint32(flash_cache.header.magic);
+  if (magic != 0xdeadbeef) {
+    return THSM_STATUS_KEY_STORAGE_LOCKED;
+  }
+
+  /* scan through secret entries */
+  THSM_DB_SECRETS *secrets = &flash_cache.body.secrets;
+  for (uint16_t i = 0; i < THSM_DB_SECRET_ENTRIES; i++) {
+    if (!memcpy(secrets->entries[i].public_id, public_id, THSM_PUBLIC_ID_SIZE)) {
+      return THSM_STATUS_ID_DUPLICATE;
+    } else if (!memcmp(secrets->entries[i].public_id, public_id, THSM_PUBLIC_ID_SIZE)) {
+      memcpy(secrets->entries[i].secret, secret, THSM_AEAD_SIZE);
+      return THSM_STATUS_OK;
+    }
+  }
+
+  return THSM_STATUS_DB_FULL;
+}
+
+uint8_t keystore_load_secret(uint8_t *secret, uint8_t *public_id) {
+  /* check EEPROM header identifier */
+  uint32_t magic = read_uint32(flash_cache.header.magic);
+  if (magic != 0xdeadbeef) {
+    return THSM_STATUS_KEY_STORAGE_LOCKED;
+  }
+
+  /* scan through secret entries */
+  THSM_DB_SECRETS *secrets = &flash_cache.body.secrets;
+  for (uint16_t i = 0; i < THSM_DB_SECRET_ENTRIES; i++) {
+    if (!memcpy(secrets->entries[i].public_id, public_id, THSM_PUBLIC_ID_SIZE)) {
+      memcpy(secret, secrets->entries[i].secret, THSM_AEAD_SIZE);
+      return THSM_STATUS_OK;
+    }
+  }
+
+  return THSM_STATUS_ID_NOT_FOUND;
+}
+
