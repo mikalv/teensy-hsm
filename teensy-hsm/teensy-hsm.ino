@@ -515,8 +515,6 @@ typedef struct
 //--------------------------------------------------------------------------------------------------
 static THSM_PKT_REQ    request;
 static THSM_PKT_RESP   response;
-static hmac_sha1_ctx_t hmac_sha1_ctx;
-static uint8_t         phantom_key[THSM_KEY_SIZE];
 static THSM_BUFFER     thsm_buffer;
 
 //--------------------------------------------------------------------------------------------------

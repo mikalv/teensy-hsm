@@ -2,11 +2,13 @@
 // Global Variables
 //--------------------------------------------------------------------------------------------------
 static THSM_FLASH_STORAGE flash_cache;
+static uint8_t            temp_key[THSM_KEY_SIZE];
 
 //--------------------------------------------------------------------------------------------------
 // Key Store
 //--------------------------------------------------------------------------------------------------
 void keystore_init() {
+  memset(&temp_key,    0, sizeof(temp_key);
   memset(&flash_cache, 0, sizeof(flash_cache));
 }
 
@@ -56,7 +58,7 @@ uint8_t keystore_load_key(uint8_t *dst_key, uint32_t *dst_flags, uint32_t handle
 
   /* check if phantom key requested */
   if (handle == 0xffffffff) {
-    memcpy(dst_key, &phantom_key, sizeof(phantom_key));
+    memcpy(dst_key, temp_key, sizeof(temp_key));
     return THSM_STATUS_OK;
   }
 
