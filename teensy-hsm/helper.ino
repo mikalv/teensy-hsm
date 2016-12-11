@@ -12,6 +12,30 @@ static void write_uint32(uint8_t *d, uint32_t v) {
   *d++ = (uint8_t)(v >> 0);
 }
 
+static uint64_t pack_nonce(uint8_t *nonce) {
+  uint64_t ret = 0;
+  ret |= (*nonce++ << 40);
+  ret |= (*nonce++ << 32);
+  ret |= (*nonce++ << 24);
+  ret |= (*nonce++ << 16);
+  ret |= (*nonce++ << 8);
+  ret |= (*nonce++ << 0);
+
+  return ret;
+}
+
+
+static void increment_nonce(uint8_t *value) {
+  uint8_t ov = 1;
+
+  value[5] += ov; ov = (value[5] == 0);
+  value[4] += ov; ov = (value[4] == 0);
+  value[3] += ov; ov = (value[3] == 0);
+  value[2] += ov; ov = (value[2] == 0);
+  value[1] += ov; ov = (value[1] == 0);
+  value[0] += ov; ov = (value[0] == 0);
+}
+
 uint16_t buffer_load_hex(uint8_t *dst, uint8_t **src, uint16_t length) {
   uint8_t c, v, parsed;
   uint8_t *ptr = *src;

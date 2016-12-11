@@ -504,13 +504,13 @@ void aes_cbc_encrypt(uint8_t *ciphertext, uint8_t *plaintext, uint16_t length, u
   memset(&ct, 0, sizeof(ct));
   aes_init(&sk, cipherkey, key_length);
 
-  while (length > 0)
+  while(length > 0)
   {
-    uint8_t step = (length > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : step;
+    uint8_t step = (length > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : step;    
 
     /* load plaintext */
     memset(&pt, 0, sizeof(pt));
-    memcpy(pt.bytes, plaintext, step);
+    memcpy(pt.bytes, plaintext, step);    
 
     /* xor plaintext */
     aes_state_xor(&pt, &pt, &ct);
@@ -521,9 +521,10 @@ void aes_cbc_encrypt(uint8_t *ciphertext, uint8_t *plaintext, uint16_t length, u
     /* copy to output */
     memcpy(ciphertext, ct.bytes, step);
 
-    length     -= step;
-    ciphertext += step;
+    /* update pointers */
     plaintext  += step;
+    ciphertext += step;
+    length     -= step;
   }
 }
 

@@ -77,6 +77,7 @@
 #define THSM_DB_KEY_ENTRIES        40
 #define THSM_DB_SECRET_ENTRIES     32
 #define THSM_AEAD_SIZE           (THSM_KEY_SIZE + THSM_PUBLIC_ID_SIZE + THSM_AEAD_MAC_SIZE)
+#define THSM_OTP_DELTA_MAX         32 // max difference of OTP delta
 
 //--------------------------------------------------------------------------------------------------
 // Flags
@@ -174,8 +175,17 @@ typedef struct {
 } THSM_DB_SECRETS;
 
 typedef struct {
-  THSM_DB_SECRETS secrets;
-  THSM_DB_KEYS    keys;
+  uint8_t value[THSM_AEAD_NONCE_SIZE];
+} THSM_FLASH_COUNTER_ENTRY;
+
+typedef struct {
+  THSM_FLASH_COUNTER_ENTRY entries[THSM_DB_SECRET_ENTRIES];
+} THSM_FLASH_COUNTER;
+
+typedef struct {
+  THSM_DB_SECRETS    secrets;
+  THSM_DB_KEYS       keys;
+  THSM_FLASH_COUNTER counter;
 } THSM_FLASH_BODY;
 
 typedef struct {
@@ -184,9 +194,9 @@ typedef struct {
 } THSM_FLASH_HEADER;
 
 typedef struct {
-  THSM_FLASH_HEADER header;
-  THSM_FLASH_BODY   body;
-  uint8_t           cmd_flags;
+  THSM_FLASH_HEADER  header;
+  THSM_FLASH_BODY    body;
+  uint8_t            cmd_flags;
 } THSM_FLASH_STORAGE;
 
 typedef struct {

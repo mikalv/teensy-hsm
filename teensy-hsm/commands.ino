@@ -257,7 +257,7 @@ static void cmd_ecb_decrypt() {
     response.payload.ecb_decrypt.status = status;
   } else {
     /* perform decryption */
-    aes_ecb_decrypt(plaintext, ciphertext, phantom_key, THSM_KEY_SIZE);
+    aes_ecb_decrypt(plaintext, ciphertext, key, THSM_KEY_SIZE);
   }
 
   /* clear key */
@@ -348,20 +348,54 @@ static void cmd_buffer_random_load() {
 }
 
 static void cmd_hsm_unlock() {
+  uint8_t secret[THSM_KEY_SIZE + THSM_AEAD_NONCE_SIZE];
   /* prepare response */
   response.bcnt = sizeof(response.payload.hsm_unlock) + 1;
 
-  /* TODO: add implementation */
-
-  /* clear temporary key */
-  memset(&phantom_key, 0, sizeof(phantom_key));
+  uint8_t *public_id = request.payload.hsm_unlock.public_id;
+  uint8_t *otp       = request.payload.hsm_unlock.otp;
+  uint8_t status     = THSM_STATUS_OK;
 
   /* check request byte count */
   if (request.bcnt != (sizeof(request.payload.hsm_unlock) + 1)) {
     response.payload.hsm_unlock.status = THSM_STATUS_INVALID_PARAMETER;
+  } else if ((status = keystore_load_secret(secret, public_id)) != THSM_STATUS_OK) {
+    response.payload.hsm_unlock.status = status;
   } else {
-    response.payload.hsm_unlock.status = THSM_STATUS_OK;
+    uint8_t decoded[THSM_BLOCK_SIZE];
+    uint8_t *key       = secret;
+    uint8_t *uid_ref   = secret + THSM_KEY_SIZE;
+    uint8_t *uid_act   = decoded + 2;
+    uint8_t *counter   = uid_act + THSM_AEAD_NONCE_SIZE;
+    uint8_t length     = THSM_KEY_SIZE - sizeof(uint16_t);
+
+    /* decrypt otp */
+    aes_ecb_decrypt(decoded, otp, key, THSM_KEY_SIZE);
+
+    /* lock secret by default */
+    secret_locked(true);
+
+    /* compare CRC16 */
+    uint16_t crc = (decoded[0] << 8) | decoded[1];
+    if (crc != CRC16.ccitt(uid_act, length)) {
+      response.payload.hsm_unlock.status = THSM_STATUS_OTP_INVALID;
+    } else if (!memcmp(uid_ref, uid_act, THSM_AEAD_NONCE_SIZE)) {
+      response.payload.hsm_unlock.status = THSM_STATUS_OTP_INVALID;
+    } else if ((status = keystore_check_counter(public_id, counter)) != THSM_STATUS_OK) {
+      response.payload.hsm_unlock.status = status;
+    } else {
+      secret_locked(false);
+
+      /* save updated flash cache */
+      keystore_update();
+    }
+
+    /* clear temporary variable */
+    memset(decoded, 0, sizeof(decoded));
   }
+
+  /* clear secret */
+  memset(secret, 0, sizeof(secret));
 }
 
 static void cmd_key_store_decrypt() {
@@ -639,7 +673,7 @@ static void cmd_temp_key_load() {
 
     /* clear temporary key and quit */
     if (data_len == 12) {
-      memset(&phantom_key, 0, sizeof(phantom_key));
+      keystore_store_key(0xffffffff, 0, NULL);
       return;
     }
 
@@ -666,10 +700,9 @@ static void cmd_temp_key_load() {
     /* perform AES CCM decryption */
     uint8_t matched = aes128_ccm_decrypt(plaintext, ciphertext, length, dst_key, key, dst_nonce, mac);
 
-    /* Copy to phantom key */
-    /* FIXME: what about 20, 24, and 32 bytes key? */
+    /* Copy to temporary key */
     if (matched) {
-      memcpy(phantom_key, plaintext, THSM_KEY_SIZE);
+      keystore_store_key(0xffffffff, 0, plaintext);
     }
 
     /* set response */
@@ -721,7 +754,13 @@ static void cmd_db_aead_store() {
     /* perform AES CCM decryption */
     uint8_t matched = aes128_ccm_decrypt(recovered, ciphertext, length, dst_key, key, src_pub, mac);
     if (matched) {
-      response.payload.db_aead_store.status = keystore_store_secret(src_pub, recovered);
+      status = keystore_store_secret(src_pub, recovered);
+      response.payload.db_aead_store.status = status;
+
+      /* save updated flash cache */
+      if (status == THSM_STATUS_OK) {
+        keystore_update();
+      }
     } else {
       response.payload.db_aead_store.status = THSM_STATUS_AEAD_INVALID;
     }
@@ -770,7 +809,13 @@ static void cmd_db_aead_store2() {
     /* perform AES CCM decryption */
     uint8_t matched = aes128_ccm_decrypt(recovered, ciphertext, length, dst_key, key, src_nonce, mac);
     if (matched) {
-      response.payload.db_aead_store.status = keystore_store_secret(src_pub, recovered);
+      uint8_t status = keystore_store_secret(src_pub, recovered);
+      response.payload.db_aead_store.status = status;
+
+      /* save updated flash cache */
+      if (status == THSM_STATUS_OK) {
+        keystore_update();
+      }
     } else {
       response.payload.db_aead_store.status = THSM_STATUS_AEAD_INVALID;
     }
