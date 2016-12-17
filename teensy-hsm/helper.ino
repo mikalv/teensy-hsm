@@ -1,5 +1,13 @@
+//==================================================================================================
+// Project : Teensy HSM
+// Author  : Edi Permadi
+// Repo    : https://github.com/edipermadi/teensy-hsm
+//
+// This file is part of TeensyHSM project containing the implementation utility functions.
+//==================================================================================================
+
 //--------------------------------------------------------------------------------------------------
-// Helper
+// Functions
 //--------------------------------------------------------------------------------------------------
 static uint32_t read_uint32(uint8_t *s) {
   return (s[0] << 24) | (s[1] << 16) | (s[2] << 8) | s[3];
@@ -11,19 +19,6 @@ static void write_uint32(uint8_t *d, uint32_t v) {
   *d++ = (uint8_t)(v >> 8);
   *d++ = (uint8_t)(v >> 0);
 }
-
-static uint64_t pack_nonce(uint8_t *nonce) {
-  uint64_t ret = 0;
-  ret |= (*nonce++ << 40);
-  ret |= (*nonce++ << 32);
-  ret |= (*nonce++ << 24);
-  ret |= (*nonce++ << 16);
-  ret |= (*nonce++ << 8);
-  ret |= (*nonce++ << 0);
-
-  return ret;
-}
-
 
 static void increment_nonce(uint8_t *value) {
   uint8_t ov = 1;

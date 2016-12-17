@@ -1,3 +1,11 @@
+//==================================================================================================
+// Project : Teensy HSM
+// Author  : Edi Permadi
+// Repo    : https://github.com/edipermadi/teensy-hsm
+//
+// This file is part of TeensyHSM project containing the implementation nonce pool
+//==================================================================================================
+
 //--------------------------------------------------------------------------------------------------
 // Global Variables
 //--------------------------------------------------------------------------------------------------
@@ -21,16 +29,7 @@ void nonce_pool_read(uint8_t *buffer, uint16_t step) {
   }
 }
 
-
-
 static void nonce_pool_increment() {
-  uint8_t ov = 1;
-
-  nonce_pool[5] = + ov; ov = (nonce_pool[5] == 0);
-  nonce_pool[4] = + ov; ov = (nonce_pool[4] == 0);
-  nonce_pool[3] = + ov; ov = (nonce_pool[3] == 0);
-  nonce_pool[2] = + ov; ov = (nonce_pool[2] == 0);
-  nonce_pool[1] = + ov; ov = (nonce_pool[1] == 0);
-  nonce_pool[0] = + ov; ov = (nonce_pool[0] == 0);
+  increment_nonce(nonce_pool);
 }
 

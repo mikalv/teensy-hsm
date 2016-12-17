@@ -1,3 +1,11 @@
+//==================================================================================================
+// Project : Teensy HSM
+// Author  : Edi Permadi
+// Repo    : https://github.com/edipermadi/teensy-hsm
+//
+// This file is part of TeensyHSM project containing the implementation of persistent storage 
+// (EEPROM) related functionality.
+//==================================================================================================
 
 //--------------------------------------------------------------------------------------------------
 // Flash Storage

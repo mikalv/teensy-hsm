@@ -1,3 +1,12 @@
+//==================================================================================================
+// Project : Teensy HSM
+// Author  : Edi Permadi
+// Repo    : https://github.com/edipermadi/teensy-hsm
+//
+// This file is part of TeensyHSM project containing the implementation persistent storage backed
+// key and secret storage.
+//==================================================================================================
+
 //--------------------------------------------------------------------------------------------------
 // Global Variables
 //--------------------------------------------------------------------------------------------------
@@ -169,11 +178,17 @@ uint8_t keystore_check_counter(uint8_t *public_id, uint8_t *counter) {
   THSM_DB_SECRETS *secrets = &flash_cache.body.secrets;
   for (uint16_t i = 0; i < THSM_DB_SECRET_ENTRIES; i++) {
     if (!memcpy(secrets->entries[i].public_id, public_id, THSM_PUBLIC_ID_SIZE)) {
-      uint64_t ctr_ref = pack_nonce(flash_cache.body.counter.entries[i].value);
-      uint64_t ctr_act = pack_nonce(counter);
-      if (ctr_act < ctr_ref) {
+      uint8_t *nonce_ref  = flash_cache.body.counter.entries[i].value;
+      uint8_t *nonce_act  = counter;
+      uint32_t tstamp_ref = (nonce_ref[3] << 24) | (nonce_ref[4] << 16) | nonce_ref[5];
+      uint32_t tstamp_act = (nonce_act[3] << 24) | (nonce_act[4] << 16) | nonce_act[5];
+
+      /* compare session */
+      if (memcmp(nonce_ref, nonce_act, 3) != 0) {
+        return THSM_STATUS_OTP_INVALID;
+      } else if (tstamp_act < tstamp_ref) {
         return THSM_STATUS_OTP_REPLAY;
-      } else if ((ctr_ref - ctr_act) < THSM_OTP_DELTA_MAX) {
+      } else if ((tstamp_ref - tstamp_act) < THSM_OTP_DELTA_MAX) {
 
         /* copy and increment counter */
         memcpy(flash_cache.body.counter.entries[i].value, counter, THSM_AEAD_NONCE_SIZE);

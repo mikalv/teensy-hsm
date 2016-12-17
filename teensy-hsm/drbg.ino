@@ -1,3 +1,12 @@
+//==================================================================================================
+// Project : Teensy HSM
+// Author  : Edi Permadi
+// Repo    : https://github.com/edipermadi/teensy-hsm
+//
+// This file is part of TeensyHSM project containing the implementation of AES-128 based CTR_DRBG
+// deterministic random bit generator seeded by whitened ADC noise.
+//==================================================================================================
+
 //--------------------------------------------------------------------------------------------------
 // Hardare Configuration
 //--------------------------------------------------------------------------------------------------

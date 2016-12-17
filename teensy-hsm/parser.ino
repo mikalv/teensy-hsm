@@ -1,7 +1,10 @@
-//--------------------------------------------------------------------------------------------------
-// Debugging compilation flag
-//--------------------------------------------------------------------------------------------------
-#define DEBUG_CONSOLE       1
+//==================================================================================================
+// Project : Teensy HSM
+// Author  : Edi Permadi
+// Repo    : https://github.com/edipermadi/teensy-hsm
+//
+// This file is part of TeensyHSM project containing the implementation command parser
+//==================================================================================================
 
 //--------------------------------------------------------------------------------------------------
 // States
@@ -28,6 +31,7 @@ void parser_run() {
   uint8_t remaining = 0;
   uint8_t state     = STATE_WAIT_BCNT;
   uint8_t zero_ctr  = 0;
+  uint8_t nl_ctr    = 0;
 #if DEBUG_CONSOLE > 0
   uint8_t tab_ctr   = 0;
 #endif
@@ -42,16 +46,31 @@ void parser_run() {
       tab_ctr  = (b == '\t') ? (tab_ctr + 1) : 0;
 #endif
 
-      /* detect reset */
-      zero_ctr = (!b) ? (zero_ctr + 1) : 0;
+      /* detect reset and setup sequence */
+      nl_ctr   = ((b == '\n') || (b == '\r')) ? (nl_ctr   + 1) : 0;
+      zero_ctr = (b == 0)                     ? (zero_ctr + 1) : 0;
       if (zero_ctr == THSM_MAX_PKT_SIZE)
       {
         parser_reset();
         zero_ctr = 0;
+        nl_ctr   = 0;
+#if DEBUG_CONSOLE > 0
         tab_ctr  = 0;
+#endif
+        state = STATE_WAIT_BCNT;
+        continue;
+      } else if (nl_ctr == '\n') {
+        setup_run();
+        parser_reset();
+        zero_ctr = 0;
+        nl_ctr   = 0;
+#if DEBUG_CONSOLE > 0
+        tab_ctr  = 0;
+#endif
         state = STATE_WAIT_BCNT;
         continue;
       }
+
 #if DEBUG_CONSOLE > 0
       else if (tab_ctr == '\t') {
         debug_run();
@@ -59,6 +78,7 @@ void parser_run() {
         /* reset parser */
         parser_reset();
         zero_ctr = 0;
+        nl_ctr   = 0;
         tab_ctr  = 0;
         state = STATE_WAIT_BCNT;
         continue;

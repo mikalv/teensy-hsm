@@ -1,19 +1,33 @@
+//==================================================================================================
+// Project : Teensy HSM
+// Author  : Edi Permadi
+// Repo    : https://github.com/edipermadi/teensy-hsm
+//
+// This file is part of TeensyHSM project containing the implementation of debugging console.
+//==================================================================================================
+
 //--------------------------------------------------------------------------------------------------
 // Global variables
 //--------------------------------------------------------------------------------------------------
+#if DEBUG_CONSOLE > 0
 static uint8_t         debug_buffer[512];
 static uint16_t        debug_buffer_len = 0;
 static sha1_ctx_t      debug_sha1_ctx;
 static hmac_sha1_ctx_t debug_hmac_sha1_ctx;
+#endif
+
 //--------------------------------------------------------------------------------------------------
 // Functions
 //--------------------------------------------------------------------------------------------------
+#if DEBUG_CONSOLE > 0
 void debug_reset() {
   debug_buffer_len = 0;
   memset(debug_buffer, 0, sizeof(debug_buffer));
   Serial.print("\r\n$ ");
 }
+#endif
 
+#if DEBUG_CONSOLE > 0
 void debug_run() {
   /* clear buffer */
   uint8_t tab_ctr = 0;
@@ -49,11 +63,12 @@ void debug_run() {
         Serial.print(b, BYTE);
         debug_buffer[debug_buffer_len++] = b;
       }
-
     }
   }
 }
+#endif
 
+#if DEBUG_CONSOLE > 0
 static void debug_dispatch() {
   uint8_t ret = 0;
   if (!memcmp(debug_buffer, "aes.128.ecb.encrypt", 19)) {
@@ -94,7 +109,9 @@ static void debug_dispatch() {
     Serial.print("err");
   }
 }
+#endif
 
+#if DEBUG_CONSOLE > 0
 static uint8_t debug_aes_ecb_encrypt(uint8_t *buffer, uint8_t key_length) {
   uint8_t plaintext [THSM_BLOCK_SIZE];
   uint8_t ciphertext[THSM_BLOCK_SIZE];
@@ -120,7 +137,9 @@ static uint8_t debug_aes_ecb_encrypt(uint8_t *buffer, uint8_t key_length) {
 
   return 1;
 }
+#endif
 
+#if DEBUG_CONSOLE > 0
 static uint8_t debug_aes_ecb_decrypt(uint8_t *buffer, uint8_t key_length) {
   uint8_t plaintext [THSM_BLOCK_SIZE];
   uint8_t ciphertext[THSM_BLOCK_SIZE];
@@ -145,7 +164,9 @@ static uint8_t debug_aes_ecb_decrypt(uint8_t *buffer, uint8_t key_length) {
 
   return 1;
 }
+#endif
 
+#if DEBUG_CONSOLE > 0
 static uint8_t debug_aes_ccm_encrypt(uint8_t *buffer) {
   uint16_t length;
   uint8_t plaintext  [(THSM_BLOCK_SIZE * 4)];
@@ -186,7 +207,9 @@ static uint8_t debug_aes_ccm_encrypt(uint8_t *buffer) {
   dump_hex(ciphertext, length + THSM_AEAD_MAC_SIZE);
   return 1;
 }
+#endif
 
+#if DEBUG_CONSOLE > 0
 static uint8_t debug_aes_ccm_decrypt(uint8_t *buffer) {
   uint16_t parsed;
   uint16_t length;
@@ -238,13 +261,17 @@ static uint8_t debug_aes_ccm_decrypt(uint8_t *buffer) {
 
   return matched;
 }
+#endif
 
+#if DEBUG_CONSOLE > 0
 static uint8_t debug_sha1_init(uint8_t *buffer) {
   sha1_init(&debug_sha1_ctx);
   Serial.print("ok");
   return 1;
 }
+#endif
 
+#if DEBUG_CONSOLE > 0
 static uint8_t debug_sha1_update(uint8_t *buffer) {
   uint8_t data[64];
 
@@ -254,7 +281,9 @@ static uint8_t debug_sha1_update(uint8_t *buffer) {
   Serial.print("ok");
   return 1;
 }
+#endif
 
+#if DEBUG_CONSOLE > 0
 static uint8_t debug_sha1_final(uint8_t *buffer) {
   uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
   sha1_final(&debug_sha1_ctx, digest);
@@ -262,7 +291,9 @@ static uint8_t debug_sha1_final(uint8_t *buffer) {
 
   return 1;
 }
+#endif
 
+#if DEBUG_CONSOLE > 0
 static uint8_t debug_hmac_sha1_init(uint8_t *buffer) {
   uint8_t data[64];
 
@@ -273,7 +304,9 @@ static uint8_t debug_hmac_sha1_init(uint8_t *buffer) {
   Serial.print("ok");
   return 1;
 }
+#endif
 
+#if DEBUG_CONSOLE > 0
 static uint8_t debug_hmac_sha1_update(uint8_t *buffer) {
   uint8_t data[64];
 
@@ -283,9 +316,10 @@ static uint8_t debug_hmac_sha1_update(uint8_t *buffer) {
   hmac_sha1_update(&debug_hmac_sha1_ctx, data, length);
   Serial.print("ok");
   return 1;
-
 }
+#endif
 
+#if DEBUG_CONSOLE > 0
 uint8_t debug_hmac_sha1_final(uint8_t *buffer) {
   uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
   hmac_sha1_final(&debug_hmac_sha1_ctx, digest);
@@ -293,7 +327,9 @@ uint8_t debug_hmac_sha1_final(uint8_t *buffer) {
 
   return 1;
 }
+#endif
 
+#if DEBUG_CONSOLE > 0
 static uint8_t debug_flash_dump(uint8_t *buffer) {
   uint8_t data[2048];
 
@@ -314,7 +350,9 @@ static uint8_t debug_flash_dump(uint8_t *buffer) {
 
   return 1;
 }
+#endif
 
+#if DEBUG_CONSOLE > 0
 static uint8_t debug_buffer_dump(uint8_t *buffer) {
   uint16_t length = thsm_buffer.data_len;
 
@@ -335,7 +373,9 @@ static uint8_t debug_buffer_dump(uint8_t *buffer) {
 
   return 1;
 }
+#endif
 
+#if DEBUG_CONSOLE > 0
 static uint8_t debug_random_dump(uint8_t *buffer) {
   uint8_t length = 0;
   uint8_t data[256];
@@ -353,7 +393,9 @@ static uint8_t debug_random_dump(uint8_t *buffer) {
   dump_hex(data, sizeof(data));
   return 1;
 }
+#endif
 
+#if DEBUG_CONSOLE > 0
 static uint8_t debug_random_seed(uint8_t *buffer) {
   uint8_t seed[THSM_CTR_DRBG_SEED_SIZE];
 
@@ -368,3 +410,4 @@ static uint8_t debug_random_seed(uint8_t *buffer) {
 
   return 1;
 }
+#endif
