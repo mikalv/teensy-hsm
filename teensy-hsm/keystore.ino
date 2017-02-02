@@ -30,8 +30,6 @@ void secret_locked(uint8_t value) {
 
 uint8_t keystore_unlock(uint8_t *cipherkey) {
   uint8_t body[sizeof(THSM_FLASH_BODY)];
-  uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
-  sha1_ctx_t ctx;
 
   /* read entire flash */
   flash_read((uint8_t *)&flash_cache, 0, sizeof(flash_cache));
@@ -43,21 +41,11 @@ uint8_t keystore_unlock(uint8_t *cipherkey) {
 
   /* decrypt flash */
   aes_cbc_decrypt(body, (uint8_t *)&flash_cache.body, sizeof(flash_cache.body), cipherkey, (THSM_KEY_SIZE * 2));
-
-  /* compare digest */
-  sha1_init  (&ctx);
-  sha1_update(&ctx, body, sizeof(body));
-  sha1_final (&ctx, digest);
-
-  /* compare digest */
-  uint8_t matched = !memcmp(digest, flash_cache.header.digest, sizeof(digest));
-
-  /* clear temporary buffer */
+  memcpy(&flash_cache.body, body, sizeof(body));
   memset(body,   0, sizeof(body));
-  memset(digest, 0, sizeof(digest));
 
-  /* clear flash cache if decryption failed */
-  if (!matched) {
+  /* compare digest */
+  if (!sha1_compare((uint8_t *)&flash_cache.body, sizeof(flash_cache.body), flash_cache.header.digest)) {
     memset(&flash_cache, 0, sizeof(flash_cache));
     memset(flash_key,    0, sizeof(flash_key));
     return THSM_STATUS_KEY_STORAGE_LOCKED;
@@ -90,6 +78,9 @@ void keystore_store_key(uint32_t handle, uint32_t flags, uint8_t *key) {
       }
     }
   }
+
+  /* update cache hash */
+  sha1_calculate((uint8_t *)&flash_cache.body, sizeof(flash_cache.body), flash_cache.header.digest);
 }
 
 uint8_t keystore_load_key(uint8_t *dst_key, uint32_t *dst_flags, uint32_t handle) {
@@ -137,6 +128,9 @@ uint8_t keystore_store_secret(uint8_t *public_id, uint8_t *secret) {
       return THSM_STATUS_ID_DUPLICATE;
     } else if (!memcmp(secrets->entries[i].public_id, public_id, THSM_PUBLIC_ID_SIZE)) {
       memcpy(secrets->entries[i].secret, secret, THSM_AEAD_SIZE);
+
+      /* update cache hash */
+      sha1_calculate((uint8_t *)&flash_cache.body, sizeof(flash_cache.body), flash_cache.header.digest);
       return THSM_STATUS_OK;
     }
   }
@@ -205,11 +199,8 @@ uint8_t keystore_check_counter(uint8_t *public_id, uint8_t *counter) {
 void keystore_update() {
   THSM_FLASH_STORAGE cached;
 
-  /* update hash */
-  sha1_ctx_t ctx;
-  sha1_init(&ctx);
-  sha1_update(&ctx, (uint8_t *)&flash_cache.body, sizeof(flash_cache.body));
-  sha1_final (&ctx, flash_cache.header.digest);
+  /* update cache hash */
+  sha1_calculate((uint8_t *)&flash_cache.body, sizeof(flash_cache.body), flash_cache.header.digest);
 
   /* copy flash cache */
   memcpy(&cached, &flash_cache, sizeof(flash_cache));
