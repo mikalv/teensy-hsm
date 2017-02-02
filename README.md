@@ -52,6 +52,13 @@ Teensy HSM uses the following algorithms:
 - SHA1
 - AES-128 based SP800-90 CTR-DRBG
 
+## Setup Commands
+- `help`
+- `db.erase`
+- `db.init`
+- `db.load`
+- `db.store`
+
 ## Debugging Commands
 - `aes.128.ecb.encrypt`
 - `aes.128.ecb.decrypt`
