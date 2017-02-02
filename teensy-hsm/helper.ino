@@ -85,7 +85,7 @@ uint16_t buffer_load_hex(uint8_t *dst, uint8_t **src, uint16_t length) {
   return parsed;
 }
 
-void hexdump(uint8_t *data, uint16_t data_len, uint16_t column) {
+void hexdump(uint8_t *data, uint16_t data_len, int16_t column) {
   for (uint16_t i = 0; i < data_len; i++) {
     uint8_t value = *data++;
     Serial.print((value >> 4) & 0x0f, HEX);

@@ -3,7 +3,7 @@
 // Author  : Edi Permadi
 // Repo    : https://github.com/edipermadi/teensy-hsm
 //
-// This file is part of TeensyHSM project containing the implementation of AES-128/256 cipher with 
+// This file is part of TeensyHSM project containing the implementation of AES-128/256 cipher with
 // ECB, CBC and ECM mode respectively.
 //==================================================================================================
 
@@ -513,13 +513,13 @@ void aes_cbc_encrypt(uint8_t *ciphertext, uint8_t *plaintext, uint16_t length, u
   memset(&ct, 0, sizeof(ct));
   aes_init(&sk, cipherkey, key_length);
 
-  while(length > 0)
+  while (length > 0)
   {
-    uint8_t step = (length > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : step;    
+    uint8_t step = (length > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : step;
 
     /* load plaintext */
     memset(&pt, 0, sizeof(pt));
-    memcpy(pt.bytes, plaintext, step);    
+    memcpy(pt.bytes, plaintext, step);
 
     /* xor plaintext */
     aes_state_xor(&pt, &pt, &ct);
@@ -542,7 +542,7 @@ void aes_cbc_decrypt(uint8_t *plaintext, uint8_t *ciphertext, uint16_t length, u
   aes_state_t   ct, pt, iv;
 
   /* derive sub-keys and clear iv */
-  memset(&iv, 0, sizeof(iv));
+  memset  (&iv, 0, sizeof(iv));
   aes_init(&sk, cipherkey, key_length);
 
   while (length > 0)
@@ -706,7 +706,7 @@ static void aes_encrypt(aes_state_t *ct, aes_state_t *pt, aes_subkeys_t *sk, uin
 
 static void aes_decrypt(aes_state_t *pt, aes_state_t *ct, aes_subkeys_t *sk, uint16_t key_length) {
   aes_state_t  tmp;
-  aes_state_t *key = &(sk->keys[10]);
+  aes_state_t *key = (key_length == THSM_KEY_SIZE) ? &(sk->keys[10]) : &(sk->keys[14]);
 
   aes_state_xor(&tmp, ct, key);
 

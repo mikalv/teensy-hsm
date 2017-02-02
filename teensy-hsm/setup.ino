@@ -130,7 +130,6 @@ static uint8_t setup_db_erase(uint8_t *ptr) {
 
 static uint8_t setup_db_init(uint8_t *ptr) {
   sha1_ctx_t ctx;
-  uint8_t    digest[SHA1_DIGEST_SIZE_BYTES];
 
   /* set all to 0x00 */
   memset(&flash_cache, 0, sizeof(flash_cache));
@@ -139,12 +138,8 @@ static uint8_t setup_db_init(uint8_t *ptr) {
   /* update cache hash */
   sha1_init(&ctx);
   sha1_update(&ctx, (uint8_t *)&flash_cache.body, sizeof(flash_cache.body));
-  sha1_final(&ctx, digest);
-  memcpy(flash_cache.header.digest, digest, sizeof(digest));
-
-#if SETUP_DEBUG > 0
-  hexdump((uint8_t *)&flash_cache, sizeof(flash_cache), 64);
-#endif
+  sha1_final(&ctx, flash_cache.header.digest);
+  memset(&ctx, 0, sizeof(ctx));
 
   Serial.print("ok");
   return 1;
@@ -171,22 +166,20 @@ static uint8_t setup_db_load(uint8_t *buffer) {
 
   /* decrypt */
   aes_cbc_decrypt(plaintext, (uint8_t *)&flash_cache.body, sizeof(flash_cache.body), cipherkey, sizeof(cipherkey));
+  memcpy((uint8_t *)&flash_cache.body, plaintext, sizeof(plaintext));
   memset(cipherkey, 0, sizeof(cipherkey));
+  memset(plaintext, 0, sizeof(plaintext));
 
   /* compare hash */
   sha1_init(&ctx);
-  sha1_update(&ctx, plaintext, sizeof(plaintext));
+  sha1_update(&ctx, (uint8_t *)&flash_cache.body, sizeof(flash_cache.body));
   sha1_final(&ctx, digest);
+  memset(&ctx, 0, sizeof(ctx));
 
   if (!memcmp(digest, flash_cache.header.digest, sizeof(digest))) {
-    memcpy((uint8_t *)&flash_cache.body, plaintext, sizeof(plaintext));
-
     Serial.print("ok");
     ret = 1;
   }
-
-  /* clear temporary buffer */
-  memset(plaintext, 0, sizeof(plaintext));
 
   return ret;
 }
@@ -211,6 +204,7 @@ static uint8_t setup_db_store(uint8_t *buffer) {
   sha1_init(&ctx);
   sha1_update(&ctx, (uint8_t *)&flash_cache.body, sizeof(flash_cache.body));
   sha1_final(&ctx, flash_cache.header.digest);
+  memset(&ctx, 0, sizeof(ctx));
 
   /* encrypt body */
   aes_cbc_encrypt(ciphertext, (uint8_t *)&flash_cache.body, sizeof(flash_cache.body), cipherkey, sizeof(cipherkey));
