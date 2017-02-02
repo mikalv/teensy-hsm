@@ -81,8 +81,8 @@ static void setup_dispatch() {
     ret = setup_db_status(setup_buffer + 9);
   } else if (!memcmp(setup_buffer, "db.key.list", 11)) {
     ret = setup_db_key_list(setup_buffer + 11);
-  } else if (!memcmp(setup_buffer, "db.key.delete", 11)) {
-    ret = setup_db_key_delete(setup_buffer + 11);
+  } else if (!memcmp(setup_buffer, "db.key.delete", 13)) {
+    ret = setup_db_key_delete(setup_buffer + 13);
   } else if (!memcmp(setup_buffer, "db.key.generate", 15)) {
     ret = setup_db_key_generate(setup_buffer + 15);
   } else if (!memcmp(setup_buffer, "db.key.update", 13)) {
@@ -109,11 +109,11 @@ static uint8_t setup_help(uint8_t *ptr) {
   Serial.println("db.store cipherkey");
   Serial.println("db.status");
   Serial.println("db.key.list");
-  Serial.println("db.key.delete");
+  Serial.println("db.key.delete slot_number");
   Serial.println("db.key.generate");
   Serial.println("db.key.update");
   Serial.println("db.secret.list");
-  Serial.println("db.secret.delete");
+  Serial.println("db.secret.delete slot_number");
   Serial.println("db.secret.generate");
   Serial.println("db.secret.update");
 
@@ -217,7 +217,7 @@ static uint8_t setup_db_store(uint8_t *buffer) {
   return 1;
 }
 
-static uint8_t setup_db_status(uint8_t *ptr) {
+static uint8_t setup_db_status(uint8_t *buffer) {
   /* check header */
   uint32_t magic = read_uint32(flash_cache.header.magic);
   if (magic != 0xdeadbeef) {
@@ -256,40 +256,107 @@ static uint8_t setup_db_status(uint8_t *ptr) {
       Serial.print(" Y ");
     }
   }
+  return 1;
+}
 
-  Serial.println();
+static uint8_t setup_db_key_list(uint8_t *buffer) {
+  /* check header */
+  uint32_t magic = read_uint32(flash_cache.header.magic);
+  if (magic != 0xdeadbeef) {
+    Serial.println("invalid header");
+    return 0;
+  }
+
+  /* compare hash */
+  if (!sha1_compare((uint8_t *)&flash_cache.body, sizeof(flash_cache.body), flash_cache.header.digest)) {
+    Serial.println("hash mismatch");
+    return 0;
+  }
+
+  for (uint16_t i = 0; i < THSM_DB_KEY_ENTRIES; i++) {
+    Serial.print("slot #"); Serial.println(i, DEC);
+    Serial.print("  handle : "); hexdump(flash_cache.body.keys.entries[i].handle, sizeof(flash_cache.body.keys.entries[i].handle), -1);
+    Serial.print("  flags  : "); hexdump(flash_cache.body.keys.entries[i].flags,  sizeof(flash_cache.body.keys.entries[i].flags),  -1);
+    Serial.print("  key    : "); hexdump(flash_cache.body.keys.entries[i].key,    sizeof(flash_cache.body.keys.entries[i].key),    -1);
+  }
+  return 1;
+}
+
+static uint8_t setup_db_key_delete(uint8_t *buffer) {
+  uint8_t index = 0;
+
+  if (buffer_load_hex(&index, &buffer, sizeof(index)) != sizeof(index)) {
+    Serial.println("failed to load key slot number");
+    return 0;
+  }
+
+  if (index > 31) {
+    Serial.println("key slot number is out of range");
+    return 0;
+  }
+
+  /* delete key entry */
+  memset(&flash_cache.body.keys.entries[index], 0, sizeof(flash_cache.body.keys.entries[index]));
+
   Serial.print("ok");
   return 1;
 }
 
-static uint8_t setup_db_key_list(uint8_t *ptr) {
+static uint8_t setup_db_key_generate(uint8_t *buffer) {
   return 0;
 }
 
-static uint8_t setup_db_key_delete(uint8_t *ptr) {
+static uint8_t setup_db_key_update(uint8_t *buffer) {
   return 0;
 }
 
-static uint8_t setup_db_key_generate(uint8_t *ptr) {
+static uint8_t setup_db_secret_list(uint8_t *buffer) {
+  /* check header */
+  uint32_t magic = read_uint32(flash_cache.header.magic);
+  if (magic != 0xdeadbeef) {
+    Serial.println("invalid header");
+    return 0;
+  }
+
+  /* compare hash */
+  if (!sha1_compare((uint8_t *)&flash_cache.body, sizeof(flash_cache.body), flash_cache.header.digest)) {
+    Serial.println("hash mismatch");
+    return 0;
+  }
+
+  for (uint16_t i = 0; i < THSM_DB_KEY_ENTRIES; i++) {
+    Serial.print("slot #"); Serial.println(i, DEC);
+    Serial.print("  public_id : "); hexdump(flash_cache.body.secrets.entries[i].public_id, sizeof(flash_cache.body.secrets.entries[i].public_id), -1);
+    Serial.print("  secret    : "); hexdump(flash_cache.body.secrets.entries[i].secret,    sizeof(flash_cache.body.secrets.entries[i].secret),  -1);
+  }
+
+  return 1;
+}
+
+static uint8_t setup_db_secret_delete(uint8_t *buffer) {
+  uint8_t index = 0;
+
+  if (buffer_load_hex(&index, &buffer, sizeof(index)) != sizeof(index)) {
+    Serial.println("failed to load secret slot number");
+    return 0;
+  }
+
+  if (index > 31) {
+    Serial.println("secret slot number is out of range");
+    return 0;
+  }
+
+  /* delete key entry */
+  memset(&flash_cache.body.secrets.entries[index], 0, sizeof(flash_cache.body.secrets.entries[index]));
+
+  Serial.print("ok");
+  return 1;
+}
+
+static uint8_t setup_db_secret_generate(uint8_t *buffer) {
   return 0;
 }
 
-static uint8_t setup_db_key_update(uint8_t *ptr) {
-  return 0;
-}
-
-static uint8_t setup_db_secret_list(uint8_t *ptr) {
-  return 0;
-}
-
-static uint8_t setup_db_secret_delete(uint8_t *ptr) {
-  return 0;
-}
-
-static uint8_t setup_db_secret_generate(uint8_t *ptr) {
-  return 0;
-}
-
-static uint8_t setup_db_secret_update(uint8_t *ptr) {
+static uint8_t setup_db_secret_update(uint8_t *buffer) {
   return 0;
 }
