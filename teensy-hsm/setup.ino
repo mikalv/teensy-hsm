@@ -75,9 +75,11 @@ static void setup_dispatch() {
     ret = setup_db_init(setup_buffer + 7);
   } else if (!memcmp(setup_buffer, "db.load", 7)) {
     ret = setup_db_load(setup_buffer + 7);
+  } else if (!memcmp(setup_buffer, "db.store.auto", 13)) {
+    ret = setup_db_store_auto(setup_buffer + 13);
   } else if (!memcmp(setup_buffer, "db.store", 8)) {
     ret = setup_db_store(setup_buffer + 8);
-  } else if (!memcmp(setup_buffer, "db.status", 9)) {
+  }  else if (!memcmp(setup_buffer, "db.status", 9)) {
     ret = setup_db_status(setup_buffer + 9);
   } else if (!memcmp(setup_buffer, "db.key.show", 11)) {
     ret = setup_db_key_show(setup_buffer + 11);
@@ -107,6 +109,7 @@ static uint8_t setup_help(uint8_t *ptr) {
   Serial.println("db.init");
   Serial.println("db.load cipherkey");
   Serial.println("db.store cipherkey");
+  Serial.println("db.store.auto");
   Serial.println("db.status");
   Serial.println("db.key.show slot_number");
   Serial.println("db.key.delete slot_number");
@@ -205,6 +208,38 @@ static uint8_t setup_db_store(uint8_t *buffer) {
   flash_update((uint8_t *)&flash_cache, 0, sizeof(flash_cache));
 
   Serial.print("ok");
+  return 1;
+}
+
+static uint8_t setup_db_store_auto(uint8_t *buffer) {
+  uint8_t cipherkey[THSM_KEY_SIZE * 2];
+  uint8_t ciphertext[sizeof(flash_cache.body)];
+
+  /* check header */
+  uint32_t magic = read_uint32(flash_cache.header.magic);
+  if (magic != 0xdeadbeef) {
+    Serial.println("invalid header");
+    return 0;
+  }
+
+  /* generate key */
+  drbg_read(cipherkey, sizeof(cipherkey));
+
+  /* update cache hash */
+  sha1_calculate((uint8_t *)&flash_cache.body, sizeof(flash_cache.body), flash_cache.header.digest);
+
+  /* encrypt body */
+  aes_cbc_encrypt(ciphertext, (uint8_t *)&flash_cache.body, sizeof(flash_cache.body), cipherkey, sizeof(cipherkey));
+  memcpy((uint8_t *)&flash_cache.body, ciphertext, sizeof(ciphertext));
+
+  flash_update((uint8_t *)&flash_cache, 0, sizeof(flash_cache));
+
+  Serial.print("key : "); hexdump(cipherkey, sizeof(cipherkey), -1);
+
+  /* cleanup temporary variables */
+  memset(ciphertext, 0, sizeof(ciphertext));
+  memset(cipherkey,  0, sizeof(cipherkey));
+
   return 1;
 }
 
