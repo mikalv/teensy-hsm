@@ -10,7 +10,7 @@ A Teensyduino based Yubikey HSM emulator. This code in under heavy development, 
 
 Description:
 - EEPROM header contains header identifier and SHA1 digest of decrypted EEPROM body
-- EEPROM body contains 40 entries of keys and 32 entries of secrets 
+- EEPROM body contains 32 entries of keys and 32 entries of secrets 
 
 ## Disclaimer
 Please read this carefully
