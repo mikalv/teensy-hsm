@@ -58,6 +58,7 @@ Teensy HSM uses the following algorithms:
 - `db.init`
 - `db.load`
 - `db.store`
+- `db.status`
 
 ## Debugging Commands
 - `aes.128.ecb.encrypt`

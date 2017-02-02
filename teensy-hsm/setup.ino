@@ -231,7 +231,33 @@ static uint8_t setup_db_status(uint8_t *ptr) {
     return 0;
   }
 
+  Serial.println("key slot  : 00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31");
+  Serial.print  ("available : ");
 
+  for (uint16_t i = 0; i < THSM_DB_KEY_ENTRIES; i++) {
+    uint32_t handle = read_uint32(flash_cache.body.keys.entries[i].handle);
+
+    if (handle != 0) {
+      Serial.print(" N ");
+    } else {
+      Serial.print(" Y ");
+    }
+  }
+
+  Serial.println();
+  Serial.println();
+  Serial.println("secret slot : 00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31");
+  Serial.print  ("available   : ");
+
+  for (uint16_t i = 0; i < THSM_DB_SECRET_ENTRIES; i++) {
+    if (!is_clear(flash_cache.body.secrets.entries[i].public_id, THSM_PUBLIC_ID_SIZE)) {
+      Serial.print(" N ");
+    } else {
+      Serial.print(" Y ");
+    }
+  }
+
+  Serial.println();
   Serial.print("ok");
   return 1;
 }
