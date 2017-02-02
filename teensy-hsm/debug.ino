@@ -133,7 +133,7 @@ static uint8_t debug_aes_ecb_encrypt(uint8_t *buffer, uint8_t key_length) {
 
   /* perform AES ECB encryption */
   aes_ecb_encrypt(ciphertext, plaintext, cipherkey, key_length);
-  dump_hex(ciphertext, sizeof(ciphertext));
+  hexdump(ciphertext, sizeof(ciphertext), -1);
 
   return 1;
 }
@@ -160,7 +160,7 @@ static uint8_t debug_aes_ecb_decrypt(uint8_t *buffer, uint8_t key_length) {
 
   /* perform AES ECB decryption */
   aes_ecb_decrypt(plaintext, ciphertext, cipherkey, key_length);
-  dump_hex(plaintext, sizeof(plaintext));
+  hexdump(plaintext, sizeof(plaintext), -1);
 
   return 1;
 }
@@ -204,7 +204,7 @@ static uint8_t debug_aes_ccm_encrypt(uint8_t *buffer) {
 
   /* perform AES ECB encryption */
   aes128_ccm_encrypt(ciphertext, NULL, plaintext, length, key_handle, cipherkey, nonce);
-  dump_hex(ciphertext, length + THSM_AEAD_MAC_SIZE);
+  hexdump(ciphertext, (length + THSM_AEAD_MAC_SIZE), -1);
   return 1;
 }
 #endif
@@ -257,7 +257,7 @@ static uint8_t debug_aes_ccm_decrypt(uint8_t *buffer) {
 
   /* perform AES ECB encryption */
   uint8_t matched = aes128_ccm_decrypt(plaintext, ciphertext, length, key_handle, cipherkey, nonce, mac);
-  dump_hex(plaintext, length);
+  hexdump(plaintext, length, -1);
 
   return matched;
 }
@@ -287,7 +287,7 @@ static uint8_t debug_sha1_update(uint8_t *buffer) {
 static uint8_t debug_sha1_final(uint8_t *buffer) {
   uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
   sha1_final(&debug_sha1_ctx, digest);
-  dump_hex(digest, sizeof(digest));
+  hexdump(digest, sizeof(digest), -1);
 
   return 1;
 }
@@ -323,7 +323,7 @@ static uint8_t debug_hmac_sha1_update(uint8_t *buffer) {
 uint8_t debug_hmac_sha1_final(uint8_t *buffer) {
   uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
   hmac_sha1_final(&debug_hmac_sha1_ctx, digest);
-  dump_hex(digest, sizeof(digest));
+  hexdump(digest, sizeof(digest), -1);
 
   return 1;
 }
@@ -390,7 +390,7 @@ static uint8_t debug_random_dump(uint8_t *buffer) {
     return 0;
   }
 
-  dump_hex(data, sizeof(data));
+  hexdump(data, sizeof(data), -1);
   return 1;
 }
 #endif

@@ -69,10 +69,10 @@ void hmac_sha1_final(hmac_sha1_ctx_t *ctx, uint8_t *mac)
   }
 
   /* reinitialize hash context */
-  sha1_init(&(ctx->hash));
+  sha1_init  (&(ctx->hash));
   sha1_update(&(ctx->hash), tmp, sizeof(tmp));
   sha1_update(&(ctx->hash), digest, sizeof(digest));
-  sha1_final(&(ctx->hash), mac);
+  sha1_final (&(ctx->hash), mac);
 
   /* clear context */
   memset(ctx, 0, sizeof(hmac_sha1_ctx_t));

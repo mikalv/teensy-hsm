@@ -85,10 +85,20 @@ uint16_t buffer_load_hex(uint8_t *dst, uint8_t **src, uint16_t length) {
   return parsed;
 }
 
-void dump_hex(uint8_t *data, uint16_t data_len) {
-  while (data_len-- > 0) {
-    uint8_t v = *data++;
-    Serial.print((v >> 4) & 0x0f, HEX);
-    Serial.print((v >> 0) & 0x0f, HEX);
+void hexdump(uint8_t *data, uint16_t data_len, uint16_t column) {
+  for (uint16_t i = 0; i < data_len; i++) {
+    uint8_t value = *data++;
+    Serial.print((value >> 4) & 0x0f, HEX);
+    Serial.print((value >> 0) & 0x0f, HEX);
+
+    if (column < 1) {
+      continue;
+    } else if (((i + 1) % column) > 0) {
+      Serial.print(" ");
+    } else {
+      Serial.println("");
+    }
   }
+
+  Serial.println("");
 }

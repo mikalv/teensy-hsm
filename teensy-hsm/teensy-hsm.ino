@@ -205,7 +205,6 @@ typedef struct {
 typedef struct {
   THSM_FLASH_HEADER  header;
   THSM_FLASH_BODY    body;
-  uint8_t            cmd_flags;
 } THSM_FLASH_STORAGE;
 
 typedef struct {

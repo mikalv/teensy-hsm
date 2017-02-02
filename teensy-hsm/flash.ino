@@ -41,11 +41,7 @@ uint16_t flash_update(uint8_t *src, uint16_t offset, uint16_t length) {
   Serial.print("/");
   Serial.println(length, DEC);
 
-  for (uint16_t i = 0; i < length; i++) {
-    uint8_t value = *src++;
-
-  }
-
+  hexdump(src, length, 64);
 #else
 
   for (; length--; index++) {
