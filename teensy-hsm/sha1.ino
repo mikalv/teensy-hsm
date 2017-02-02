@@ -100,6 +100,17 @@ uint8_t sha1_compare(uint8_t *data, uint16_t data_len, uint8_t *digest) {
   return match;
 }
 
+void sha1_calculate(uint8_t *data, uint16_t data_len, uint8_t *digest) {
+  sha1_ctx_t ctx;
+
+  /* calculate digest */
+  sha1_init(&ctx);
+  sha1_update(&ctx, data, data_len);
+  sha1_final(&ctx, digest);
+  /* clear temporary buffer */
+  memset(&ctx, 0, sizeof(ctx));
+}
+
 static void sha1_init(sha1_ctx_t *ctx)
 {
   memset(ctx, 0, sizeof(sha1_ctx_t));

@@ -79,16 +79,16 @@ static void setup_dispatch() {
     ret = setup_db_store(setup_buffer + 8);
   } else if (!memcmp(setup_buffer, "db.status", 9)) {
     ret = setup_db_status(setup_buffer + 9);
-  } else if (!memcmp(setup_buffer, "db.key.list", 11)) {
-    ret = setup_db_key_list(setup_buffer + 11);
+  } else if (!memcmp(setup_buffer, "db.key.show", 11)) {
+    ret = setup_db_key_show(setup_buffer + 11);
   } else if (!memcmp(setup_buffer, "db.key.delete", 13)) {
     ret = setup_db_key_delete(setup_buffer + 13);
   } else if (!memcmp(setup_buffer, "db.key.generate", 15)) {
     ret = setup_db_key_generate(setup_buffer + 15);
   } else if (!memcmp(setup_buffer, "db.key.update", 13)) {
     ret = setup_db_key_update(setup_buffer + 13);
-  } else if (!memcmp(setup_buffer, "db.secret.list", 14)) {
-    ret = setup_db_secret_list(setup_buffer + 14);
+  } else if (!memcmp(setup_buffer, "db.secret.show", 14)) {
+    ret = setup_db_secret_show(setup_buffer + 14);
   } else if (!memcmp(setup_buffer, "db.secret.delete", 16)) {
     ret = setup_db_secret_delete(setup_buffer + 16);
   } else if (!memcmp(setup_buffer, "db.secret.generate", 18)) {
@@ -108,11 +108,11 @@ static uint8_t setup_help(uint8_t *ptr) {
   Serial.println("db.load cipherkey");
   Serial.println("db.store cipherkey");
   Serial.println("db.status");
-  Serial.println("db.key.list");
+  Serial.println("db.key.show slot_number");
   Serial.println("db.key.delete slot_number");
-  Serial.println("db.key.generate");
-  Serial.println("db.key.update");
-  Serial.println("db.secret.list");
+  Serial.println("db.key.generate slot_number handle flags");
+  Serial.println("db.key.update slot_number handle flags payload");
+  Serial.println("db.secret.show slot_number");
   Serial.println("db.secret.delete slot_number");
   Serial.println("db.secret.generate");
   Serial.println("db.secret.update");
@@ -129,17 +129,12 @@ static uint8_t setup_db_erase(uint8_t *ptr) {
 }
 
 static uint8_t setup_db_init(uint8_t *ptr) {
-  sha1_ctx_t ctx;
-
   /* set all to 0x00 */
   memset(&flash_cache, 0, sizeof(flash_cache));
   write_uint32(flash_cache.header.magic, 0xdeadbeef);
 
   /* update cache hash */
-  sha1_init(&ctx);
-  sha1_update(&ctx, (uint8_t *)&flash_cache.body, sizeof(flash_cache.body));
-  sha1_final(&ctx, flash_cache.header.digest);
-  memset(&ctx, 0, sizeof(ctx));
+  sha1_calculate((uint8_t *)&flash_cache.body, sizeof(flash_cache.body), flash_cache.header.digest);
 
   Serial.print("ok");
   return 1;
@@ -180,7 +175,6 @@ static uint8_t setup_db_load(uint8_t *buffer) {
 }
 
 static uint8_t setup_db_store(uint8_t *buffer) {
-  sha1_ctx_t ctx;
   uint8_t cipherkey[THSM_KEY_SIZE * 2];
   uint8_t ciphertext[sizeof(flash_cache.body)];
 
@@ -197,11 +191,8 @@ static uint8_t setup_db_store(uint8_t *buffer) {
     return 0;
   }
 
-  /* update body hash */
-  sha1_init(&ctx);
-  sha1_update(&ctx, (uint8_t *)&flash_cache.body, sizeof(flash_cache.body));
-  sha1_final(&ctx, flash_cache.header.digest);
-  memset(&ctx, 0, sizeof(ctx));
+  /* update cache hash */
+  sha1_calculate((uint8_t *)&flash_cache.body, sizeof(flash_cache.body), flash_cache.header.digest);
 
   /* encrypt body */
   aes_cbc_encrypt(ciphertext, (uint8_t *)&flash_cache.body, sizeof(flash_cache.body), cipherkey, sizeof(cipherkey));
@@ -259,7 +250,7 @@ static uint8_t setup_db_status(uint8_t *buffer) {
   return 1;
 }
 
-static uint8_t setup_db_key_list(uint8_t *buffer) {
+static uint8_t setup_db_key_show(uint8_t *buffer) {
   /* check header */
   uint32_t magic = read_uint32(flash_cache.header.magic);
   if (magic != 0xdeadbeef) {
@@ -273,12 +264,21 @@ static uint8_t setup_db_key_list(uint8_t *buffer) {
     return 0;
   }
 
-  for (uint16_t i = 0; i < THSM_DB_KEY_ENTRIES; i++) {
-    Serial.print("slot #"); Serial.println(i, DEC);
-    Serial.print("  handle : "); hexdump(flash_cache.body.keys.entries[i].handle, sizeof(flash_cache.body.keys.entries[i].handle), -1);
-    Serial.print("  flags  : "); hexdump(flash_cache.body.keys.entries[i].flags,  sizeof(flash_cache.body.keys.entries[i].flags),  -1);
-    Serial.print("  key    : "); hexdump(flash_cache.body.keys.entries[i].key,    sizeof(flash_cache.body.keys.entries[i].key),    -1);
+  uint8_t index = 0;
+  if (buffer_load_hex(&index, &buffer, sizeof(index)) != sizeof(index)) {
+    Serial.println("failed to load key slot number");
+    return 0;
   }
+
+  if (index > (THSM_DB_KEY_ENTRIES - 1)) {
+    Serial.println("key slot number is out of range");
+    return 0;
+  }
+
+  Serial.print("slot #"); Serial.println(index, DEC);
+  Serial.print("  handle : "); hexdump(flash_cache.body.keys.entries[index].handle, sizeof(flash_cache.body.keys.entries[index].handle), -1);
+  Serial.print("  flags  : "); hexdump(flash_cache.body.keys.entries[index].flags,  sizeof(flash_cache.body.keys.entries[index].flags),  -1);
+  Serial.print("  key    : "); hexdump(flash_cache.body.keys.entries[index].key,    sizeof(flash_cache.body.keys.entries[index].key),    -1);
   return 1;
 }
 
@@ -290,7 +290,7 @@ static uint8_t setup_db_key_delete(uint8_t *buffer) {
     return 0;
   }
 
-  if (index > 31) {
+  if (index > (THSM_DB_KEY_ENTRIES - 1)) {
     Serial.println("key slot number is out of range");
     return 0;
   }
@@ -298,19 +298,104 @@ static uint8_t setup_db_key_delete(uint8_t *buffer) {
   /* delete key entry */
   memset(&flash_cache.body.keys.entries[index], 0, sizeof(flash_cache.body.keys.entries[index]));
 
+  /* update cache hash */
+  sha1_calculate((uint8_t *)&flash_cache.body, sizeof(flash_cache.body), flash_cache.header.digest);
+
   Serial.print("ok");
   return 1;
 }
 
 static uint8_t setup_db_key_generate(uint8_t *buffer) {
-  return 0;
+  uint8_t index = 0;
+  uint8_t handle[sizeof(uint32_t)];
+  uint8_t flags [sizeof(uint32_t)];
+  uint8_t key[THSM_KEY_SIZE];
+
+  if (buffer_load_hex(&index, &buffer, sizeof(index)) != sizeof(index)) {
+    Serial.println("failed to load key slot number");
+    return 0;
+  }
+
+  if (buffer_load_hex(handle, &buffer, sizeof(handle)) != sizeof(handle)) {
+    Serial.println("failed to load key handle");
+    return 0;
+  }
+
+  if (buffer_load_hex(flags, &buffer, sizeof(flags)) != sizeof(flags)) {
+    Serial.println("failed to load key flags");
+    return 0;
+  }
+
+  if (index > (THSM_DB_KEY_ENTRIES - 1)) {
+    Serial.println("key slot number is out of range");
+    return 0;
+  } else if (read_uint32(handle) == 0xffffffff) {
+    Serial.println("invalid key handle");
+    return 0;
+  }
+
+  /* generate random key */
+  drbg_read(key, sizeof(key));
+
+  /* store handle and key */
+  memcpy(flash_cache.body.keys.entries[index].handle, handle, sizeof(handle));
+  memcpy(flash_cache.body.keys.entries[index].flags,  flags,  sizeof(flags));
+  memcpy(flash_cache.body.keys.entries[index].key,    key,    sizeof(key));
+
+  /* update cache hash */
+  sha1_calculate((uint8_t *)&flash_cache.body, sizeof(flash_cache.body), flash_cache.header.digest);
+
+  Serial.print("key : "); hexdump(key, sizeof(key), -1);
+  return 1;
 }
 
 static uint8_t setup_db_key_update(uint8_t *buffer) {
-  return 0;
+  uint8_t index = 0;
+  uint8_t handle [sizeof(uint32_t)];
+  uint8_t flags  [sizeof(uint32_t)];
+  uint8_t payload[THSM_KEY_SIZE];
+
+  if (buffer_load_hex(&index, &buffer, sizeof(index)) != sizeof(index)) {
+    Serial.println("failed to load key slot number");
+    return 0;
+  }
+
+  if (buffer_load_hex(handle, &buffer, sizeof(handle)) != sizeof(handle)) {
+    Serial.println("failed to load key handle");
+    return 0;
+  }
+
+  if (buffer_load_hex(flags, &buffer, sizeof(flags)) != sizeof(flags)) {
+    Serial.println("failed to load key flags");
+    return 0;
+  }
+
+  if (buffer_load_hex(payload, &buffer, sizeof(payload)) != sizeof(payload)) {
+    Serial.println("failed to load key payload");
+    return 0;
+  }
+
+  if (index > (THSM_DB_KEY_ENTRIES - 1)) {
+    Serial.println("key slot number is out of range");
+    return 0;
+  } else if (read_uint32(handle) == 0xffffffff) {
+    Serial.println("invalid key handle");
+    return 0;
+  }
+
+  /* store handle and key */
+  memcpy(flash_cache.body.keys.entries[index].handle, handle,  sizeof(handle));
+  memcpy(flash_cache.body.keys.entries[index].handle, flags,   sizeof(flags));
+  memcpy(flash_cache.body.keys.entries[index].key,    payload, sizeof(payload));
+
+  /* update cache hash */
+  sha1_calculate((uint8_t *)&flash_cache.body, sizeof(flash_cache.body), flash_cache.header.digest);
+
+  Serial.print("ok");
+  return 1;
 }
 
-static uint8_t setup_db_secret_list(uint8_t *buffer) {
+static uint8_t setup_db_secret_show(uint8_t *buffer) {
   /* check header */
   uint32_t magic = read_uint32(flash_cache.header.magic);
   if (magic != 0xdeadbeef) {
@@ -324,11 +409,20 @@ static uint8_t setup_db_secret_list(uint8_t *buffer) {
     return 0;
   }
 
-  for (uint16_t i = 0; i < THSM_DB_KEY_ENTRIES; i++) {
-    Serial.print("slot #"); Serial.println(i, DEC);
-    Serial.print("  public_id : "); hexdump(flash_cache.body.secrets.entries[i].public_id, sizeof(flash_cache.body.secrets.entries[i].public_id), -1);
-    Serial.print("  secret    : "); hexdump(flash_cache.body.secrets.entries[i].secret,    sizeof(flash_cache.body.secrets.entries[i].secret),  -1);
+  uint8_t index = 0;
+  if (buffer_load_hex(&index, &buffer, sizeof(index)) != sizeof(index)) {
+    Serial.println("failed to load secret slot number");
+    return 0;
   }
+
+  if (index > (THSM_DB_KEY_ENTRIES - 1)) {
+    Serial.println("key slot number is out of range");
+    return 0;
+  }
+
+  Serial.print("slot #"); Serial.println(index, DEC);
+  Serial.print("  public_id : "); hexdump(flash_cache.body.secrets.entries[index].public_id, sizeof(flash_cache.body.secrets.entries[index].public_id), -1);
+  Serial.print("  secret    : "); hexdump(flash_cache.body.secrets.entries[index].secret,    sizeof(flash_cache.body.secrets.entries[index].secret),  -1);
 
   return 1;
 }
@@ -341,13 +435,16 @@ static uint8_t setup_db_secret_delete(uint8_t *buffer) {
     return 0;
   }
 
-  if (index > 31) {
+  if (index > (THSM_DB_SECRET_ENTRIES - 1)) {
     Serial.println("secret slot number is out of range");
     return 0;
   }
 
   /* delete key entry */
   memset(&flash_cache.body.secrets.entries[index], 0, sizeof(flash_cache.body.secrets.entries[index]));
+
+  /* update cache hash */
+  sha1_calculate((uint8_t *)&flash_cache.body, sizeof(flash_cache.body), flash_cache.header.digest);
 
   Serial.print("ok");
   return 1;

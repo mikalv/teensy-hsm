@@ -59,9 +59,11 @@ Teensy HSM uses the following algorithms:
 - `db.load`
 - `db.store`
 - `db.status`
-- `db.key.list`
+- `db.key.show`
 - `db.key.delete`
-- `db.secret.list`
+- `db.key.generate`
+- `db.key.update`
+- `db.secret.show`
 - `db.secret.delete`
 
 ## Debugging Commands

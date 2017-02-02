@@ -1,5 +1,21 @@
 # Changelog
 
+## Feb 3, 2017
+- Implemented the following setup commands
+
+    - `help`
+    - `db.erase`
+    - `db.init`
+    - `db.load`
+    - `db.store`
+    - `db.status`
+    - `db.key.show`
+    - `db.key.delete`
+    - `db.key.generate`
+    - `db.key.update`
+    - `db.secret.show`
+    - `db.secret.delete`
+
 ## Dec 11, 2016
 - Implemented OTP based AEAD unlocking mechanism
 
