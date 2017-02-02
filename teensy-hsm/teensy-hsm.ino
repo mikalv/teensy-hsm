@@ -83,7 +83,7 @@
 #define THSM_HMAC_SHA1_TO_BUFFER 0x04
 #define THSM_SYSTEM_ID_SIZE        12
 #define THSM_PUBLIC_ID_SIZE         6
-#define THSM_DB_KEY_ENTRIES        40
+#define THSM_DB_KEY_ENTRIES        32
 #define THSM_DB_SECRET_ENTRIES     32
 #define THSM_AEAD_SIZE           (THSM_KEY_SIZE + THSM_PUBLIC_ID_SIZE + THSM_AEAD_MAC_SIZE)
 #define THSM_OTP_DELTA_MAX         32 // max difference of OTP delta
