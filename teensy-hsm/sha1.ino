@@ -81,6 +81,25 @@ void hmac_sha1_final(hmac_sha1_ctx_t *ctx, uint8_t *mac)
 //--------------------------------------------------------------------------------------------------
 // SHA1
 //--------------------------------------------------------------------------------------------------
+uint8_t sha1_compare(uint8_t *data, uint16_t data_len, uint8_t *digest) {
+  sha1_ctx_t ctx;
+  uint8_t    actual[SHA1_DIGEST_SIZE_BYTES];
+
+  /* calculate digest */
+  sha1_init(&ctx);
+  sha1_update(&ctx, data, data_len);
+  sha1_final(&ctx, actual);
+
+  /* compare digest */
+  uint8_t match = memcmp(actual, digest, sizeof(actual)) == 0;
+
+  /* clear temporary buffer */
+  memset(&ctx, 0, sizeof(ctx));
+  memset(actual,0, sizeof(actual));
+
+  return match;
+}
+
 static void sha1_init(sha1_ctx_t *ctx)
 {
   memset(ctx, 0, sizeof(sha1_ctx_t));

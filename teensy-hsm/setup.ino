@@ -146,14 +146,12 @@ static uint8_t setup_db_init(uint8_t *ptr) {
 }
 
 static uint8_t setup_db_load(uint8_t *buffer) {
-  uint8_t ret = 0;
-  sha1_ctx_t ctx;
   uint8_t cipherkey[THSM_KEY_SIZE * 2];
   uint8_t plaintext[sizeof(flash_cache.body)];
-  uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
 
   /* load cipherkey */
   if (buffer_load_hex(cipherkey, &buffer, sizeof(cipherkey)) != sizeof(cipherkey)) {
+    Serial.println("failed to load cipherkey");
     return 0;
   }
 
@@ -161,6 +159,7 @@ static uint8_t setup_db_load(uint8_t *buffer) {
   flash_read((uint8_t *)&flash_cache, 0, sizeof(flash_cache));
   uint32_t magic = read_uint32(flash_cache.header.magic);
   if (magic != 0xdeadbeef) {
+    Serial.println("invalid header");
     return 0;
   }
 
@@ -171,17 +170,13 @@ static uint8_t setup_db_load(uint8_t *buffer) {
   memset(plaintext, 0, sizeof(plaintext));
 
   /* compare hash */
-  sha1_init(&ctx);
-  sha1_update(&ctx, (uint8_t *)&flash_cache.body, sizeof(flash_cache.body));
-  sha1_final(&ctx, digest);
-  memset(&ctx, 0, sizeof(ctx));
-
-  if (!memcmp(digest, flash_cache.header.digest, sizeof(digest))) {
-    Serial.print("ok");
-    ret = 1;
+  if (!sha1_compare((uint8_t *)&flash_cache.body, sizeof(flash_cache.body), flash_cache.header.digest)) {
+    Serial.println("hash mismatch");
+    return 0;
   }
 
-  return ret;
+  Serial.print("ok");
+  return 1;
 }
 
 static uint8_t setup_db_store(uint8_t *buffer) {
@@ -191,12 +186,14 @@ static uint8_t setup_db_store(uint8_t *buffer) {
 
   /* load cipherkey */
   if (buffer_load_hex(cipherkey, &buffer, sizeof(cipherkey)) != sizeof(cipherkey)) {
+    Serial.println("failed to load cipherkey");
     return 0;
   }
 
   /* check header */
   uint32_t magic = read_uint32(flash_cache.header.magic);
   if (magic != 0xdeadbeef) {
+    Serial.println("invalid header");
     return 0;
   }
 
@@ -224,10 +221,19 @@ static uint8_t setup_db_status(uint8_t *ptr) {
   /* check header */
   uint32_t magic = read_uint32(flash_cache.header.magic);
   if (magic != 0xdeadbeef) {
+    Serial.println("invalid header");
+    return 0;
+  }
+
+  /* compare hash */
+  if (!sha1_compare((uint8_t *)&flash_cache.body, sizeof(flash_cache.body), flash_cache.header.digest)) {
+    Serial.println("hash mismatch");
     return 0;
   }
 
 
+  Serial.print("ok");
+  return 1;
 }
 
 static uint8_t setup_db_key_list(uint8_t *ptr) {
