@@ -112,29 +112,48 @@ static void debug_dispatch() {
 #endif
 
 #if DEBUG_CONSOLE > 0
+/**
+   Perform AES ECB encryption
+
+   @param key_length  determines mode of operation, set to THSM_KEY_SIZE for AES-128 else AES-256
+   @param buffer      parameter buffer, containing plaintext and ciphertext in the following format
+
+                      when key_length == THSM_KEY_SIZE
+                          128_bit_hex_plaintext 128_bit_hex_ciphertext
+
+                      when key_length != THSM_KEY_SIZE
+                          128_bit_hex_plaintext 256_bit_hex_ciphertext
+*/
 static uint8_t debug_aes_ecb_encrypt(uint8_t *buffer, uint8_t key_length) {
-  uint8_t plaintext [THSM_BLOCK_SIZE];
-  uint8_t ciphertext[THSM_BLOCK_SIZE];
+  uint8_t plaintext [THSM_BLOCK_SIZE  ];
+  uint8_t ciphertext[THSM_BLOCK_SIZE  ];
   uint8_t cipherkey [THSM_KEY_SIZE * 2];
 
   /* clear buffers */
-  memset(plaintext,  0, sizeof(plaintext));
+  memset(plaintext,  0, sizeof(plaintext ));
   memset(ciphertext, 0, sizeof(ciphertext));
-  memset(cipherkey,  0, sizeof(cipherkey));
+  memset(cipherkey,  0, sizeof(cipherkey ));
 
+  /* load plaintext and ciphertext*/
   if (buffer_load_hex(plaintext, &buffer, sizeof(plaintext)) != sizeof(plaintext)) {
     return 0;
-  }
-
-
-  if (buffer_load_hex(cipherkey, &buffer, key_length) != key_length) {
+  } else if (buffer_load_hex(cipherkey, &buffer, key_length) != key_length) {
     return 0;
   }
 
   /* perform AES ECB encryption */
   aes_ecb_encrypt(ciphertext, plaintext, cipherkey, key_length);
-  hexdump(ciphertext, sizeof(ciphertext), -1);
 
+  /* dump buffers */
+  Serial.print("ck : "); hexdump(cipherkey,  key_length,         -1);
+  Serial.print("pt : "); hexdump(plaintext,  sizeof(plaintext),  -1);
+  Serial.print("ct : "); hexdump(ciphertext, sizeof(ciphertext), -1);
+
+  /* clear buffers */
+  memset(plaintext,  0, sizeof(plaintext ));
+  memset(ciphertext, 0, sizeof(ciphertext));
+  memset(cipherkey,  0, sizeof(cipherkey ));
+  
   return 1;
 }
 #endif
@@ -389,6 +408,9 @@ static uint8_t debug_random_dump(uint8_t *buffer) {
   uint8_t length = 0;
   uint8_t data[256];
 
+  /* clear random buffer */
+  memset(data, 0, sizeof(data));
+
   /* parse cipherkey */
   if (buffer_load_hex(&length, &buffer, sizeof(length)) != sizeof(length)) {
     return 0;
@@ -401,7 +423,7 @@ static uint8_t debug_random_dump(uint8_t *buffer) {
     return 0;
   }
 
-  hexdump(data, length, -1);
+  Serial.print("random : "); hexdump(data, length, -1);
   return 1;
 }
 #endif

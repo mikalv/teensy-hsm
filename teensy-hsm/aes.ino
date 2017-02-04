@@ -572,6 +572,14 @@ void aes_cbc_decrypt(uint8_t *plaintext, uint8_t *ciphertext, uint16_t length, u
 //--------------------------------------------------------------------------------------------------
 // AES-ECB block cipher
 //--------------------------------------------------------------------------------------------------
+/**
+   Perform AES-ECB encryption
+
+   @param ciphertext  THSM_BLOCK_SIZE bytes of ciphertext buffer
+   @param plaintext   THSM_BLOCK_SIZE bytes of plaintext buffer
+   @param cipherkey   cipher-key buffer
+   @param key_length  length of cipher-key buffer
+*/
 void aes_ecb_encrypt(uint8_t *ciphertext, uint8_t *plaintext, uint8_t *cipherkey, uint16_t key_length) {
   aes_subkeys_t sk;
   aes_state_t   ct, pt;
@@ -584,7 +592,9 @@ void aes_ecb_encrypt(uint8_t *ciphertext, uint8_t *plaintext, uint8_t *cipherkey
   aes_encrypt(&ct, &pt, &sk, key_length);
   memcpy(ciphertext, ct.bytes, THSM_BLOCK_SIZE);
 
-  /* cleanup subkeys */
+  /* cleanup temporary variables */
+  memset(&pt, 0, sizeof(pt));
+  memset(&ct, 0, sizeof(ct));
   memset(&sk, 0, sizeof(sk));
 }
 

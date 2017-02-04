@@ -67,23 +67,8 @@ Teensy HSM uses the following algorithms:
 - `db.secret.show`
 - `db.secret.delete`
 
-## Debugging Commands
-- `aes.128.ecb.encrypt`
-- `aes.128.ecb.decrypt`
-- `aes.256.ecb.encrypt`
-- `aes.256.ecb.decrypt`
-- `aes.ccm.encrypt`
-- `aes.ccm.decrypt`
-- `sha1.init`
-- `sha1.update`
-- `sha1.final`
-- `hmac.sha1.init`
-- `hmac.sha1.update`
-- `hmac.sha1.final`
-- `flash.dump`
-- `buffer.dump`
-- `random.dump`
-- `random.seed`
+## Debugging Console
+[See](https://github.com/edipermadi/teensy-hsm/wiki/debugging-console)
 
 ## How to Flash
 - Get Teensy duino [v3.1](http://www.pjrc.com/store/teensy31.html) or [v3.2](http://www.pjrc.com/store/teensy32.html)
