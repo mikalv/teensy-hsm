@@ -86,16 +86,16 @@ uint8_t sha1_compare(uint8_t *data, uint16_t data_len, uint8_t *digest) {
   uint8_t    actual[SHA1_DIGEST_SIZE_BYTES];
 
   /* calculate digest */
-  sha1_init(&ctx);
+  sha1_init  (&ctx);
   sha1_update(&ctx, data, data_len);
-  sha1_final(&ctx, actual);
+  sha1_final (&ctx, actual);
 
   /* compare digest */
   uint8_t match = memcmp(actual, digest, sizeof(actual)) == 0;
 
   /* clear temporary buffer */
-  memset(&ctx, 0, sizeof(ctx));
-  memset(actual,0, sizeof(actual));
+  memset(&ctx,   0, sizeof(ctx));
+  memset(actual, 0, sizeof(actual));
 
   return match;
 }
@@ -104,9 +104,9 @@ void sha1_calculate(uint8_t *data, uint16_t data_len, uint8_t *digest) {
   sha1_ctx_t ctx;
 
   /* calculate digest */
-  sha1_init(&ctx);
+  sha1_init  (&ctx);
   sha1_update(&ctx, data, data_len);
-  sha1_final(&ctx, digest);
+  sha1_final (&ctx, digest);
   /* clear temporary buffer */
   memset(&ctx, 0, sizeof(ctx));
 }
@@ -135,8 +135,8 @@ static void sha1_update(sha1_ctx_t *state, uint8_t *data, uint16_t length)
       uint32_t step = (length > max) ? max : length;
       memcpy(&state->buffer.bytes[written], data, step);
 
-      data += step;
-      length -= step;
+      data    += step;
+      length  -= step;
       written += step;
       state->buffer.length += step;
     }
