@@ -725,17 +725,28 @@ static void aes_encrypt(aes_state_t *ct, aes_state_t *pt, aes_subkeys_t *sk, uin
 }
 
 static void aes_decrypt(aes_state_t *pt, aes_state_t *ct, aes_subkeys_t *sk, uint16_t key_length) {
-  aes_state_t  tmp;
   aes_state_t *key = (key_length == THSM_KEY_SIZE) ? &(sk->keys[10]) : &(sk->keys[14]);
 
-  aes_state_xor(&tmp, ct, key);
+  aes_state_xor(pt, ct, key);
 
-  uint16_t rounds = (key_length == THSM_KEY_SIZE) ? 9 : 13;
-  for (uint16_t i = 0; i < rounds; i++)
-  {
-    aes_decrypt_step(&tmp, --key);
+  aes_decrypt_step(ct, pt, --key);
+  aes_decrypt_step(pt, ct, --key);
+  aes_decrypt_step(ct, pt, --key);
+  aes_decrypt_step(pt, ct, --key);
+  aes_decrypt_step(ct, pt, --key);
+  aes_decrypt_step(pt, ct, --key);
+  aes_decrypt_step(ct, pt, --key);
+  aes_decrypt_step(pt, ct, --key);
+
+  if (key_length != THSM_KEY_SIZE) {
+    aes_decrypt_step(ct, pt, --key);
+    aes_decrypt_step(pt, ct, --key);
+    aes_decrypt_step(ct, pt, --key);
+    aes_decrypt_step(pt, ct, --key);
   }
-  aes_decrypt_final(pt, &tmp, --key);
+
+  aes_decrypt_step (ct, pt, --key);
+  aes_decrypt_final(pt, ct, --key);
 }
 
 /**
@@ -754,8 +765,9 @@ static void aes_encrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *k)
 
 /**
    Perform inverse shift-row, inverse-substitution and add-round-key from source state to destination state
+   46540
 */
-static void aes_decrypt_step(aes_state_t *s, aes_state_t *k) {
+static void aes_decrypt_step(aes_state_t *y, aes_state_t *s, aes_state_t *k) {
   aes_state_t t;
 
   t.bytes[ 0] = td[s->bytes[ 0]] ^ k->bytes[ 0];
@@ -776,10 +788,10 @@ static void aes_decrypt_step(aes_state_t *s, aes_state_t *k) {
   t.bytes[15] = td[s->bytes[ 3]] ^ k->bytes[15];
 
   /* inverse mix-column */
-  s->words[0] = td0[t.bytes[ 0]] ^ td1[t.bytes[ 1]] ^ td2[t.bytes[ 2]] ^ td3[t.bytes[ 3]];
-  s->words[1] = td0[t.bytes[ 4]] ^ td1[t.bytes[ 5]] ^ td2[t.bytes[ 6]] ^ td3[t.bytes[ 7]];
-  s->words[2] = td0[t.bytes[ 8]] ^ td1[t.bytes[ 9]] ^ td2[t.bytes[10]] ^ td3[t.bytes[11]];
-  s->words[3] = td0[t.bytes[12]] ^ td1[t.bytes[13]] ^ td2[t.bytes[14]] ^ td3[t.bytes[15]];
+  y->words[0] = td0[t.bytes[ 0]] ^ td1[t.bytes[ 1]] ^ td2[t.bytes[ 2]] ^ td3[t.bytes[ 3]];
+  y->words[1] = td0[t.bytes[ 4]] ^ td1[t.bytes[ 5]] ^ td2[t.bytes[ 6]] ^ td3[t.bytes[ 7]];
+  y->words[2] = td0[t.bytes[ 8]] ^ td1[t.bytes[ 9]] ^ td2[t.bytes[10]] ^ td3[t.bytes[11]];
+  y->words[3] = td0[t.bytes[12]] ^ td1[t.bytes[13]] ^ td2[t.bytes[14]] ^ td3[t.bytes[15]];
 }
 
 static void aes_encrypt_final(aes_state_t *c, aes_state_t *s, aes_state_t *k) {
