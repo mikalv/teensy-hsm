@@ -695,7 +695,7 @@ static void aes_init(aes_subkeys_t *sk, uint8_t *key, uint16_t key_length) {
    Performs one block encryption of AES-128/256
 
    @param ct         : ciphertext
-   @param pt         : plaintext. Note that this functiion performs in-place operation that affect the content of plaintext
+   @param pt         : plaintext, content affected
    @param sk         : AES subkeys
    @param key_length : set to 16 for AES-128, else treated as AES-256
 */
@@ -724,6 +724,14 @@ static void aes_encrypt(aes_state_t *ct, aes_state_t *pt, aes_subkeys_t *sk, uin
   aes_encrypt_final(ct, pt, ++key);
 }
 
+/**
+   Performs one block decryption of AES-128/256
+
+   @param ct         : ciphertext, content affected
+   @param pt         : plaintext
+   @param sk         : AES subkeys
+   @param key_length : set to 16 for AES-128, else treated as AES-256
+*/
 static void aes_decrypt(aes_state_t *pt, aes_state_t *ct, aes_subkeys_t *sk, uint16_t key_length) {
   aes_state_t *key = (key_length == THSM_KEY_SIZE) ? &(sk->keys[10]) : &(sk->keys[14]);
 
@@ -765,33 +773,37 @@ static void aes_encrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *k)
 
 /**
    Perform inverse shift-row, inverse-substitution and add-round-key from source state to destination state
-   46540
+
+   @param dst : destination state
+   @param src : source state
+   @param key : AES sub key
+
 */
-static void aes_decrypt_step(aes_state_t *y, aes_state_t *s, aes_state_t *k) {
+static void aes_decrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *key) {
   aes_state_t t;
 
-  t.bytes[ 0] = td[s->bytes[ 0]] ^ k->bytes[ 0];
-  t.bytes[ 1] = td[s->bytes[13]] ^ k->bytes[ 1];
-  t.bytes[ 2] = td[s->bytes[10]] ^ k->bytes[ 2];
-  t.bytes[ 3] = td[s->bytes[ 7]] ^ k->bytes[ 3];
-  t.bytes[ 4] = td[s->bytes[ 4]] ^ k->bytes[ 4];
-  t.bytes[ 5] = td[s->bytes[ 1]] ^ k->bytes[ 5];
-  t.bytes[ 6] = td[s->bytes[14]] ^ k->bytes[ 6];
-  t.bytes[ 7] = td[s->bytes[11]] ^ k->bytes[ 7];
-  t.bytes[ 8] = td[s->bytes[ 8]] ^ k->bytes[ 8];
-  t.bytes[ 9] = td[s->bytes[ 5]] ^ k->bytes[ 9];
-  t.bytes[10] = td[s->bytes[ 2]] ^ k->bytes[10];
-  t.bytes[11] = td[s->bytes[15]] ^ k->bytes[11];
-  t.bytes[12] = td[s->bytes[12]] ^ k->bytes[12];
-  t.bytes[13] = td[s->bytes[ 9]] ^ k->bytes[13];
-  t.bytes[14] = td[s->bytes[ 6]] ^ k->bytes[14];
-  t.bytes[15] = td[s->bytes[ 3]] ^ k->bytes[15];
+  t.bytes[ 0] = td[src->bytes[ 0]] ^ key->bytes[ 0];
+  t.bytes[ 1] = td[src->bytes[13]] ^ key->bytes[ 1];
+  t.bytes[ 2] = td[src->bytes[10]] ^ key->bytes[ 2];
+  t.bytes[ 3] = td[src->bytes[ 7]] ^ key->bytes[ 3];
+  t.bytes[ 4] = td[src->bytes[ 4]] ^ key->bytes[ 4];
+  t.bytes[ 5] = td[src->bytes[ 1]] ^ key->bytes[ 5];
+  t.bytes[ 6] = td[src->bytes[14]] ^ key->bytes[ 6];
+  t.bytes[ 7] = td[src->bytes[11]] ^ key->bytes[ 7];
+  t.bytes[ 8] = td[src->bytes[ 8]] ^ key->bytes[ 8];
+  t.bytes[ 9] = td[src->bytes[ 5]] ^ key->bytes[ 9];
+  t.bytes[10] = td[src->bytes[ 2]] ^ key->bytes[10];
+  t.bytes[11] = td[src->bytes[15]] ^ key->bytes[11];
+  t.bytes[12] = td[src->bytes[12]] ^ key->bytes[12];
+  t.bytes[13] = td[src->bytes[ 9]] ^ key->bytes[13];
+  t.bytes[14] = td[src->bytes[ 6]] ^ key->bytes[14];
+  t.bytes[15] = td[src->bytes[ 3]] ^ key->bytes[15];
 
   /* inverse mix-column */
-  y->words[0] = td0[t.bytes[ 0]] ^ td1[t.bytes[ 1]] ^ td2[t.bytes[ 2]] ^ td3[t.bytes[ 3]];
-  y->words[1] = td0[t.bytes[ 4]] ^ td1[t.bytes[ 5]] ^ td2[t.bytes[ 6]] ^ td3[t.bytes[ 7]];
-  y->words[2] = td0[t.bytes[ 8]] ^ td1[t.bytes[ 9]] ^ td2[t.bytes[10]] ^ td3[t.bytes[11]];
-  y->words[3] = td0[t.bytes[12]] ^ td1[t.bytes[13]] ^ td2[t.bytes[14]] ^ td3[t.bytes[15]];
+  dst->words[0] = td0[t.bytes[ 0]] ^ td1[t.bytes[ 1]] ^ td2[t.bytes[ 2]] ^ td3[t.bytes[ 3]];
+  dst->words[1] = td0[t.bytes[ 4]] ^ td1[t.bytes[ 5]] ^ td2[t.bytes[ 6]] ^ td3[t.bytes[ 7]];
+  dst->words[2] = td0[t.bytes[ 8]] ^ td1[t.bytes[ 9]] ^ td2[t.bytes[10]] ^ td3[t.bytes[11]];
+  dst->words[3] = td0[t.bytes[12]] ^ td1[t.bytes[13]] ^ td2[t.bytes[14]] ^ td3[t.bytes[15]];
 }
 
 static void aes_encrypt_final(aes_state_t *c, aes_state_t *s, aes_state_t *k) {
