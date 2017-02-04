@@ -598,9 +598,17 @@ void aes_ecb_encrypt(uint8_t *ciphertext, uint8_t *plaintext, uint8_t *cipherkey
   memset(&sk, 0, sizeof(sk));
 }
 
+/**
+   Performs AES-ECB decryption
+
+   @param plaintext   THSM_BLOCK_SIZE bytes of plaintext buffer
+   @param ciphertext  THSM_BLOCK_SIZE bytes of ciphertext buffer
+   @param cipherkey   cipher-key buffer
+   @param key_length  length of cipher-key buffer
+*/
 void aes_ecb_decrypt(uint8_t *plaintext, uint8_t *ciphertext, uint8_t *cipherkey, uint16_t key_length) {
   aes_subkeys_t sk;
-  aes_state_t ct, pt;
+  aes_state_t   ct, pt;
 
   /* derive sub-keys */
   aes_init(&sk, cipherkey, key_length);
@@ -610,13 +618,23 @@ void aes_ecb_decrypt(uint8_t *plaintext, uint8_t *ciphertext, uint8_t *cipherkey
   aes_decrypt(&pt, &ct, &sk, key_length);
   memcpy(plaintext, pt.bytes, THSM_BLOCK_SIZE);
 
-  /* cleanup subkeys */
+  /* cleanup temporary variables */
+  memset(&pt, 0, sizeof(pt));
+  memset(&ct, 0, sizeof(ct));
   memset(&sk, 0, sizeof(sk));
 }
 
 //--------------------------------------------------------------------------------------------------
 // AES Core
 //--------------------------------------------------------------------------------------------------
+
+/**
+   Performs AES key-derivation from AES source key to AES subkeys
+
+   @param sk          Subkeys buffer
+   @param key         AES source key
+   @param key_length  Length of AES source key
+*/
 static void aes_init(aes_subkeys_t *sk, uint8_t *key, uint16_t key_length) {
   /* clear subkeys */
   memset(sk, 0, sizeof(aes_subkeys_t));
@@ -737,10 +755,10 @@ static void aes_encrypt(aes_state_t *ct, aes_state_t *pt, aes_subkeys_t *sk, uin
 /**
    Performs one block decryption of AES-128/256
 
-   @param ct         : ciphertext, content affected
-   @param pt         : plaintext
-   @param sk         : AES subkeys
-   @param key_length : set to 16 for AES-128, else treated as AES-256
+   @param ct            Ciphertext, content affected
+   @param pt            Plaintext
+   @param sk            AES subkeys
+   @param key_length    Set to THSM_KEY_SIZE for AES-128, else treated as AES-256
 */
 static void aes_decrypt(aes_state_t *pt, aes_state_t *ct, aes_subkeys_t *sk, uint16_t key_length) {
   aes_state_t *key = (key_length == THSM_KEY_SIZE) ? &(sk->keys[10]) : &(sk->keys[14]);
@@ -770,9 +788,9 @@ static void aes_decrypt(aes_state_t *pt, aes_state_t *ct, aes_subkeys_t *sk, uin
 /**
    Perform shift-row, substitution, mix-column and add-round key from source to destination
 
-   @param dst : destination state
-   @param src : source state
-   @param key  : AES subkey
+   @param dst   Destination state
+   @param src   Source state
+   @param key   AES subkey
 */
 static void aes_encrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *key) {
   /* shift-row, substitute, mix-column & add-round-key */
@@ -785,9 +803,9 @@ static void aes_encrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *ke
 /**
    Perform inverse shift-row, inverse-substitution and add-round-key from source state to destination state
 
-   @param dst : destination state
-   @param src : source state
-   @param key : AES sub key
+   @param dst   Destination state
+   @param src   Source state
+   @param key   AES sub key
 */
 static void aes_decrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *key) {
   aes_state_t t;
@@ -816,6 +834,13 @@ static void aes_decrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *ke
   dst->words[3] = td0[t.bytes[12]] ^ td1[t.bytes[13]] ^ td2[t.bytes[14]] ^ td3[t.bytes[15]];
 }
 
+/**
+   Perform AES encryption final step
+
+   @param dst   Destination state
+   @param src   Source state
+   @param key   AES subkey
+*/
 static void aes_encrypt_final(aes_state_t *dst, aes_state_t *src, aes_state_t *key) {
   /* final shift-row & substitute */
   dst->bytes[ 0] = te[src->bytes[ 0]] ^ key->bytes[ 0];
@@ -836,6 +861,13 @@ static void aes_encrypt_final(aes_state_t *dst, aes_state_t *src, aes_state_t *k
   dst->bytes[15] = te[src->bytes[11]] ^ key->bytes[15];
 }
 
+/**
+   Perform AES decryption final step
+
+   @param dst   Destination state
+   @param src   Source state
+   @param key   AES subkey
+*/
 static void aes_decrypt_final(aes_state_t *dst, aes_state_t *src, aes_state_t *key) {
   dst->bytes[ 0] = td[src->bytes[ 0]] ^ key->bytes[ 0];
   dst->bytes[ 1] = td[src->bytes[13]] ^ key->bytes[ 1];
@@ -855,6 +887,12 @@ static void aes_decrypt_final(aes_state_t *dst, aes_state_t *src, aes_state_t *k
   dst->bytes[15] = td[src->bytes[ 3]] ^ key->bytes[15];
 }
 
+/**
+   XOR two AES states
+   @param dst   Destination state
+   @param src1  Source state #1
+   @param src2  Source state #2
+*/
 static void aes_state_xor(aes_state_t *dst, aes_state_t *src1, aes_state_t *src2) {
   dst->words[0] = src1->words[0] ^ src2->words[0];
   dst->words[1] = src1->words[1] ^ src2->words[1];
