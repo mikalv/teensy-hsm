@@ -759,16 +759,17 @@ static void aes_decrypt(aes_state_t *pt, aes_state_t *ct, aes_subkeys_t *sk, uin
 
 /**
    Perform shift-row, substitution, mix-column and add-round key from source to destination
+
    @param dst : destination state
    @param src : source state
-   @param k   : AES subkey
+   @param key  : AES subkey
 */
-static void aes_encrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *k) {
+static void aes_encrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *key) {
   /* shift-row, substitute, mix-column & add-round-key */
-  dst->words[0] = te0[src->bytes[ 0]] ^ te1[src->bytes[ 5]] ^ te2[src->bytes[10]] ^ te3[src->bytes[15]] ^ k->words[0];
-  dst->words[1] = te0[src->bytes[ 4]] ^ te1[src->bytes[ 9]] ^ te2[src->bytes[14]] ^ te3[src->bytes[ 3]] ^ k->words[1];
-  dst->words[2] = te0[src->bytes[ 8]] ^ te1[src->bytes[13]] ^ te2[src->bytes[ 2]] ^ te3[src->bytes[ 7]] ^ k->words[2];
-  dst->words[3] = te0[src->bytes[12]] ^ te1[src->bytes[ 1]] ^ te2[src->bytes[ 6]] ^ te3[src->bytes[11]] ^ k->words[3];
+  dst->words[0] = te0[src->bytes[ 0]] ^ te1[src->bytes[ 5]] ^ te2[src->bytes[10]] ^ te3[src->bytes[15]] ^ key->words[0];
+  dst->words[1] = te0[src->bytes[ 4]] ^ te1[src->bytes[ 9]] ^ te2[src->bytes[14]] ^ te3[src->bytes[ 3]] ^ key->words[1];
+  dst->words[2] = te0[src->bytes[ 8]] ^ te1[src->bytes[13]] ^ te2[src->bytes[ 2]] ^ te3[src->bytes[ 7]] ^ key->words[2];
+  dst->words[3] = te0[src->bytes[12]] ^ te1[src->bytes[ 1]] ^ te2[src->bytes[ 6]] ^ te3[src->bytes[11]] ^ key->words[3];
 }
 
 /**
