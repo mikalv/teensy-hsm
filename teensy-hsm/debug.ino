@@ -116,13 +116,13 @@ static void debug_dispatch() {
    Perform AES ECB encryption
 
    @param key_length  determines mode of operation, set to THSM_KEY_SIZE for AES-128 else AES-256
-   @param buffer      parameter buffer, containing plaintext and ciphertext in the following format
+   @param buffer      parameter buffer, containing plaintext and cipherkey in the following format
 
                       when key_length == THSM_KEY_SIZE
-                          128_bit_hex_plaintext 128_bit_hex_ciphertext
+                          128_bit_hex_plaintext 128_bit_hex_cipherkey
 
                       when key_length != THSM_KEY_SIZE
-                          128_bit_hex_plaintext 256_bit_hex_ciphertext
+                          128_bit_hex_plaintext 256_bit_hex_cipherkey
 */
 static uint8_t debug_aes_ecb_encrypt(uint8_t *buffer, uint8_t key_length) {
   uint8_t plaintext [THSM_BLOCK_SIZE  ];
@@ -153,12 +153,24 @@ static uint8_t debug_aes_ecb_encrypt(uint8_t *buffer, uint8_t key_length) {
   memset(plaintext,  0, sizeof(plaintext ));
   memset(ciphertext, 0, sizeof(ciphertext));
   memset(cipherkey,  0, sizeof(cipherkey ));
-  
+
   return 1;
 }
 #endif
 
 #if DEBUG_CONSOLE > 0
+/**
+   Perform AES ECB decryption
+
+   @param key_length  determines mode of operation, set to THSM_KEY_SIZE for AES-128 else AES-256
+   @param buffer      parameter buffer, containing ciphertext and cipherkey in the following format
+
+                      when key_length == THSM_KEY_SIZE
+                          128_bit_hex_ciphertext 128_bit_hex_cipherkey
+
+                      when key_length != THSM_KEY_SIZE
+                          128_bit_hex_ciphertext 256_bit_hex_cipherkey
+*/
 static uint8_t debug_aes_ecb_decrypt(uint8_t *buffer, uint8_t key_length) {
   uint8_t plaintext [THSM_BLOCK_SIZE];
   uint8_t ciphertext[THSM_BLOCK_SIZE];
@@ -169,17 +181,25 @@ static uint8_t debug_aes_ecb_decrypt(uint8_t *buffer, uint8_t key_length) {
   memset(ciphertext, 0, sizeof(ciphertext));
   memset(cipherkey,  0, sizeof(cipherkey));
 
+  /* load ciphertext and cipherkey */
   if (buffer_load_hex(ciphertext, &buffer, sizeof(plaintext)) != sizeof(plaintext)) {
     return 0 ;
-  }
-
-  if (buffer_load_hex(cipherkey, &buffer, key_length) != key_length) {
+  } else if (buffer_load_hex(cipherkey, &buffer, key_length) != key_length) {
     return 0;
   }
 
   /* perform AES ECB decryption */
   aes_ecb_decrypt(plaintext, ciphertext, cipherkey, key_length);
-  hexdump(plaintext, sizeof(plaintext), -1);
+
+  /* dump buffers */
+  Serial.print("ck : "); hexdump(cipherkey,  key_length,         -1);
+  Serial.print("ct : "); hexdump(ciphertext, sizeof(ciphertext), -1);
+  Serial.print("pt : "); hexdump(plaintext,  sizeof(plaintext),  -1);
+
+  /* clear buffers */
+  memset(plaintext,  0, sizeof(plaintext ));
+  memset(ciphertext, 0, sizeof(ciphertext));
+  memset(cipherkey,  0, sizeof(cipherkey ));
 
   return 1;
 }
