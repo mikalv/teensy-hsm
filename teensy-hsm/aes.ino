@@ -691,17 +691,37 @@ static void aes_init(aes_subkeys_t *sk, uint8_t *key, uint16_t key_length) {
   }
 }
 
+/**
+   Performs one block encryption of AES-128/256
+
+   @param ct         : ciphertext
+   @param pt         : plaintext. Note that this functiion performs in-place operation that affect the content of plaintext
+   @param sk         : AES subkeys
+   @param key_length : set to 16 for AES-128, else treated as AES-256
+*/
 static void aes_encrypt(aes_state_t *ct, aes_state_t *pt, aes_subkeys_t *sk, uint16_t key_length) {
-  aes_state_t  tmp;
   aes_state_t *key = &(sk->keys[0]);
 
-  aes_state_xor(&tmp, pt, key);
+  aes_state_xor(ct, pt, key);
 
-  uint16_t rounds = (key_length == THSM_KEY_SIZE) ? 9 : 13;
-  for (uint16_t i = 0; i < rounds; i++) {
-    aes_encrypt_step(&tmp, ++key);
+  aes_encrypt_step(pt, ct, ++key);
+  aes_encrypt_step(ct, pt, ++key);
+  aes_encrypt_step(pt, ct, ++key);
+  aes_encrypt_step(ct, pt, ++key);
+  aes_encrypt_step(pt, ct, ++key);
+  aes_encrypt_step(ct, pt, ++key);
+  aes_encrypt_step(pt, ct, ++key);
+  aes_encrypt_step(ct, pt, ++key);
+
+  if (key_length != THSM_KEY_SIZE) {
+    aes_encrypt_step(pt, ct, ++key);
+    aes_encrypt_step(ct, pt, ++key);
+    aes_encrypt_step(pt, ct, ++key);
+    aes_encrypt_step(ct, pt, ++key);
   }
-  aes_encrypt_final(ct, &tmp, ++key);
+
+  aes_encrypt_step (pt, ct, ++key);
+  aes_encrypt_final(ct, pt, ++key);
 }
 
 static void aes_decrypt(aes_state_t *pt, aes_state_t *ct, aes_subkeys_t *sk, uint16_t key_length) {
@@ -718,26 +738,26 @@ static void aes_decrypt(aes_state_t *pt, aes_state_t *ct, aes_subkeys_t *sk, uin
   aes_decrypt_final(pt, &tmp, --key);
 }
 
-static void aes_encrypt_step(aes_state_t *s, aes_state_t *k) {
-  aes_state_t t;
-
-  /* copy to temporary state */
-  memcpy(&t, s, sizeof(aes_state_t));
-
+/**
+   Perform shift-row, substitution, mix-column and add-round key from source to destination
+   @param dst : destination state
+   @param src : source state
+   @param k   : AES subkey
+*/
+static void aes_encrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *k) {
   /* shift-row, substitute, mix-column & add-round-key */
-  s->words[0] = te0[t.bytes[ 0]] ^ te1[t.bytes[ 5]] ^ te2[t.bytes[10]] ^ te3[t.bytes[15]] ^ k->words[0];
-  s->words[1] = te0[t.bytes[ 4]] ^ te1[t.bytes[ 9]] ^ te2[t.bytes[14]] ^ te3[t.bytes[ 3]] ^ k->words[1];
-  s->words[2] = te0[t.bytes[ 8]] ^ te1[t.bytes[13]] ^ te2[t.bytes[ 2]] ^ te3[t.bytes[ 7]] ^ k->words[2];
-  s->words[3] = te0[t.bytes[12]] ^ te1[t.bytes[ 1]] ^ te2[t.bytes[ 6]] ^ te3[t.bytes[11]] ^ k->words[3];
-
-  /* clear temporary buffer */
-  memset(&t, 0, sizeof(t));
+  dst->words[0] = te0[src->bytes[ 0]] ^ te1[src->bytes[ 5]] ^ te2[src->bytes[10]] ^ te3[src->bytes[15]] ^ k->words[0];
+  dst->words[1] = te0[src->bytes[ 4]] ^ te1[src->bytes[ 9]] ^ te2[src->bytes[14]] ^ te3[src->bytes[ 3]] ^ k->words[1];
+  dst->words[2] = te0[src->bytes[ 8]] ^ te1[src->bytes[13]] ^ te2[src->bytes[ 2]] ^ te3[src->bytes[ 7]] ^ k->words[2];
+  dst->words[3] = te0[src->bytes[12]] ^ te1[src->bytes[ 1]] ^ te2[src->bytes[ 6]] ^ te3[src->bytes[11]] ^ k->words[3];
 }
 
+/**
+   Perform inverse shift-row, inverse-substitution and add-round-key from source state to destination state
+*/
 static void aes_decrypt_step(aes_state_t *s, aes_state_t *k) {
   aes_state_t t;
 
-  /* inverse shift-row, inverse-substitution and add-round-key */
   t.bytes[ 0] = td[s->bytes[ 0]] ^ k->bytes[ 0];
   t.bytes[ 1] = td[s->bytes[13]] ^ k->bytes[ 1];
   t.bytes[ 2] = td[s->bytes[10]] ^ k->bytes[ 2];
