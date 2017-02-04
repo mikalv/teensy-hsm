@@ -729,6 +729,9 @@ static void aes_encrypt_step(aes_state_t *s, aes_state_t *k) {
   s->words[1] = te0[t.bytes[ 4]] ^ te1[t.bytes[ 9]] ^ te2[t.bytes[14]] ^ te3[t.bytes[ 3]] ^ k->words[1];
   s->words[2] = te0[t.bytes[ 8]] ^ te1[t.bytes[13]] ^ te2[t.bytes[ 2]] ^ te3[t.bytes[ 7]] ^ k->words[2];
   s->words[3] = te0[t.bytes[12]] ^ te1[t.bytes[ 1]] ^ te2[t.bytes[ 6]] ^ te3[t.bytes[11]] ^ k->words[3];
+
+  /* clear temporary buffer */
+  memset(&t, 0, sizeof(t));
 }
 
 static void aes_decrypt_step(aes_state_t *s, aes_state_t *k) {
