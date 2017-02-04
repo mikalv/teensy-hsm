@@ -376,12 +376,23 @@ static uint8_t debug_buffer_dump(uint8_t *buffer) {
 #endif
 
 #if DEBUG_CONSOLE > 0
+/**
+   Generate random number (1 256 bytes)
+
+   Syntax:
+   $ random.dump xx
+
+   Arguments:
+   xx -> count of random bytes in hex
+*/
 static uint8_t debug_random_dump(uint8_t *buffer) {
   uint8_t length = 0;
   uint8_t data[256];
 
   /* parse cipherkey */
   if (buffer_load_hex(&length, &buffer, sizeof(length)) != sizeof(length)) {
+    return 0;
+  } else if (length == 0) {
     return 0;
   }
 
@@ -390,7 +401,7 @@ static uint8_t debug_random_dump(uint8_t *buffer) {
     return 0;
   }
 
-  hexdump(data, sizeof(data), -1);
+  hexdump(data, length, -1);
   return 1;
 }
 #endif
