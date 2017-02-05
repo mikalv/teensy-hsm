@@ -276,7 +276,7 @@ static uint8_t setup_db_status(uint8_t *buffer) {
   Serial.print  ("available   : ");
 
   for (uint16_t i = 0; i < THSM_DB_SECRET_ENTRIES; i++) {
-    if (!is_clear(flash_cache.body.secrets.entries[i].public_id, THSM_PUBLIC_ID_SIZE)) {
+    if (!is_clear_bytes(flash_cache.body.secrets.entries[i].public_id, THSM_PUBLIC_ID_SIZE)) {
       Serial.print(" N ");
     } else {
       Serial.print(" Y ");

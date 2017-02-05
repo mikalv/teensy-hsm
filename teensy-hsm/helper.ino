@@ -103,7 +103,17 @@ void hexdump(uint8_t *data, uint16_t data_len, int16_t column) {
   Serial.println("");
 }
 
-uint8_t is_clear(uint8_t *data, uint16_t data_len) {
+uint8_t is_clear_bytes(uint8_t *data, uint16_t data_len) {
+  while (data_len-- > 0) {
+    if (*data != 0) {
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
+uint8_t is_clear_words(uint32_t *data, uint16_t data_len) {
   while (data_len-- > 0) {
     if (*data != 0) {
       return 0;

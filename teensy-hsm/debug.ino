@@ -338,11 +338,27 @@ static uint8_t debug_sha1_init(uint8_t *buffer) {
 #if DEBUG_CONSOLE > 0
 static uint8_t debug_sha1_update(uint8_t *buffer) {
   uint8_t data[64];
+  uint16_t length;
 
+  /* clear buffer */
   memset(data, 0, sizeof(data));
-  uint16_t length = buffer_load_hex(data, &buffer, sizeof(data));
+
+  /* load data and check context */
+  if ((length = buffer_load_hex(data, &buffer, sizeof(data))) < 1) {
+    Serial.println("data is empty");
+    return 0;
+  } else if (is_clear_words(debug_sha1_ctx.hashes, sizeof(debug_sha1_ctx.hashes))) {
+    Serial.println("not initialized");
+    return 0;
+  }
+
+  /* update hash object */
   sha1_update(&debug_sha1_ctx, data, length);
   Serial.print("ok");
+
+  /* clear buffer */
+  memset(data, 0, sizeof(data));
+
   return 1;
 }
 #endif
@@ -350,8 +366,19 @@ static uint8_t debug_sha1_update(uint8_t *buffer) {
 #if DEBUG_CONSOLE > 0
 static uint8_t debug_sha1_final(uint8_t *buffer) {
   uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
+
+  /* check if context is initialized */
+  if (is_clear_words(debug_sha1_ctx.hashes, sizeof(debug_sha1_ctx.hashes))) {
+    Serial.println("not initialized");
+    return 0;
+  }
+
   sha1_final(&debug_sha1_ctx, digest);
-  hexdump(digest, sizeof(digest), -1);
+  Serial.print("hash : "); hexdump(digest, sizeof(digest), -1);
+
+  /* clear buffer and context */
+  memset(digest, 0, sizeof(digest));
+  memset(&debug_sha1_ctx, 0, sizeof(debug_sha1_ctx));
 
   return 1;
 }
@@ -387,7 +414,12 @@ static uint8_t debug_hmac_sha1_update(uint8_t *buffer) {
 uint8_t debug_hmac_sha1_final(uint8_t *buffer) {
   uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
   hmac_sha1_final(&debug_hmac_sha1_ctx, digest);
-  hexdump(digest, sizeof(digest), -1);
+
+  Serial.print("hmac : "); hexdump(digest, sizeof(digest), -1);
+
+  /* cleanup digest and state */
+  memset(digest, 0, sizeof(digest));
+  memset(&debug_hmac_sha1_ctx, 0, sizeof(debug_hmac_sha1_ctx));
 
   return 1;
 }
