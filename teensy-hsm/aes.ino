@@ -808,30 +808,31 @@ static void aes_encrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *ke
    @param key   AES sub key
 */
 static void aes_decrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *key) {
-  aes_state_t t;
+  dst->bytes[ 0] = td[src->bytes[ 0]];
+  dst->bytes[ 1] = td[src->bytes[13]];
+  dst->bytes[ 2] = td[src->bytes[10]];
+  dst->bytes[ 3] = td[src->bytes[ 7]];
+  dst->bytes[ 4] = td[src->bytes[ 4]];
+  dst->bytes[ 5] = td[src->bytes[ 1]];
+  dst->bytes[ 6] = td[src->bytes[14]];
+  dst->bytes[ 7] = td[src->bytes[11]];
+  dst->bytes[ 8] = td[src->bytes[ 8]];
+  dst->bytes[ 9] = td[src->bytes[ 5]];
+  dst->bytes[10] = td[src->bytes[ 2]];
+  dst->bytes[11] = td[src->bytes[15]];
+  dst->bytes[12] = td[src->bytes[12]];
+  dst->bytes[13] = td[src->bytes[ 9]];
+  dst->bytes[14] = td[src->bytes[ 6]];
+  dst->bytes[15] = td[src->bytes[ 3]];
 
-  t.bytes[ 0] = td[src->bytes[ 0]] ^ key->bytes[ 0];
-  t.bytes[ 1] = td[src->bytes[13]] ^ key->bytes[ 1];
-  t.bytes[ 2] = td[src->bytes[10]] ^ key->bytes[ 2];
-  t.bytes[ 3] = td[src->bytes[ 7]] ^ key->bytes[ 3];
-  t.bytes[ 4] = td[src->bytes[ 4]] ^ key->bytes[ 4];
-  t.bytes[ 5] = td[src->bytes[ 1]] ^ key->bytes[ 5];
-  t.bytes[ 6] = td[src->bytes[14]] ^ key->bytes[ 6];
-  t.bytes[ 7] = td[src->bytes[11]] ^ key->bytes[ 7];
-  t.bytes[ 8] = td[src->bytes[ 8]] ^ key->bytes[ 8];
-  t.bytes[ 9] = td[src->bytes[ 5]] ^ key->bytes[ 9];
-  t.bytes[10] = td[src->bytes[ 2]] ^ key->bytes[10];
-  t.bytes[11] = td[src->bytes[15]] ^ key->bytes[11];
-  t.bytes[12] = td[src->bytes[12]] ^ key->bytes[12];
-  t.bytes[13] = td[src->bytes[ 9]] ^ key->bytes[13];
-  t.bytes[14] = td[src->bytes[ 6]] ^ key->bytes[14];
-  t.bytes[15] = td[src->bytes[ 3]] ^ key->bytes[15];
+  /* add round key */
+  aes_state_xor(src, dst, key);
 
   /* inverse mix-column */
-  dst->words[0] = td0[t.bytes[ 0]] ^ td1[t.bytes[ 1]] ^ td2[t.bytes[ 2]] ^ td3[t.bytes[ 3]];
-  dst->words[1] = td0[t.bytes[ 4]] ^ td1[t.bytes[ 5]] ^ td2[t.bytes[ 6]] ^ td3[t.bytes[ 7]];
-  dst->words[2] = td0[t.bytes[ 8]] ^ td1[t.bytes[ 9]] ^ td2[t.bytes[10]] ^ td3[t.bytes[11]];
-  dst->words[3] = td0[t.bytes[12]] ^ td1[t.bytes[13]] ^ td2[t.bytes[14]] ^ td3[t.bytes[15]];
+  dst->words[0] = td0[src->bytes[ 0]] ^ td1[src->bytes[ 1]] ^ td2[src->bytes[ 2]] ^ td3[src->bytes[ 3]];
+  dst->words[1] = td0[src->bytes[ 4]] ^ td1[src->bytes[ 5]] ^ td2[src->bytes[ 6]] ^ td3[src->bytes[ 7]];
+  dst->words[2] = td0[src->bytes[ 8]] ^ td1[src->bytes[ 9]] ^ td2[src->bytes[10]] ^ td3[src->bytes[11]];
+  dst->words[3] = td0[src->bytes[12]] ^ td1[src->bytes[13]] ^ td2[src->bytes[14]] ^ td3[src->bytes[15]];
 }
 
 /**
@@ -843,22 +844,25 @@ static void aes_decrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *ke
 */
 static void aes_encrypt_final(aes_state_t *dst, aes_state_t *src, aes_state_t *key) {
   /* final shift-row & substitute */
-  dst->bytes[ 0] = te[src->bytes[ 0]] ^ key->bytes[ 0];
-  dst->bytes[ 1] = te[src->bytes[ 5]] ^ key->bytes[ 1];
-  dst->bytes[ 2] = te[src->bytes[10]] ^ key->bytes[ 2];
-  dst->bytes[ 3] = te[src->bytes[15]] ^ key->bytes[ 3];
-  dst->bytes[ 4] = te[src->bytes[ 4]] ^ key->bytes[ 4];
-  dst->bytes[ 5] = te[src->bytes[ 9]] ^ key->bytes[ 5];
-  dst->bytes[ 6] = te[src->bytes[14]] ^ key->bytes[ 6];
-  dst->bytes[ 7] = te[src->bytes[ 3]] ^ key->bytes[ 7];
-  dst->bytes[ 8] = te[src->bytes[ 8]] ^ key->bytes[ 8];
-  dst->bytes[ 9] = te[src->bytes[13]] ^ key->bytes[ 9];
-  dst->bytes[10] = te[src->bytes[ 2]] ^ key->bytes[10];
-  dst->bytes[11] = te[src->bytes[ 7]] ^ key->bytes[11];
-  dst->bytes[12] = te[src->bytes[12]] ^ key->bytes[12];
-  dst->bytes[13] = te[src->bytes[ 1]] ^ key->bytes[13];
-  dst->bytes[14] = te[src->bytes[ 6]] ^ key->bytes[14];
-  dst->bytes[15] = te[src->bytes[11]] ^ key->bytes[15];
+  dst->bytes[ 0] = te[src->bytes[ 0]];
+  dst->bytes[ 1] = te[src->bytes[ 5]];
+  dst->bytes[ 2] = te[src->bytes[10]];
+  dst->bytes[ 3] = te[src->bytes[15]];
+  dst->bytes[ 4] = te[src->bytes[ 4]];
+  dst->bytes[ 5] = te[src->bytes[ 9]];
+  dst->bytes[ 6] = te[src->bytes[14]];
+  dst->bytes[ 7] = te[src->bytes[ 3]];
+  dst->bytes[ 8] = te[src->bytes[ 8]];
+  dst->bytes[ 9] = te[src->bytes[13]];
+  dst->bytes[10] = te[src->bytes[ 2]];
+  dst->bytes[11] = te[src->bytes[ 7]];
+  dst->bytes[12] = te[src->bytes[12]];
+  dst->bytes[13] = te[src->bytes[ 1]];
+  dst->bytes[14] = te[src->bytes[ 6]];
+  dst->bytes[15] = te[src->bytes[11]];
+
+  /* add round key */
+  aes_state_xor(dst, dst, key);
 }
 
 /**
@@ -869,22 +873,25 @@ static void aes_encrypt_final(aes_state_t *dst, aes_state_t *src, aes_state_t *k
    @param key   AES subkey
 */
 static void aes_decrypt_final(aes_state_t *dst, aes_state_t *src, aes_state_t *key) {
-  dst->bytes[ 0] = td[src->bytes[ 0]] ^ key->bytes[ 0];
-  dst->bytes[ 1] = td[src->bytes[13]] ^ key->bytes[ 1];
-  dst->bytes[ 2] = td[src->bytes[10]] ^ key->bytes[ 2];
-  dst->bytes[ 3] = td[src->bytes[ 7]] ^ key->bytes[ 3];
-  dst->bytes[ 4] = td[src->bytes[ 4]] ^ key->bytes[ 4];
-  dst->bytes[ 5] = td[src->bytes[ 1]] ^ key->bytes[ 5];
-  dst->bytes[ 6] = td[src->bytes[14]] ^ key->bytes[ 6];
-  dst->bytes[ 7] = td[src->bytes[11]] ^ key->bytes[ 7];
-  dst->bytes[ 8] = td[src->bytes[ 8]] ^ key->bytes[ 8];
-  dst->bytes[ 9] = td[src->bytes[ 5]] ^ key->bytes[ 9];
-  dst->bytes[10] = td[src->bytes[ 2]] ^ key->bytes[10];
-  dst->bytes[11] = td[src->bytes[15]] ^ key->bytes[11];
-  dst->bytes[12] = td[src->bytes[12]] ^ key->bytes[12];
-  dst->bytes[13] = td[src->bytes[ 9]] ^ key->bytes[13];
-  dst->bytes[14] = td[src->bytes[ 6]] ^ key->bytes[14];
-  dst->bytes[15] = td[src->bytes[ 3]] ^ key->bytes[15];
+  dst->bytes[ 0] = td[src->bytes[ 0]];
+  dst->bytes[ 1] = td[src->bytes[13]];
+  dst->bytes[ 2] = td[src->bytes[10]];
+  dst->bytes[ 3] = td[src->bytes[ 7]];
+  dst->bytes[ 4] = td[src->bytes[ 4]];
+  dst->bytes[ 5] = td[src->bytes[ 1]];
+  dst->bytes[ 6] = td[src->bytes[14]];
+  dst->bytes[ 7] = td[src->bytes[11]];
+  dst->bytes[ 8] = td[src->bytes[ 8]];
+  dst->bytes[ 9] = td[src->bytes[ 5]];
+  dst->bytes[10] = td[src->bytes[ 2]];
+  dst->bytes[11] = td[src->bytes[15]];
+  dst->bytes[12] = td[src->bytes[12]];
+  dst->bytes[13] = td[src->bytes[ 9]];
+  dst->bytes[14] = td[src->bytes[ 6]];
+  dst->bytes[15] = td[src->bytes[ 3]];
+
+  /* add round key */
+  aes_state_xor(dst, dst, key);
 }
 
 /**
