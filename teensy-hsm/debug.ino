@@ -206,6 +206,15 @@ static uint8_t debug_aes_ecb_decrypt(uint8_t *buffer, uint8_t key_length) {
 #endif
 
 #if DEBUG_CONSOLE > 0
+/**
+   Performs AES-128 CCM encryption
+
+   @param buffer  buffer of plaintext, cipherkey, key_handle and nonce
+                  - maximum plaintext is 64 bytes
+                  - cipherkey is fixed 16 bytes
+                  - key_handle is fixed to 4 bytes
+                  - nonce is fixed to 6 bytes
+*/
 static uint8_t debug_aes_ccm_encrypt(uint8_t *buffer) {
   uint16_t length;
   uint8_t plaintext  [(THSM_BLOCK_SIZE * 4)];
@@ -221,34 +230,46 @@ static uint8_t debug_aes_ccm_encrypt(uint8_t *buffer) {
   memset(key_handle, 0, sizeof(key_handle));
   memset(nonce,      0, sizeof(nonce));
 
-  /* parse plaintext */
+  /* parse plaintext, ciphertext, key_handle and nonce */
   if ((length = buffer_load_hex(plaintext, &buffer, sizeof(plaintext))) == 0) {
     return 0;
-  }
-
-  /* parse cipherkey */
-  if (buffer_load_hex(cipherkey, &buffer, sizeof(cipherkey)) != sizeof(cipherkey)) {
+  } else if (buffer_load_hex(cipherkey, &buffer, sizeof(cipherkey)) != sizeof(cipherkey)) {
     return 0;
-  }
-
-  /* parse key handle */
-  if (buffer_load_hex(key_handle, &buffer, sizeof(key_handle)) != sizeof(key_handle)) {
+  } else if (buffer_load_hex(key_handle, &buffer, sizeof(key_handle)) != sizeof(key_handle)) {
     return 0;
-  }
-
-  /* parse nonce */
-  if (buffer_load_hex(nonce, &buffer, sizeof(nonce)) != sizeof(nonce)) {
+  } else if (buffer_load_hex(nonce, &buffer, sizeof(nonce)) != sizeof(nonce)) {
     return 0;
   }
 
   /* perform AES ECB encryption */
   aes128_ccm_encrypt(ciphertext, NULL, plaintext, length, key_handle, cipherkey, nonce);
-  hexdump(ciphertext, (length + THSM_AEAD_MAC_SIZE), -1);
+  Serial.print("kh : "); hexdump(key_handle, sizeof(key_handle),            -1);
+  Serial.print("ck : "); hexdump(cipherkey,  sizeof(cipherkey),             -1);
+  Serial.print("iv : "); hexdump(nonce,      sizeof(nonce),                 -1);
+  Serial.print("pt : "); hexdump(plaintext,  length,                        -1);
+  Serial.print("ct : "); hexdump(ciphertext, (length + THSM_AEAD_MAC_SIZE), -1);
+
+  /* clear buffers */
+  memset(plaintext,  0, sizeof(plaintext));
+  memset(ciphertext, 0, sizeof(ciphertext));
+  memset(cipherkey,  0, sizeof(cipherkey));
+  memset(key_handle, 0, sizeof(key_handle));
+  memset(nonce,      0, sizeof(nonce));
+
   return 1;
 }
 #endif
 
 #if DEBUG_CONSOLE > 0
+/**
+   Performs AES-128 CCM decryption
+
+   @param buffer  buffer of ciphertext, cipherkey, key_handle and nonce
+                  - maximum ciphertext is 64 + 6 bytes
+                  - cipherkey is fixed 16 bytes
+                  - key_handle is fixed to 4 bytes
+                  - nonce is fixed to 6 bytes
+*/
 static uint8_t debug_aes_ccm_decrypt(uint8_t *buffer) {
   uint16_t parsed;
   uint16_t length;
@@ -269,9 +290,7 @@ static uint8_t debug_aes_ccm_decrypt(uint8_t *buffer) {
   /* parse plaintext */
   if ((parsed = buffer_load_hex(ciphertext, &buffer, sizeof(ciphertext))) == 0) {
     return 0;
-  }
-
-  if (parsed <= THSM_AEAD_MAC_SIZE) {
+  } else if (parsed <= THSM_AEAD_MAC_SIZE) {
     return 0;
   }
 
@@ -279,24 +298,30 @@ static uint8_t debug_aes_ccm_decrypt(uint8_t *buffer) {
   length = parsed - THSM_AEAD_MAC_SIZE;
   mac    = ciphertext + length;
 
-  /* parse cipherkey */
+  /* parse cipherkey, key_handle and nonce */
   if (buffer_load_hex(cipherkey, &buffer, sizeof(cipherkey)) != sizeof(cipherkey)) {
     return 0;
-  }
-
-  /* parse key handle */
-  if (buffer_load_hex(key_handle, &buffer, sizeof(key_handle)) != sizeof(key_handle)) {
+  } else if (buffer_load_hex(key_handle, &buffer, sizeof(key_handle)) != sizeof(key_handle)) {
     return 0;
-  }
-
-  /* parse nonce */
-  if (buffer_load_hex(nonce, &buffer, sizeof(nonce)) != sizeof(nonce)) {
+  } else if (buffer_load_hex(nonce, &buffer, sizeof(nonce)) != sizeof(nonce)) {
     return 0;
   }
 
   /* perform AES ECB encryption */
   uint8_t matched = aes128_ccm_decrypt(plaintext, ciphertext, length, key_handle, cipherkey, nonce, mac);
-  hexdump(plaintext, length, -1);
+  Serial.print("kh : "); hexdump(key_handle, sizeof(key_handle),            -1);
+  Serial.print("ck : "); hexdump(cipherkey,  sizeof(cipherkey),             -1);
+  Serial.print("iv : "); hexdump(nonce,      sizeof(nonce),                 -1);
+  Serial.print("ct : "); hexdump(ciphertext, (length + THSM_AEAD_MAC_SIZE), -1);
+  Serial.print("pt : "); hexdump(plaintext,  length,                        -1);
+
+  /* clear buffers */
+  memset(plaintext,  0, sizeof(plaintext));
+  memset(ciphertext, 0, sizeof(ciphertext));
+  memset(cipherkey,  0, sizeof(cipherkey));
+  memset(key_handle, 0, sizeof(key_handle));
+  memset(nonce,      0, sizeof(nonce));
+
 
   return matched;
 }
