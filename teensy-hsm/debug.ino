@@ -107,6 +107,8 @@ static void debug_dispatch() {
 
   if (!ret) {
     Serial.print("err");
+  } else {
+    Serial.print("ok");
   }
 }
 #endif
@@ -322,7 +324,6 @@ static uint8_t debug_aes_ccm_decrypt(uint8_t *buffer) {
   memset(key_handle, 0, sizeof(key_handle));
   memset(nonce,      0, sizeof(nonce));
 
-
   return matched;
 }
 #endif
@@ -330,7 +331,6 @@ static uint8_t debug_aes_ccm_decrypt(uint8_t *buffer) {
 #if DEBUG_CONSOLE > 0
 static uint8_t debug_sha1_init(uint8_t *buffer) {
   sha1_init(&debug_sha1_ctx);
-  Serial.print("ok");
   return 1;
 }
 #endif
@@ -354,7 +354,6 @@ static uint8_t debug_sha1_update(uint8_t *buffer) {
 
   /* update hash object */
   sha1_update(&debug_sha1_ctx, data, length);
-  Serial.print("ok");
 
   /* clear buffer */
   memset(data, 0, sizeof(data));
@@ -386,26 +385,42 @@ static uint8_t debug_sha1_final(uint8_t *buffer) {
 
 #if DEBUG_CONSOLE > 0
 static uint8_t debug_hmac_sha1_init(uint8_t *buffer) {
+  uint16_t length = 0;
   uint8_t data[64];
 
   memset(data, 0, sizeof(data));
-  uint16_t length = buffer_load_hex(data, &buffer, sizeof(data));
+  if ((length = buffer_load_hex(data, &buffer, sizeof(data))) < 1) {
+    Serial.println("key is empty");
+    return 0;
+  }
 
   hmac_sha1_init(&debug_hmac_sha1_ctx, data, length);
-  Serial.print("ok");
   return 1;
 }
 #endif
 
 #if DEBUG_CONSOLE > 0
 static uint8_t debug_hmac_sha1_update(uint8_t *buffer) {
+  uint16_t length = 0;
   uint8_t data[64];
 
+  /* clear buffer */
   memset(data, 0, sizeof(data));
-  uint16_t length = buffer_load_hex(data, &buffer, sizeof(data));
 
+  /* check if HMAC state has been initialized */
+  if (is_clear_words(debug_hmac_sha1_ctx.hash.hashes, sizeof(debug_hmac_sha1_ctx.hash.hashes))) {
+    Serial.println("not initialized");
+    return 0;
+  } else if ((length = buffer_load_hex(data, &buffer, sizeof(data))) < 1) {
+    Serial.println("data is empty");
+  }
+
+  /* update HMAC */
   hmac_sha1_update(&debug_hmac_sha1_ctx, data, length);
-  Serial.print("ok");
+
+  /* clear buffer */
+  memset(data, 0, sizeof(data));
+
   return 1;
 }
 #endif
@@ -413,12 +428,23 @@ static uint8_t debug_hmac_sha1_update(uint8_t *buffer) {
 #if DEBUG_CONSOLE > 0
 uint8_t debug_hmac_sha1_final(uint8_t *buffer) {
   uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
+
+  /* check if HMAC state has been initialized */
+  if (is_clear_words(debug_hmac_sha1_ctx.hash.hashes, sizeof(debug_hmac_sha1_ctx.hash.hashes))) {
+    Serial.println("not initialized");
+    return 0;
+  }
+
+  /* clear buffer */
+  memset(digest, 0, sizeof(digest));
+
+  /* calculate hmac */
   hmac_sha1_final(&debug_hmac_sha1_ctx, digest);
 
   Serial.print("hmac : "); hexdump(digest, sizeof(digest), -1);
 
   /* cleanup digest and state */
-  memset(digest, 0, sizeof(digest));
+  memset(digest,               0, sizeof(digest));
   memset(&debug_hmac_sha1_ctx, 0, sizeof(debug_hmac_sha1_ctx));
 
   return 1;
@@ -431,18 +457,7 @@ static uint8_t debug_flash_dump(uint8_t *buffer) {
 
   flash_read(data, 0, sizeof(data));
 
-  for (uint16_t i = 0; i < sizeof(data); i++) {
-    uint8_t v = data[i];
-    Serial.print((v >> 4) & 0x0f, HEX);
-    Serial.print((v >> 0) & 0x0f, HEX);
-    if (i == 0) {
-      /* do nothing */
-    } else if (((i + 1) %  32) == 0) {
-      Serial.print("\r\n");
-    } else if (((i + 1) %  4) == 0) {
-      Serial.print(' ');
-    }
-  }
+  hexdump(data, sizeof(data), 64);
 
   return 1;
 }
@@ -452,21 +467,8 @@ static uint8_t debug_flash_dump(uint8_t *buffer) {
 static uint8_t debug_buffer_dump(uint8_t *buffer) {
   uint16_t length = thsm_buffer.data_len;
 
-  Serial.print("length : ");
-  Serial.println(length);
-  for (uint16_t i = 0; i < length; i++) {
-    uint8_t v = thsm_buffer.data[i];
-    Serial.print((v >> 4) & 0x0f, HEX);
-    Serial.print((v >> 0) & 0x0f, HEX);
-    if (i == 0) {
-      /* do nothing */
-    } else if (((i + 1) %  32) == 0) {
-      Serial.print("\r\n");
-    } else if (((i + 1) %  4) == 0) {
-      Serial.print(' ');
-    }
-  }
-
+  Serial.print("length : "); Serial.println(length);
+  hexdump(thsm_buffer.data, sizeof(thsm_buffer.data), length);
   return 1;
 }
 #endif
@@ -490,8 +492,10 @@ static uint8_t debug_random_dump(uint8_t *buffer) {
 
   /* parse cipherkey */
   if (buffer_load_hex(&length, &buffer, sizeof(length)) != sizeof(length)) {
+    Serial.println("insufficient length");
     return 0;
-  } else if (length == 0) {
+  } else if (length < 1) {
+    Serial.println("insufficient length");
     return 0;
   }
 
@@ -511,12 +515,12 @@ static uint8_t debug_random_seed(uint8_t *buffer) {
 
   /* parse cipherkey */
   if (buffer_load_hex(seed, &buffer, sizeof(seed)) != sizeof(seed)) {
+    Serial.println("insufficiet seed length");
     return 0;
   }
 
   /* reseed DRBG */
   drbg_reseed(seed);
-  Serial.print("ok");
 
   return 1;
 }
