@@ -514,6 +514,8 @@ typedef union
   THSM_DB_OTP_VALIDATE_RESP       db_otp_validate;
 } THSM_PAYLOAD_RESP;
 
+#define SYSTEM_FLAGS_STORAGE_DECRYPTED    (1 << 0)
+
 typedef struct
 {
   uint8_t bcnt;
@@ -534,11 +536,14 @@ typedef struct
 static THSM_PKT_REQ    request;
 static THSM_PKT_RESP   response;
 static THSM_BUFFER     thsm_buffer;
+static uint32_t        system_flags;
 
 //--------------------------------------------------------------------------------------------------
 // Functions
 //--------------------------------------------------------------------------------------------------
 void setup() {
+  system_flags = 0;
+
   led_init();
   drbg_init();
   parser_init();

@@ -3,7 +3,7 @@
 // Author  : Edi Permadi
 // Repo    : https://github.com/edipermadi/teensy-hsm
 //
-// This file is part of TeensyHSM project containing the implementation command dispaching and 
+// This file is part of TeensyHSM project containing the implementation command dispaching and
 // processing functionality
 //==================================================================================================
 
@@ -418,6 +418,11 @@ static void cmd_key_store_decrypt() {
     /* unlock keystore */
     uint8_t *key   = request.payload.key_store_decrypt.key;
     uint8_t status = keystore_unlock(key);
+    if (status == THSM_STATUS_OK) {
+      system_flags |= SYSTEM_FLAGS_STORAGE_DECRYPTED;
+    } else {
+      system_flags &= ~SYSTEM_FLAGS_STORAGE_DECRYPTED;
+    }
     response.payload.key_store_decrypt.status = status;
   }
 }
