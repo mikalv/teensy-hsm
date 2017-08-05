@@ -514,6 +514,7 @@ typedef union
   THSM_DB_OTP_VALIDATE_RESP       db_otp_validate;
 } THSM_PAYLOAD_RESP;
 
+// System Flags Definition
 #define SYSTEM_FLAGS_STORAGE_DECRYPTED    (1 << 0)
 
 typedef struct

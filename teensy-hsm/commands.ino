@@ -175,7 +175,9 @@ static void cmd_hmac_sha1_generate() {
   uint8_t  status     = THSM_STATUS_OK;
   uint16_t length     = request.payload.hmac_sha1_generate.data_len;
   uint32_t key_handle = read_uint32(src_key);
-  if (request.bcnt > (sizeof(request.payload.hmac_sha1_generate) + 1)) {
+  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+    response.payload.hmac_sha1_generate.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+  } else if (request.bcnt > (sizeof(request.payload.hmac_sha1_generate) + 1)) {
     response.payload.hmac_sha1_generate.status = THSM_STATUS_INVALID_PARAMETER;
   } else if ((length < 1) || (length > sizeof(request.payload.hmac_sha1_generate.data))) {
     response.payload.hmac_sha1_generate.status = THSM_STATUS_INVALID_PARAMETER;
@@ -229,7 +231,9 @@ static void cmd_ecb_encrypt() {
 
   uint8_t  status     = THSM_STATUS_OK;
   uint32_t key_handle = read_uint32(src_key);
-  if (request.bcnt != (sizeof(request.payload.ecb_encrypt) + 1)) {
+  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+    response.payload.ecb_encrypt.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+  } else if (request.bcnt != (sizeof(request.payload.ecb_encrypt) + 1)) {
     response.payload.ecb_encrypt.status = THSM_STATUS_INVALID_PARAMETER;
   } else if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK) {
     response.payload.ecb_encrypt.status = status;
@@ -260,7 +264,9 @@ static void cmd_ecb_decrypt() {
 
   uint8_t  status     = THSM_STATUS_OK;
   uint32_t key_handle = read_uint32(src_key);
-  if (request.bcnt != (sizeof(request.payload.ecb_decrypt) + 1)) {
+  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+    response.payload.ecb_decrypt.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+  } else if (request.bcnt != (sizeof(request.payload.ecb_decrypt) + 1)) {
     response.payload.ecb_decrypt.status = THSM_STATUS_INVALID_PARAMETER;
   } else if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK) {
     response.payload.ecb_decrypt.status = status;
@@ -290,7 +296,9 @@ static void cmd_ecb_decrypt_cmp() {
 
   uint8_t  status     = THSM_STATUS_OK;
   uint32_t key_handle = read_uint32(src_key);
-  if (request.bcnt != (sizeof(request.payload.ecb_decrypt_cmp) + 1)) {
+  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+    response.payload.ecb_decrypt_cmp.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+  } else if (request.bcnt != (sizeof(request.payload.ecb_decrypt_cmp) + 1)) {
     response.payload.ecb_decrypt_cmp.status = THSM_STATUS_INVALID_PARAMETER;
   } else if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK) {
     response.payload.ecb_decrypt_cmp.status = status;
@@ -366,7 +374,9 @@ static void cmd_hsm_unlock() {
   uint8_t status     = THSM_STATUS_OK;
 
   /* check request byte count */
-  if (request.bcnt != (sizeof(request.payload.hsm_unlock) + 1)) {
+  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+    response.payload.hsm_unlock.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+  } else if (request.bcnt != (sizeof(request.payload.hsm_unlock) + 1)) {
     response.payload.hsm_unlock.status = THSM_STATUS_INVALID_PARAMETER;
   } else if ((status = keystore_load_secret(secret, public_id)) != THSM_STATUS_OK) {
     response.payload.hsm_unlock.status = status;
@@ -466,7 +476,9 @@ static void cmd_aead_generate() {
   uint16_t length     = request.payload.aead_generate.data_len;
 
   /* check parameters */
-  if (request.bcnt != (min_length + request.payload.aead_generate.data_len + 1)) {
+  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+    response.payload.aead_generate.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+  } else if (request.bcnt != (min_length + request.payload.aead_generate.data_len + 1)) {
     response.payload.aead_generate.status = THSM_STATUS_INVALID_PARAMETER;
   } else if ((length < 1) || (length > sizeof(request.payload.aead_generate.data))) {
     response.payload.aead_generate.status = THSM_STATUS_INVALID_PARAMETER;
@@ -515,7 +527,9 @@ static void cmd_buffer_aead_generate() {
   uint16_t length     = thsm_buffer.data_len;
 
   /* check parameters */
-  if (request.bcnt != (sizeof(request.payload.buffer_aead_generate) + 1)) {
+  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+    response.payload.buffer_aead_generate.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+  } else if (request.bcnt != (sizeof(request.payload.buffer_aead_generate) + 1)) {
     response.payload.buffer_aead_generate.status = THSM_STATUS_INVALID_PARAMETER;
   } else if (length < 1) {
     response.payload.buffer_aead_generate.status = THSM_STATUS_INVALID_PARAMETER;
@@ -563,7 +577,9 @@ static void cmd_random_aead_generate() {
   uint16_t length     = request.payload.random_aead_generate.random_len;
 
   /* check parameters */
-  if (request.bcnt != (sizeof(request.payload.random_aead_generate) + 1)) {
+  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+    response.payload.random_aead_generate.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+  } else if (request.bcnt != (sizeof(request.payload.random_aead_generate) + 1)) {
     response.payload.random_aead_generate.status = THSM_STATUS_INVALID_PARAMETER;
   } else if ((length < 1) || (length > THSM_DATA_BUF_SIZE)) {
     response.payload.random_aead_generate.status = THSM_STATUS_INVALID_PARAMETER;
@@ -618,7 +634,9 @@ static void cmd_aead_decrypt_cmp() {
   uint16_t data_length = request.payload.aead_decrypt_cmp.data_len;
 
   /* check parameters */
-  if (request.bcnt != (min_length + request.payload.aead_decrypt_cmp.data_len + 1)) {
+  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+    response.payload.aead_decrypt_cmp.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+  } else if (request.bcnt != (min_length + request.payload.aead_decrypt_cmp.data_len + 1)) {
     response.payload.aead_decrypt_cmp.status = THSM_STATUS_INVALID_PARAMETER;
   } else if ((data_length < 8) || (data_length > 72) || (data_length & 0x01)) {
     response.payload.aead_decrypt_cmp.status = THSM_STATUS_KEY_HANDLE_INVALID;
@@ -677,7 +695,10 @@ static void cmd_temp_key_load() {
   uint32_t key_handle = read_uint32(src_key);
   uint8_t  status     = THSM_STATUS_OK;
   uint16_t data_len   = request.payload.temp_key_load.data_len;
-  if (request.bcnt != sizeof(request.payload.temp_key_load) + 1) {
+
+  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+    response.payload.temp_key_load.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+  } else if (request.bcnt != sizeof(request.payload.temp_key_load) + 1) {
     response.payload.temp_key_load.status = THSM_STATUS_INVALID_PARAMETER;
   } else if ((data_len != 12) || (data_len != 28) || (data_len != 32) || (data_len != 36) || (data_len != 44)) {
     response.payload.hmac_sha1_generate.status = THSM_STATUS_INVALID_PARAMETER;
@@ -752,7 +773,9 @@ static void cmd_db_aead_store() {
   uint8_t  status     = THSM_STATUS_OK;
 
   /* load key */
-  if (request.bcnt > (sizeof(request.payload.db_aead_store) + 1)) {
+  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+    response.payload.db_aead_store.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+  } else if (request.bcnt > (sizeof(request.payload.db_aead_store) + 1)) {
     response.payload.db_aead_store.status = THSM_STATUS_INVALID_PARAMETER;
   } else if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK) {
     response.payload.db_aead_store.status = status;
@@ -807,7 +830,9 @@ static void cmd_db_aead_store2() {
   uint8_t  status     = THSM_STATUS_OK;
 
   /* load key */
-  if (request.bcnt > (sizeof(request.payload.db_aead_store) + 1)) {
+  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+    response.payload.db_aead_store2.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+  } else if (request.bcnt > (sizeof(request.payload.db_aead_store) + 1)) {
     response.payload.db_aead_store2.status = THSM_STATUS_INVALID_PARAMETER;
   } else if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK) {
     response.payload.db_aead_store2.status = status;
@@ -863,7 +888,9 @@ static void cmd_aead_otp_decode() {
   uint32_t key_handle = read_uint32(src_key);
 
   /* check parameters */
-  if (request.bcnt > (sizeof(request.payload.aead_otp_decode) + 1)) {
+  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+    response.payload.aead_otp_decode.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+  } else if (request.bcnt > (sizeof(request.payload.aead_otp_decode) + 1)) {
     response.payload.aead_otp_decode.status = THSM_STATUS_INVALID_PARAMETER;
   } else if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK) {
     response.payload.aead_otp_decode.status = status;
@@ -924,7 +951,9 @@ static void cmd_db_otp_validate() {
   uint8_t status = THSM_STATUS_OK;
 
   /* check parameters */
-  if (request.bcnt > (sizeof(request.payload.db_otp_validate) + 1)) {
+  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+    response.payload.db_otp_validate.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+  } else if (request.bcnt > (sizeof(request.payload.db_otp_validate) + 1)) {
     response.payload.db_otp_validate.status = THSM_STATUS_INVALID_PARAMETER;
   } else if ((status = keystore_load_secret(secret, src_pub)) != THSM_STATUS_OK) {
     response.payload.db_otp_validate.status = status;
