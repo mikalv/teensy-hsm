@@ -365,7 +365,9 @@ static void cmd_buffer_random_load() {
 }
 
 static void cmd_hsm_unlock() {
-  uint8_t secret[THSM_KEY_SIZE + THSM_AEAD_NONCE_SIZE];
+  uint8_t key  [THSM_KEY_SIZE];
+  uint8_t nonce[THSM_AEAD_NONCE_SIZE];
+
   /* prepare response */
   response.bcnt = sizeof(response.payload.hsm_unlock) + 1;
 
@@ -378,15 +380,13 @@ static void cmd_hsm_unlock() {
     response.payload.hsm_unlock.status = THSM_STATUS_KEY_STORAGE_LOCKED;
   } else if (request.bcnt != (sizeof(request.payload.hsm_unlock) + 1)) {
     response.payload.hsm_unlock.status = THSM_STATUS_INVALID_PARAMETER;
-  } else if ((status = keystore_load_secret(secret, public_id)) != THSM_STATUS_OK) {
+  } else if ((status = keystore_load_secret(key, nonce, public_id)) != THSM_STATUS_OK) {
     response.payload.hsm_unlock.status = status;
   } else {
     uint8_t decoded[THSM_BLOCK_SIZE];
-    uint8_t *key       = secret;
-    uint8_t *uid_ref   = secret + THSM_KEY_SIZE;
-    uint8_t *uid_act   = decoded + 2;
-    uint8_t *counter   = uid_act + THSM_AEAD_NONCE_SIZE;
-    uint8_t length     = THSM_KEY_SIZE - sizeof(uint16_t);
+    uint8_t *uid_act = decoded + 2;
+    uint32_t counter = read_uint32(uid_act + THSM_AEAD_NONCE_SIZE);
+    uint8_t  length  = THSM_KEY_SIZE - sizeof(uint16_t);
 
     /* decrypt otp */
     aes_ecb_decrypt(decoded, otp, key, THSM_KEY_SIZE);
@@ -398,7 +398,7 @@ static void cmd_hsm_unlock() {
     uint16_t crc = (decoded[0] << 8) | decoded[1];
     if (crc != CRC16.ccitt(uid_act, length)) {
       response.payload.hsm_unlock.status = THSM_STATUS_OTP_INVALID;
-    } else if (!memcmp(uid_ref, uid_act, THSM_AEAD_NONCE_SIZE)) {
+    } else if (!memcmp(nonce, uid_act, THSM_AEAD_NONCE_SIZE)) {
       response.payload.hsm_unlock.status = THSM_STATUS_OTP_INVALID;
     } else if ((status = keystore_check_counter(public_id, counter)) != THSM_STATUS_OK) {
       response.payload.hsm_unlock.status = status;
@@ -414,7 +414,8 @@ static void cmd_hsm_unlock() {
   }
 
   /* clear secret */
-  memset(secret, 0, sizeof(secret));
+  memset(key,   0, sizeof(key));
+  memset(nonce, 0, sizeof(nonce));
 }
 
 static void cmd_key_store_decrypt() {
@@ -689,7 +690,7 @@ static void cmd_temp_key_load() {
   uint8_t *src_data  = request.payload.temp_key_load.data;
 
   /* copy key handle and nonce */
-  memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
+  memcpy(dst_key,   src_key,   THSM_KEY_HANDLE_SIZE);
   memcpy(dst_nonce, src_nonce, THSM_AEAD_NONCE_SIZE);
 
   uint32_t key_handle = read_uint32(src_key);
@@ -791,7 +792,9 @@ static void cmd_db_aead_store() {
     /* perform AES CCM decryption */
     uint8_t matched = aes128_ccm_decrypt(recovered, ciphertext, length, dst_key, key, src_pub, mac);
     if (matched) {
-      status = keystore_store_secret(src_pub, recovered);
+      uint8_t *key = recovered;
+      uint8_t *nonce = recovered + THSM_KEY_SIZE;
+      status = keystore_store_secret(src_pub, key, nonce, 0);
       response.payload.db_aead_store.status = status;
 
       /* save updated flash cache */
@@ -848,7 +851,9 @@ static void cmd_db_aead_store2() {
     /* perform AES CCM decryption */
     uint8_t matched = aes128_ccm_decrypt(recovered, ciphertext, length, dst_key, key, src_nonce, mac);
     if (matched) {
-      uint8_t status = keystore_store_secret(src_pub, recovered);
+      uint8_t *key   = recovered;
+      uint8_t *nonce = recovered + THSM_KEY_SIZE;
+      uint8_t status = keystore_store_secret(src_pub, key, nonce, 0);
       response.payload.db_aead_store.status = status;
 
       /* save updated flash cache */
@@ -938,7 +943,8 @@ static void cmd_aead_otp_decode() {
 }
 
 static void cmd_db_otp_validate() {
-  uint8_t  secret[THSM_KEY_SIZE + THSM_AEAD_NONCE_SIZE];
+  uint8_t  key   [THSM_KEY_SIZE];
+  uint8_t  nonce [THSM_AEAD_NONCE_SIZE];
 
   uint8_t *src_pub  = request.payload.db_otp_validate.public_id;
   uint8_t *dst_pub  = response.payload.db_otp_validate.public_id;
@@ -955,12 +961,10 @@ static void cmd_db_otp_validate() {
     response.payload.db_otp_validate.status = THSM_STATUS_KEY_STORAGE_LOCKED;
   } else if (request.bcnt > (sizeof(request.payload.db_otp_validate) + 1)) {
     response.payload.db_otp_validate.status = THSM_STATUS_INVALID_PARAMETER;
-  } else if ((status = keystore_load_secret(secret, src_pub)) != THSM_STATUS_OK) {
+  } else if ((status = keystore_load_secret(key, nonce, src_pub)) != THSM_STATUS_OK) {
     response.payload.db_otp_validate.status = status;
   } else {
     uint8_t decoded[THSM_BLOCK_SIZE]; // CRC16 || uid || counter || rand
-    uint8_t *key = secret;
-    uint8_t *uid_ref = secret  + THSM_KEY_SIZE;
     uint8_t *uid_act = decoded + 2;
 
     /* perform AES ECB decryption */
@@ -970,7 +974,7 @@ static void cmd_db_otp_validate() {
     uint16_t crc = (decoded[0] << 8) | decoded[1];
     if (crc != CRC16.ccitt(decoded + 2, 14)) {
       response.payload.db_otp_validate.status = THSM_STATUS_OTP_INVALID;
-    } else if (memcmp(uid_ref, uid_act, THSM_PUBLIC_ID_SIZE)) {
+    } else if (memcmp(nonce, uid_act, THSM_PUBLIC_ID_SIZE)) {
       response.payload.db_otp_validate.status = THSM_STATUS_OTP_INVALID;
     } else {
       /* copy counter */
@@ -982,5 +986,6 @@ static void cmd_db_otp_validate() {
   }
 
   /* clear key buffer */
-  memset(secret, 0, sizeof(secret));
+  memset(key,   0, sizeof(key));
+  memset(nonce, 0, sizeof(nonce));
 }

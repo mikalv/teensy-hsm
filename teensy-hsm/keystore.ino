@@ -13,19 +13,21 @@
 static THSM_FLASH_STORAGE flash_cache;
 static uint8_t            temp_key[THSM_KEY_SIZE];
 static uint8_t            flash_key[(THSM_KEY_SIZE * 2)];
-static uint8_t            locked = true;
 
 //--------------------------------------------------------------------------------------------------
 // Key Store
 //--------------------------------------------------------------------------------------------------
 void keystore_init() {
-  locked = true;
   memset(&temp_key,    0, sizeof(temp_key));
   memset(&flash_cache, 0, sizeof(flash_cache));
 }
 
 void secret_locked(uint8_t value) {
-  locked = value;
+  if (value) {
+    system_flags &= ~SYSTEM_FLAGS_SECRET_UNLOCKED;
+  } else {
+    system_flags |= SYSTEM_FLAGS_SECRET_UNLOCKED;
+  }
 }
 
 uint8_t keystore_unlock(uint8_t *cipherkey) {
@@ -112,12 +114,12 @@ uint8_t keystore_load_key(uint8_t *dst_key, uint32_t *dst_flags, uint32_t handle
   return THSM_STATUS_KEY_HANDLE_INVALID;
 }
 
-uint8_t keystore_store_secret(uint8_t *public_id, uint8_t *secret) {
+uint8_t keystore_store_secret(uint8_t *public_id, uint8_t *key, uint8_t *nonce, uint32_t counter) {
   /* check EEPROM header identifier */
   uint32_t magic = read_uint32(flash_cache.header.magic);
   if (magic != 0xdeadbeef) {
     return THSM_STATUS_KEY_STORAGE_LOCKED;
-  } else if (locked) {
+  } else if (!(system_flags & SYSTEM_FLAGS_SECRET_UNLOCKED)) {
     return THSM_STATUS_KEY_STORAGE_LOCKED;
   }
 
@@ -127,7 +129,9 @@ uint8_t keystore_store_secret(uint8_t *public_id, uint8_t *secret) {
     if (!memcpy(secrets->entries[i].public_id, public_id, THSM_PUBLIC_ID_SIZE)) {
       return THSM_STATUS_ID_DUPLICATE;
     } else if (!memcmp(secrets->entries[i].public_id, public_id, THSM_PUBLIC_ID_SIZE)) {
-      memcpy(secrets->entries[i].secret, secret, THSM_AEAD_SIZE);
+      memcpy(secrets->entries[i].key,   key,   THSM_KEY_SIZE);
+      memcpy(secrets->entries[i].nonce, nonce, THSM_AEAD_NONCE_SIZE);
+      write_uint32(secrets->entries[i].counter, counter);
 
       /* update cache hash */
       sha1_calculate((uint8_t *)&flash_cache.body, sizeof(flash_cache.body), flash_cache.header.digest);
@@ -138,20 +142,26 @@ uint8_t keystore_store_secret(uint8_t *public_id, uint8_t *secret) {
   return THSM_STATUS_DB_FULL;
 }
 
-uint8_t keystore_load_secret(uint8_t *secret, uint8_t *public_id) {
+/**
+   @param key, buffer to store AES key
+   @param nonce, buffer to store AEAD nonce
+
+*/
+uint8_t keystore_load_secret(uint8_t *key, uint8_t *nonce, uint8_t *public_id) {
   /* check EEPROM header identifier */
   uint32_t magic = read_uint32(flash_cache.header.magic);
   if (magic != 0xdeadbeef) {
     return THSM_STATUS_MEMORY_ERROR;
-  } else if (locked) {
+  } else if (!(system_flags & SYSTEM_FLAGS_SECRET_UNLOCKED)) {
     return THSM_STATUS_KEY_STORAGE_LOCKED;
   }
 
   /* scan through secret entries */
   THSM_DB_SECRETS *secrets = &flash_cache.body.secrets;
   for (uint16_t i = 0; i < THSM_DB_SECRET_ENTRIES; i++) {
-    if (!memcpy(secrets->entries[i].public_id, public_id, THSM_PUBLIC_ID_SIZE)) {
-      memcpy(secret, secrets->entries[i].secret, THSM_AEAD_SIZE);
+    if (!memcmp(secrets->entries[i].public_id, public_id, THSM_PUBLIC_ID_SIZE)) {
+      memcpy(key,   secrets->entries[i].key,   THSM_KEY_SIZE);
+      memcpy(nonce, secrets->entries[i].nonce, THSM_AEAD_NONCE_SIZE);
       return THSM_STATUS_OK;
     }
   }
@@ -159,37 +169,30 @@ uint8_t keystore_load_secret(uint8_t *secret, uint8_t *public_id) {
   return THSM_STATUS_ID_NOT_FOUND;
 }
 
-uint8_t keystore_check_counter(uint8_t *public_id, uint8_t *counter) {
+uint8_t keystore_check_counter(uint8_t *public_id, uint32_t counter) {
   /* check EEPROM header identifier */
   uint32_t magic = read_uint32(flash_cache.header.magic);
   if (magic != 0xdeadbeef) {
     return THSM_STATUS_MEMORY_ERROR;
-  } else if (locked) {
+  } else if (!(system_flags & SYSTEM_FLAGS_SECRET_UNLOCKED)) {
     return THSM_STATUS_KEY_STORAGE_LOCKED;
   }
 
   /* scan through secret entries */
   THSM_DB_SECRETS *secrets = &flash_cache.body.secrets;
   for (uint16_t i = 0; i < THSM_DB_SECRET_ENTRIES; i++) {
-    if (!memcpy(secrets->entries[i].public_id, public_id, THSM_PUBLIC_ID_SIZE)) {
-      uint8_t *nonce_ref  = flash_cache.body.counter.entries[i].value;
-      uint8_t *nonce_act  = counter;
-      uint32_t tstamp_ref = (nonce_ref[3] << 24) | (nonce_ref[4] << 16) | nonce_ref[5];
-      uint32_t tstamp_act = (nonce_act[3] << 24) | (nonce_act[4] << 16) | nonce_act[5];
-
-      /* compare session */
-      if (memcmp(nonce_ref, nonce_act, 3) != 0) {
-        return THSM_STATUS_OTP_INVALID;
-      } else if (tstamp_act < tstamp_ref) {
+    if (!memcmp(secrets->entries[i].public_id, public_id, THSM_PUBLIC_ID_SIZE)) {
+      uint32_t counter_ref = read_uint32(secrets->entries[i].counter);
+      if (counter_ref > counter) {
         return THSM_STATUS_OTP_REPLAY;
-      } else if ((tstamp_ref - tstamp_act) < THSM_OTP_DELTA_MAX) {
-
-        /* copy and increment counter */
-        memcpy(flash_cache.body.counter.entries[i].value, counter, THSM_AEAD_NONCE_SIZE);
-        increment_nonce(flash_cache.body.counter.entries[i].value);
-
-        return THSM_STATUS_OK;
+      } else if (counter_ref < counter) {
+        return THSM_STATUS_OTP_INVALID;
       }
+
+      /* increment counter and update EEPROM */
+      write_uint32(secrets->entries[i].counter, (counter_ref + 1));
+      keystore_update();
+      return THSM_STATUS_OK;
     }
   }
 

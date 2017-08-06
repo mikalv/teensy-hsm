@@ -172,7 +172,9 @@ typedef struct {
 
 typedef struct {
   uint8_t public_id [THSM_PUBLIC_ID_SIZE];
-  uint8_t secret    [THSM_KEY_SIZE + THSM_AEAD_NONCE_SIZE];
+  uint8_t key       [THSM_KEY_SIZE];
+  uint8_t nonce     [THSM_AEAD_NONCE_SIZE];  
+  uint8_t counter   [sizeof(uint32_t)];
 } THSM_DB_SECRET_ENTRY;
 
 typedef struct {
@@ -184,17 +186,8 @@ typedef struct {
 } THSM_DB_SECRETS;
 
 typedef struct {
-  uint8_t value[THSM_AEAD_NONCE_SIZE];
-} THSM_FLASH_COUNTER_ENTRY;
-
-typedef struct {
-  THSM_FLASH_COUNTER_ENTRY entries[THSM_DB_SECRET_ENTRIES];
-} THSM_FLASH_COUNTER;
-
-typedef struct {
   THSM_DB_SECRETS    secrets;
   THSM_DB_KEYS       keys;
-  THSM_FLASH_COUNTER counter;
 } THSM_FLASH_BODY;
 
 typedef struct {
@@ -516,6 +509,7 @@ typedef union
 
 // System Flags Definition
 #define SYSTEM_FLAGS_STORAGE_DECRYPTED    (1 << 0)
+#define SYSTEM_FLAGS_SECRET_UNLOCKED      (1 << 1)
 
 typedef struct
 {

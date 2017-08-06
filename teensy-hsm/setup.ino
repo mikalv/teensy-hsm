@@ -457,7 +457,9 @@ static uint8_t setup_db_secret_show(uint8_t *buffer) {
 
   Serial.print("slot #"); Serial.println(index, DEC);
   Serial.print("  public_id : "); hexdump(flash_cache.body.secrets.entries[index].public_id, sizeof(flash_cache.body.secrets.entries[index].public_id), -1);
-  Serial.print("  secret    : "); hexdump(flash_cache.body.secrets.entries[index].secret,    sizeof(flash_cache.body.secrets.entries[index].secret),  -1);
+  Serial.print("  secret    : "); hexdump(flash_cache.body.secrets.entries[index].key,       sizeof(flash_cache.body.secrets.entries[index].key),       -1);
+  Serial.print("  nonce     : "); hexdump(flash_cache.body.secrets.entries[index].nonce,     sizeof(flash_cache.body.secrets.entries[index].nonce),     -1);
+  Serial.print("  counter   : "); hexdump(flash_cache.body.secrets.entries[index].counter,   sizeof(flash_cache.body.secrets.entries[index].counter),   -1);
 
   return 1;
 }
