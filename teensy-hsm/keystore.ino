@@ -126,7 +126,7 @@ uint8_t keystore_store_secret(uint8_t *public_id, uint8_t *key, uint8_t *nonce, 
   /* scan through secret entries */
   THSM_DB_SECRETS *secrets = &flash_cache.body.secrets;
   for (uint16_t i = 0; i < THSM_DB_SECRET_ENTRIES; i++) {
-    if (!memcpy(secrets->entries[i].public_id, public_id, THSM_PUBLIC_ID_SIZE)) {
+    if (!memcmp(secrets->entries[i].public_id, public_id, THSM_PUBLIC_ID_SIZE)) {
       return THSM_STATUS_ID_DUPLICATE;
     } else if (!memcmp(secrets->entries[i].public_id, public_id, THSM_PUBLIC_ID_SIZE)) {
       memcpy(secrets->entries[i].key,   key,   THSM_KEY_SIZE);
