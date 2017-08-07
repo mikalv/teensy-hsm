@@ -28,6 +28,7 @@ Teensy HSM uses the following algorithms:
 - AES-128 based SP800-90 CTR-DRBG
 
 ## Documentation
+- [OTP Structure](doc/otp-structure.md)
 - [Supported Commands](https://github.com/edipermadi/teensy-hsm/wiki/Commands)
 - [Setup Console](https://github.com/edipermadi/teensy-hsm/wiki/Setup-Console)
 - [Debugging Console](https://github.com/edipermadi/teensy-hsm/wiki/Debugging-Console)
