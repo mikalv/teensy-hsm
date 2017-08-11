@@ -23,11 +23,6 @@
 #include <FastCRC.h>
 
 //--------------------------------------------------------------------------------------------------
-// Debugging compilation flag
-//--------------------------------------------------------------------------------------------------
-#define DEBUG_CONSOLE       1
-
-//--------------------------------------------------------------------------------------------------
 // Commands
 //--------------------------------------------------------------------------------------------------
 #define THSM_CMD_NULL                      0x00
@@ -508,8 +503,9 @@ typedef union
 } THSM_PAYLOAD_RESP;
 
 // System Flags Definition
-#define SYSTEM_FLAGS_STORAGE_DECRYPTED    (1 << 0)
-#define SYSTEM_FLAGS_SECRET_UNLOCKED      (1 << 1)
+#define SYSTEM_FLAGS_STORAGE_INITIALIZED  (1 << 0)
+#define SYSTEM_FLAGS_STORAGE_DECRYPTED    (1 << 1)
+#define SYSTEM_FLAGS_SECRET_UNLOCKED      (1 << 2)
 
 typedef struct
 {

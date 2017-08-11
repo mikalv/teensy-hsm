@@ -32,19 +32,11 @@ void parser_run() {
   uint8_t state     = STATE_WAIT_BCNT;
   uint8_t zero_ctr  = 0;
   uint8_t nl_ctr    = 0;
-#if DEBUG_CONSOLE > 0
-  uint8_t tab_ctr   = 0;
-#endif
 
   while (1) {
     if (Serial.available()) {
       // read character from USB
       uint8_t b = Serial.read();
-
-#if DEBUG_CONSOLE > 0
-      /* detect debug */
-      tab_ctr  = (b == '\t') ? (tab_ctr + 1) : 0;
-#endif
 
       /* detect reset and setup sequence */
       nl_ctr   = ((b == '\n') || (b == '\r')) ? (nl_ctr   + 1) : 0;
@@ -54,36 +46,9 @@ void parser_run() {
         parser_reset();
         zero_ctr = 0;
         nl_ctr   = 0;
-#if DEBUG_CONSOLE > 0
-        tab_ctr  = 0;
-#endif
-        state = STATE_WAIT_BCNT;
-        continue;
-      } else if (nl_ctr == '\n') {
-        setup_run();
-        parser_reset();
-        zero_ctr = 0;
-        nl_ctr   = 0;
-#if DEBUG_CONSOLE > 0
-        tab_ctr  = 0;
-#endif
         state = STATE_WAIT_BCNT;
         continue;
       }
-
-#if DEBUG_CONSOLE > 0
-      else if (tab_ctr == '\t') {
-        debug_run();
-
-        /* reset parser */
-        parser_reset();
-        zero_ctr = 0;
-        nl_ctr   = 0;
-        tab_ctr  = 0;
-        state = STATE_WAIT_BCNT;
-        continue;
-      }
-#endif
 
       // dispatch state
       switch (state)
