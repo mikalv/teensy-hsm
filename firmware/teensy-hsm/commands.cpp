@@ -8,6 +8,20 @@
 //==================================================================================================
 
 //--------------------------------------------------------------------------------------------------
+// Includes
+//--------------------------------------------------------------------------------------------------
+#include <stdint.h>
+#include <string.h>
+#include <FastCRC.h>
+#include "commands.h"
+#include "buffer.h"
+#include "status.h"
+#include "flags.h"
+#include "pdu.h"
+#include "keystore.h"
+#include "sha1.h"
+
+//--------------------------------------------------------------------------------------------------
 // Lookup tables
 //--------------------------------------------------------------------------------------------------
 static const uint8_t null_nonce[THSM_AEAD_NONCE_SIZE] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -16,7 +30,10 @@ static const uint8_t null_nonce[THSM_AEAD_NONCE_SIZE] = {0x00, 0x00, 0x00, 0x00,
 // GLobal variables
 //--------------------------------------------------------------------------------------------------
 static FastCRC16       CRC16;
-static hmac_sha1_ctx_t hmac_sha1_ctx;
+extern THSM_BUFFER     thsm_buffer;
+extern THSM_PKT_REQ    request;
+extern THSM_PKT_RESP   response;
+extern hmac_sha1_ctx_t hmac_sha1_ctx;
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -175,7 +192,7 @@ static void cmd_hmac_sha1_generate() {
   uint8_t  status     = THSM_STATUS_OK;
   uint16_t length     = request.payload.hmac_sha1_generate.data_len;
   uint32_t key_handle = read_uint32(src_key);
-  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+  if (flags_is_secret_locked()) {
     response.payload.hmac_sha1_generate.status = THSM_STATUS_KEY_STORAGE_LOCKED;
   } else if (request.bcnt > (sizeof(request.payload.hmac_sha1_generate) + 1)) {
     response.payload.hmac_sha1_generate.status = THSM_STATUS_INVALID_PARAMETER;
@@ -231,7 +248,7 @@ static void cmd_ecb_encrypt() {
 
   uint8_t  status     = THSM_STATUS_OK;
   uint32_t key_handle = read_uint32(src_key);
-  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+  if (!flags_is_storage_decrypted()) {
     response.payload.ecb_encrypt.status = THSM_STATUS_KEY_STORAGE_LOCKED;
   } else if (request.bcnt != (sizeof(request.payload.ecb_encrypt) + 1)) {
     response.payload.ecb_encrypt.status = THSM_STATUS_INVALID_PARAMETER;
@@ -264,7 +281,7 @@ static void cmd_ecb_decrypt() {
 
   uint8_t  status     = THSM_STATUS_OK;
   uint32_t key_handle = read_uint32(src_key);
-  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+  if (!flags_is_storage_decrypted()) {
     response.payload.ecb_decrypt.status = THSM_STATUS_KEY_STORAGE_LOCKED;
   } else if (request.bcnt != (sizeof(request.payload.ecb_decrypt) + 1)) {
     response.payload.ecb_decrypt.status = THSM_STATUS_INVALID_PARAMETER;
@@ -296,7 +313,7 @@ static void cmd_ecb_decrypt_cmp() {
 
   uint8_t  status     = THSM_STATUS_OK;
   uint32_t key_handle = read_uint32(src_key);
-  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+  if (!flags_is_storage_decrypted()) {
     response.payload.ecb_decrypt_cmp.status = THSM_STATUS_KEY_STORAGE_LOCKED;
   } else if (request.bcnt != (sizeof(request.payload.ecb_decrypt_cmp) + 1)) {
     response.payload.ecb_decrypt_cmp.status = THSM_STATUS_INVALID_PARAMETER;
@@ -376,7 +393,7 @@ static void cmd_hsm_unlock() {
   uint8_t status     = THSM_STATUS_OK;
 
   /* check request byte count */
-  if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED)) {
+  if (!flags_is_storage_decrypted()) {
     response.payload.hsm_unlock.status = THSM_STATUS_KEY_STORAGE_LOCKED;
   } else if (request.bcnt != (sizeof(request.payload.hsm_unlock) + 1)) {
     response.payload.hsm_unlock.status = THSM_STATUS_INVALID_PARAMETER;
@@ -392,7 +409,7 @@ static void cmd_hsm_unlock() {
     aes_ecb_decrypt(decoded, otp, key, THSM_KEY_SIZE);
 
     /* lock secret by default */
-    secret_locked(true);
+    flags_set_secret_locked(true);
 
     /* compare CRC16 */
     uint16_t crc = (decoded[0] << 8) | decoded[1];

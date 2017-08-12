@@ -11,6 +11,12 @@
 // Includes
 //--------------------------------------------------------------------------------------------------
 #include <ADC.h>
+#include "drbg.h"
+
+static void ctr_drbg_init  (drbg_ctx_t *ctx, uint8_t *entropy);
+static void ctr_drbg_update(drbg_ctx_t *ctx);
+static void ctr_drbg_reseed(drbg_ctx_t *ctx, uint8_t *entropy, uint8_t *input);
+static uint8_t ctr_drbg_generate(drbg_ctx_t *ctx, uint8_t *output, uint16_t length);
 
 //--------------------------------------------------------------------------------------------------
 // Hardare Configuration

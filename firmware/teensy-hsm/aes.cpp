@@ -7,6 +7,19 @@
 // ECB, CBC and ECM mode respectively.
 //==================================================================================================
 
+#include <stdint.h>
+#include <string.h>
+#include "aes.h"
+
+static void aes_state_xor(aes_state_t *dst, aes_state_t *src1, aes_state_t *src2);
+static void aes_init(aes_subkeys_t *sk, uint8_t *key, uint16_t key_length);
+static void aes_encrypt(aes_state_t *ct, aes_state_t *pt, aes_subkeys_t *sk, uint16_t key_length);
+static void aes_decrypt(aes_state_t *pt, aes_state_t *ct, aes_subkeys_t *sk, uint16_t key_length);
+static void aes_encrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *key);
+static void aes_decrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *key);
+static void aes_encrypt_final(aes_state_t *dst, aes_state_t *src, aes_state_t *key);
+static void aes_decrypt_final(aes_state_t *dst, aes_state_t *src, aes_state_t *key);
+
 //--------------------------------------------------------------------------------------------------
 // Lookup Tables
 //--------------------------------------------------------------------------------------------------
@@ -333,6 +346,10 @@ static const uint8_t rcons[] = {
   0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36
 };
 
+AES::AES() {
+  memset(&this->subkeys, 0, sizeof(this->subkeys));
+};
+
 //--------------------------------------------------------------------------------------------------
 // AES-CCM block cipher
 //--------------------------------------------------------------------------------------------------
@@ -635,14 +652,14 @@ void aes_ecb_decrypt(uint8_t *plaintext, uint8_t *ciphertext, uint8_t *cipherkey
    @param key         AES source key
    @param key_length  Length of AES source key
 */
-static void aes_init(aes_subkeys_t *sk, uint8_t *key, uint16_t key_length) {
+void AES::init(uint8_t *key, uint16_t key_length) {
   /* clear subkeys */
-  memset(sk, 0, sizeof(aes_subkeys_t));
+  memset(&this->subkeys, 0, sizeof(this->subkeys));
 
   if (key_length == THSM_KEY_SIZE) {
     /* setup AES-128 */
-    aes_state_t *src = &(sk->keys[0]);
-    aes_state_t *dst = &(sk->keys[1]);
+    aes_state_t *src = &(this->subkeys.keys[0]);
+    aes_state_t *dst = &(this->subkeys.keys[1]);
 
     /* backup to temporary state */
     memcpy(src->bytes, key, THSM_KEY_SIZE);
@@ -667,10 +684,10 @@ static void aes_init(aes_subkeys_t *sk, uint8_t *key, uint16_t key_length) {
       dst->bytes[15] = src->bytes[15] ^ dst->bytes[11];
     }
   } else {
-    aes_state_t *src0 = &(sk->keys[0]);
-    aes_state_t *src1 = &(sk->keys[1]);
-    aes_state_t *dst0 = &(sk->keys[2]);
-    aes_state_t *dst1 = &(sk->keys[3]);
+    aes_state_t *src0 = &(this->subkeys.keys[0]);
+    aes_state_t *src1 = &(this->subkeys.keys[1]);
+    aes_state_t *dst0 = &(this->subkeys.keys[2]);
+    aes_state_t *dst1 = &(this->subkeys.keys[3]);
 
     memcpy(src0->bytes, key,                 THSM_KEY_SIZE);
     memcpy(src1->bytes, key + THSM_KEY_SIZE, THSM_KEY_SIZE);

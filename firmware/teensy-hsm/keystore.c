@@ -7,6 +7,11 @@
 // key and secret storage.
 //==================================================================================================
 
+#include <stdint.h>
+#include <string.h>
+#include "keystore.h"
+#include "status.h"
+
 //--------------------------------------------------------------------------------------------------
 // Global Variables
 //--------------------------------------------------------------------------------------------------
@@ -20,14 +25,6 @@ static uint8_t            flash_key[(THSM_KEY_SIZE * 2)];
 void keystore_init() {
   memset(&temp_key,    0, sizeof(temp_key));
   memset(&flash_cache, 0, sizeof(flash_cache));
-}
-
-void secret_locked(uint8_t value) {
-  if (value) {
-    system_flags &= ~SYSTEM_FLAGS_SECRET_UNLOCKED;
-  } else {
-    system_flags |= SYSTEM_FLAGS_SECRET_UNLOCKED;
-  }
 }
 
 uint8_t keystore_unlock(uint8_t *cipherkey) {
@@ -119,7 +116,7 @@ uint8_t keystore_store_secret(uint8_t *public_id, uint8_t *key, uint8_t *nonce, 
   uint32_t magic = read_uint32(flash_cache.header.magic);
   if (magic != 0xdeadbeef) {
     return THSM_STATUS_KEY_STORAGE_LOCKED;
-  } else if (!(system_flags & SYSTEM_FLAGS_SECRET_UNLOCKED)) {
+  } else if (flags_is_secret_locked()) {
     return THSM_STATUS_KEY_STORAGE_LOCKED;
   }
 
@@ -152,7 +149,7 @@ uint8_t keystore_load_secret(uint8_t *key, uint8_t *nonce, uint8_t *public_id) {
   uint32_t magic = read_uint32(flash_cache.header.magic);
   if (magic != 0xdeadbeef) {
     return THSM_STATUS_MEMORY_ERROR;
-  } else if (!(system_flags & SYSTEM_FLAGS_SECRET_UNLOCKED)) {
+  } else if (flags_is_secret_locked()) {
     return THSM_STATUS_KEY_STORAGE_LOCKED;
   }
 
@@ -174,7 +171,7 @@ uint8_t keystore_check_counter(uint8_t *public_id, uint32_t counter) {
   uint32_t magic = read_uint32(flash_cache.header.magic);
   if (magic != 0xdeadbeef) {
     return THSM_STATUS_MEMORY_ERROR;
-  } else if (!(system_flags & SYSTEM_FLAGS_SECRET_UNLOCKED)) {
+  } else if (flags_is_secret_locked()) {
     return THSM_STATUS_KEY_STORAGE_LOCKED;
   }
 
