@@ -5,7 +5,7 @@
 //
 // This file is part of TeensyHSM project containing the implementation of SHA1
 //==============================================================================
-#ifdef UNIT_TEST
+#ifdef UNIT_TEST_SHA1
 #include <stdio.h>
 #endif
 
@@ -184,7 +184,7 @@ void SHA1::step()
     MEMSET(ctx.buffer);
 }
 
-#ifdef UNIT_TEST
+#ifdef UNIT_TEST_SHA1
 
 static int digest_equals(const void *message, size_t length, const char *expected)
 {
@@ -219,7 +219,7 @@ typedef struct
 {
     const char *message;
     const char *digest;
-}test_vector_t;
+} test_vector_t;
 
 int main(void)
 {
