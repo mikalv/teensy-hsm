@@ -108,6 +108,21 @@ void SHA1::final(sha1_digest_t &digest)
 #undef OFFSET
 }
 
+void SHA1::digest(sha1_digest_t &digest, uint8_t *data, uint32_t length)
+{
+    reset();
+    update(data, length);
+    final(digest);
+}
+
+bool SHA1::compare(uint8_t *data, uint32_t length, uint8_t *reference)
+{
+    sha1_digest_t actual;
+    digest(actual, data, length);
+
+    return memcmp(actual.bytes, reference, sizeof(actual.bytes)) == 0;
+}
+
 void SHA1::step()
 {
     uint32_t words[SHA1_BLOCK_SIZE_WORDS];
@@ -204,18 +219,18 @@ typedef struct
 {
     const char *message;
     const char *digest;
-} test_vector_t;
+}test_vector_t;
 
 int main(void)
 {
     test_vector_t
-values[] =
-{
+    values[] =
+    {
 
-    {   "abc", "a9993e364706816aba3e25717850c26c9cd0d89d"},
-    {   "", "da39a3ee5e6b4b0d3255bfef95601890afd80709"},
-    {   "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq", "84983e441c3bd26ebaae4aa1f95129e5e54670f1"},
-    {   "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu", "a49b2446a02c645bf419f995b67091253a04a259"}
+        {   "abc", "a9993e364706816aba3e25717850c26c9cd0d89d"},
+        {   "", "da39a3ee5e6b4b0d3255bfef95601890afd80709"},
+        {   "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq", "84983e441c3bd26ebaae4aa1f95129e5e54670f1"},
+        {   "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu", "a49b2446a02c645bf419f995b67091253a04a259"}
     };
 
     int tests = sizeof(values) / sizeof(values[0]);

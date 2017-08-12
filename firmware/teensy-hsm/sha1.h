@@ -46,9 +46,10 @@ class SHA1 {
     void reset();
     void update(uint8_t *data, uint32_t length);
     void final(sha1_digest_t &digest);
+    void digest(sha1_digest_t &digest, uint8_t *data, uint32_t length);
+    bool compare(uint8_t *data, uint32_t length, uint8_t *reference);
   private:
     void step();
-    sha1_digest_t digest;
     sha1_ctx_t ctx;
 };
 #endif
