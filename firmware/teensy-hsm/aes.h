@@ -19,8 +19,7 @@ typedef struct {
 
 class AES {
   public:
-    AES();
-    void init   (uint8_t *key, uint16_t key_length);
+    AES(uint8_t *key, uint16_t key_length);
     void encrypt(aes_state_t &ciphertext, aes_state_t &plaintext);
     void decrypt(aes_state_t &plaintext,  aes_state_t &ciphertext);
   private:

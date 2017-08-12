@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "aes.h"
+#include "macros.h"
 
 static void aes_state_xor(aes_state_t *dst, aes_state_t *src1, aes_state_t *src2);
 static void aes_init(aes_subkeys_t *sk, uint8_t *key, uint16_t key_length);
@@ -23,6 +24,8 @@ static void aes_decrypt_final(aes_state_t *dst, aes_state_t *src, aes_state_t *k
 //--------------------------------------------------------------------------------------------------
 // Lookup Tables
 //--------------------------------------------------------------------------------------------------
+
+// @formatting:off
 static const uint8_t te[256] =   {
   0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
   0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
@@ -342,11 +345,11 @@ static const uint32_t td3[] = {
 
 };
 
-static const uint8_t rcons[] = {
-  0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36
-};
+static const uint8_t rcons[] = {0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36};
 
-AES::AES() {
+// @formatting:on
+
+AES::AES(uint8_t *key, uint16_t key_length) {
   memset(&this->subkeys, 0, sizeof(this->subkeys));
 };
 
@@ -360,7 +363,7 @@ void aes128_ccm_encrypt(uint8_t *ct, uint8_t *mac, uint8_t *pt, uint16_t length,
   aes_state_t   cipher_in, cipher_out;
 
   /* set MAC IV */
-  memset(&mac_in, 0, sizeof(mac_in));
+  MEMSET(mac_in);
   mac_in.bytes[0] = 0x19; /* 8 bytes mac and 2 bytes counter */
   memcpy(&(mac_in.bytes[1]), kh,    THSM_KEY_HANDLE_SIZE);
   memcpy(&(mac_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
@@ -654,7 +657,7 @@ void aes_ecb_decrypt(uint8_t *plaintext, uint8_t *ciphertext, uint8_t *cipherkey
 */
 void AES::init(uint8_t *key, uint16_t key_length) {
   /* clear subkeys */
-  memset(&this->subkeys, 0, sizeof(this->subkeys));
+    MEMSET(subkeys);
 
   if (key_length == THSM_KEY_SIZE) {
     /* setup AES-128 */
