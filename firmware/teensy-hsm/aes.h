@@ -2,28 +2,49 @@
 #define __AES_H__
 
 #include <stdint.h>
-#include "sizes.h"
 
-//------------------------------------------------------------------------------
-// Data Structure
-//------------------------------------------------------------------------------
+//======================================================================================================================
+// MACROS
+//======================================================================================================================
+#define AES_BLOCK_SIZE_BITS     128
+#define AES_BLOCK_SIZE_BYTES    (AES_BLOCK_SIZE_BITS/8)
+#define AES_BLOCK_SIZE_WORDS    (AES_BLOCK_SIZE_BYTES / sizeof(uint32_t))
+#define AES_KEY_SIZE_BITS       128
+#define AES_KEY_SIZE_BYTES      (AES_KEY_SIZE_BITS/8)
+
+//======================================================================================================================
+// STRUCTURES
+//======================================================================================================================
 typedef union
 {
-  uint8_t bytes[THSM_BLOCK_SIZE];
-  uint32_t words[THSM_BLOCK_SIZE / sizeof(uint32_t)];
+    uint8_t bytes[AES_BLOCK_SIZE_BYTES];
+    uint32_t words[AES_BLOCK_SIZE_WORDS];
 } aes_state_t;
 
-typedef struct {
-  aes_state_t keys[15];
-} aes_subkeys_t;
+typedef struct
+{
+    uint8_t bytes[AES_KEY_SIZE_BYTES];
+} aes_key_t;
 
-class AES {
-  public:
-    AES(uint8_t *key, uint16_t key_length);
-    void encrypt(aes_state_t &ciphertext, aes_state_t &plaintext);
-    void decrypt(aes_state_t &plaintext,  aes_state_t &ciphertext);
-  private:
-    aes_subkeys_t subkeys;
+//======================================================================================================================
+// CLASSES
+//======================================================================================================================
+class AES
+{
+public:
+    AES(const aes_key_t &key);
+    void encrypt(aes_state_t &ciphertext, const aes_state_t &plaintext);
+    void decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext);
+private:
+    void init(const aes_key_t &key);
+    void encrypt_step(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
+    void encrypt_final(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
+    void decrypt_step(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
+    void decrypt_final(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
+    void state_xor(aes_state_t &dst, const aes_state_t &src1, const aes_state_t &src2);
+
+    aes_state_t subkeys[11];
+    aes_state_t ctx;
 };
 
 #endif

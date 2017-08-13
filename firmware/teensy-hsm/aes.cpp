@@ -1,31 +1,23 @@
-//==================================================================================================
+//======================================================================================================================
 // Project : Teensy HSM
 // Author  : Edi Permadi
 // Repo    : https://github.com/edipermadi/teensy-hsm
 //
-// This file is part of TeensyHSM project containing the implementation of AES-128/256 cipher with
-// ECB, CBC and ECM mode respectively.
-//==================================================================================================
+// This file is part of TeensyHSM project containing the implementation of AES-128.
+//======================================================================================================================
+#define UNIT_TEST_AES
+#ifdef UNIT_TEST_AES
+#include <stdio.h>
+#endif
 
-#include <stdint.h>
 #include <string.h>
 #include "aes.h"
 #include "macros.h"
 
-static void aes_state_xor(aes_state_t *dst, aes_state_t *src1, aes_state_t *src2);
-static void aes_init(aes_subkeys_t *sk, uint8_t *key, uint16_t key_length);
-static void aes_encrypt(aes_state_t *ct, aes_state_t *pt, aes_subkeys_t *sk, uint16_t key_length);
-static void aes_decrypt(aes_state_t *pt, aes_state_t *ct, aes_subkeys_t *sk, uint16_t key_length);
-static void aes_encrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *key);
-static void aes_decrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *key);
-static void aes_encrypt_final(aes_state_t *dst, aes_state_t *src, aes_state_t *key);
-static void aes_decrypt_final(aes_state_t *dst, aes_state_t *src, aes_state_t *key);
-
-//--------------------------------------------------------------------------------------------------
+//======================================================================================================================
 // Lookup Tables
-//--------------------------------------------------------------------------------------------------
+//======================================================================================================================
 
-// @formatting:off
 static const uint8_t te[256] =   {
   0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
   0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
@@ -347,582 +339,180 @@ static const uint32_t td3[] = {
 
 static const uint8_t rcons[] = {0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36};
 
-// @formatting:on
-
-AES::AES(uint8_t *key, uint16_t key_length) {
-  memset(&this->subkeys, 0, sizeof(this->subkeys));
-};
-
-//--------------------------------------------------------------------------------------------------
-// AES-CCM block cipher
-//--------------------------------------------------------------------------------------------------
-void aes128_ccm_encrypt(uint8_t *ct, uint8_t *mac, uint8_t *pt, uint16_t length, uint8_t *kh, uint8_t *cipherkey, uint8_t *nonce) {
-  aes_subkeys_t sk;
-  aes_state_t   tmp;
-  aes_state_t   mac_in, mac_out;
-  aes_state_t   cipher_in, cipher_out;
-
-  /* set MAC IV */
-  MEMSET(mac_in);
-  mac_in.bytes[0] = 0x19; /* 8 bytes mac and 2 bytes counter */
-  memcpy(&(mac_in.bytes[1]), kh,    THSM_KEY_HANDLE_SIZE);
-  memcpy(&(mac_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
-  mac_in.bytes[15] = length;
-
-  /* set cipher IV */
-  memset(&cipher_in, 0, sizeof(cipher_in));
-  cipher_in.bytes[0] = 0x01; /* 2 bytes counter */
-  memcpy(&(cipher_in.bytes[1]), kh,    THSM_KEY_HANDLE_SIZE);
-  memcpy(&(cipher_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
-  cipher_in.bytes[15] = 1;
-
-  /* derive subkeys */
-  aes_init(&sk, cipherkey, THSM_KEY_SIZE);
-
-  /* perform encryption */
-  while (length > 0) {
-    /* load plaintext */
-    uint8_t step = (length > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : length;
-    memset(&tmp,       0, sizeof(tmp));
-    memcpy(tmp.bytes, pt, step);
-
-    /* perform encryption */
-    aes_encrypt(&mac_out,    &mac_in,    &sk, THSM_KEY_SIZE);
-    aes_encrypt(&cipher_out, &cipher_in, &sk, THSM_KEY_SIZE);
-
-    /* xor mac stream with plaintext */
-    aes_state_xor(&mac_in, &mac_out, &tmp);
-
-    /* xor cipher stream with plaintext */
-    aes_state_xor(&tmp, &tmp, &cipher_out);
-
-    /* append to ciphertext */
-    memcpy(ct, tmp.bytes, step);
-
-    if (cipher_in.bytes[15] == 0xff) {
-      cipher_in.bytes[15] = 0;
-      cipher_in.bytes[14]++;
-    } else {
-      cipher_in.bytes[15]++;
-    }
-
-    /* update counter */
-    length -= step;
-    pt     += step;
-    ct     += step;
-  }
-
-  aes_encrypt(&tmp, &mac_in, &sk, THSM_KEY_SIZE);
-
-  /* set MAC iv */
-  memset(&mac_in, 0, sizeof(mac_in));
-  mac_in.bytes[0] = 0x19; /* 8 bytes mac and 2 bytes counter */
-  memcpy(&(mac_in.bytes[1]), kh,    4);
-  memcpy(&(mac_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
-
-  /* perform encryption */
-  aes_encrypt(&mac_out, &mac_in, &sk, THSM_KEY_SIZE);
-  aes_state_xor(&tmp, &tmp, &mac_out);
-
-
-  if (mac == NULL) {
-    /* append mac to ciphertext result */
-    memcpy(ct,  tmp.bytes, THSM_AEAD_MAC_SIZE);
-  } else {
-    /* store mac */
-    memcpy(mac, tmp.bytes, THSM_AEAD_MAC_SIZE);
-  }
-
-  /* cleanup temporary variables */
-  memset(&sk,         0, sizeof(sk));
-  memset(&tmp,        0, sizeof(tmp));
-  memset(&mac_in,     0, sizeof(mac_in));
-  memset(&mac_out,    0, sizeof(mac_out));
-  memset(&cipher_in,  0, sizeof(cipher_in));
-  memset(&cipher_out, 0, sizeof(cipher_out));
+AES::AES(const aes_key_t &key) {
+  init(key);
 }
 
-uint8_t aes128_ccm_decrypt(uint8_t *pt, uint8_t *ct, uint16_t length, uint8_t *kh, uint8_t *cipherkey, uint8_t *nonce, uint8_t *mac) {
-  aes_subkeys_t sk;
-  aes_state_t   tmp;
-  aes_state_t   mac_in, mac_out;
-  aes_state_t   cipher_in, cipher_out;
-
-  /* set MAC IV */
-  memset(&mac_in, 0, sizeof(mac_in));
-  mac_in.bytes[0] = 0x19; /* 8 bytes mac and 2 bytes counter */
-  memcpy(&(mac_in.bytes[1]), kh,    4);
-  memcpy(&(mac_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
-  mac_in.bytes[15] = length;
-
-  /* set cipher IV */
-  memset(&cipher_in, 0, sizeof(cipher_in));
-  cipher_in.bytes[0] = 0x01; /* 2 bytes counter */
-  memcpy(&(cipher_in.bytes[1]), kh,    4);
-  memcpy(&(cipher_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
-  cipher_in.bytes[15] = 1;
-
-  /* derive subkeys */
-  aes_init(&sk, cipherkey, THSM_KEY_SIZE);
-
-  /* perform decryption */
-  while (length > 0) {
-    /* load ciphertext */
-    uint8_t step = (length > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : length;
-    memset(&tmp,       0, sizeof(tmp));
-    memcpy(tmp.bytes, ct, step);
-
-    /* perform encryption */
-    aes_encrypt(&mac_out,    &mac_in,    &sk, THSM_KEY_SIZE);
-    aes_encrypt(&cipher_out, &cipher_in, &sk, THSM_KEY_SIZE);
-
-    /* decrypt and update mac */
-    aes_state_xor(&tmp,    &tmp,     &cipher_out);
-    aes_state_xor(&mac_in, &mac_out, &tmp);
-
-    /* append to plaintext */
-    memcpy(pt, tmp.bytes, step);
-
-    if (cipher_in.bytes[15] == 0xff) {
-      cipher_in.bytes[15] = 0;
-      cipher_in.bytes[14]++;
-    } else {
-      cipher_in.bytes[15]++;
-    }
-
-    /* update counter */
-    length -= step;
-    pt     += step;
-    ct     += step;
-  }
-
-  aes_encrypt(&tmp, &mac_in, &sk, THSM_KEY_SIZE);
-
-  /* set MAC iv */
-  memset(&mac_in, 0, sizeof(mac_in));
-  mac_in.bytes[0] = 0x19; /* 8 bytes mac and 2 bytes counter */
-  memcpy(&(mac_in.bytes[1]), kh,    4);
-  memcpy(&(mac_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
-
-  /* perform encryption */
-  aes_encrypt(&mac_out, &mac_in, &sk, THSM_KEY_SIZE);
-  aes_state_xor(&tmp, &tmp, &mac_out);
-
-  /* compare known mac vs recovered mac */
-  uint8_t matched = !memcmp(&tmp.bytes, mac, THSM_AEAD_MAC_SIZE);
-
-  /* cleanup temporary variables */
-  memset(&sk,         0, sizeof(sk));
-  memset(&tmp,        0, sizeof(tmp));
-  memset(&mac_in,     0, sizeof(mac_in));
-  memset(&mac_out,    0, sizeof(mac_out));
-  memset(&cipher_in,  0, sizeof(cipher_in));
-  memset(&cipher_out, 0, sizeof(cipher_out));
-
-  return matched;
+void AES::encrypt(aes_state_t &ciphertext, const aes_state_t &plaintext)
+{
+    state_xor(ciphertext, plaintext, subkeys[0]);
+    encrypt_step(ctx, ciphertext, subkeys[1]);
+    encrypt_step(ciphertext, ctx, subkeys[2]);
+    encrypt_step(ctx, ciphertext, subkeys[3]);
+    encrypt_step(ciphertext, ctx, subkeys[4]);
+    encrypt_step(ctx, ciphertext, subkeys[5]);
+    encrypt_step(ciphertext, ctx, subkeys[6]);
+    encrypt_step(ctx, ciphertext, subkeys[7]);
+    encrypt_step(ciphertext, ctx, subkeys[8]);
+    encrypt_step(ctx, ciphertext, subkeys[9]);
+    encrypt_final(ciphertext, ctx, subkeys[10]);
 }
 
-//--------------------------------------------------------------------------------------------------
-// AES-CBC block cipher
-//--------------------------------------------------------------------------------------------------
-void aes_cbc_encrypt(uint8_t *ciphertext, uint8_t *plaintext, uint16_t length, uint8_t *cipherkey, uint16_t key_length) {
-  aes_subkeys_t sk;
-  aes_state_t   ct, pt;
-
-  /* derive sub-keys and clear iv */
-  memset(&ct, 0, sizeof(ct));
-  aes_init(&sk, cipherkey, key_length);
-
-  while (length > 0)
-  {
-    uint8_t step = (length > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : step;
-
-    /* load plaintext */
-    memset(&pt, 0, sizeof(pt));
-    memcpy(pt.bytes, plaintext, step);
-
-    /* xor plaintext */
-    aes_state_xor(&pt, &pt, &ct);
-
-    /* encrypt */
-    aes_encrypt(&ct, &pt, &sk, key_length);
-
-    /* copy to output */
-    memcpy(ciphertext, ct.bytes, step);
-
-    /* update pointers */
-    plaintext  += step;
-    ciphertext += step;
-    length     -= step;
-  }
+void AES::decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext)
+{
+      state_xor(plaintext, ciphertext, subkeys[10]);
+      decrypt_step(ctx, plaintext, subkeys[9]);
+      decrypt_step(plaintext, ctx, subkeys[8]);
+      decrypt_step(ctx, plaintext, subkeys[7]);
+      decrypt_step(plaintext, ctx, subkeys[6]);
+      decrypt_step(ctx, plaintext, subkeys[5]);
+      decrypt_step(plaintext, ctx, subkeys[4]);
+      decrypt_step(ctx, plaintext, subkeys[3]);
+      decrypt_step(plaintext, ctx, subkeys[2]);
+      decrypt_step (ctx, plaintext, subkeys[1]);
+      decrypt_final(plaintext, ctx, subkeys[0]);
 }
 
-void aes_cbc_decrypt(uint8_t *plaintext, uint8_t *ciphertext, uint16_t length, uint8_t *cipherkey, uint16_t key_length) {
-  aes_subkeys_t sk;
-  aes_state_t   ct, pt, iv;
-
-  /* derive sub-keys and clear iv */
-  memset  (&iv, 0, sizeof(iv));
-  aes_init(&sk, cipherkey, key_length);
-
-  while (length > 0)
-  {
-    uint8_t step = (length > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : step;
-
-    /* load ciphertext */
-    memset(&ct, 0, sizeof(ct));
-    memcpy(ct.bytes, ciphertext, step);
-
-    /* decrypt */
-    aes_decrypt(&pt, &ct, &sk, key_length);
-
-    /* xor plaintext, update iv */
-    aes_state_xor(&pt, &pt, &iv);
-    memcpy(&iv, &ct, sizeof(ct));
-
-    /* copy to plaintext */
-    memcpy(plaintext, pt.bytes, step);
-
-    length     -= step;
-    ciphertext += step;
-    plaintext  += step;
-  }
-}
-
-//--------------------------------------------------------------------------------------------------
-// AES-ECB block cipher
-//--------------------------------------------------------------------------------------------------
-/**
-   Perform AES-ECB encryption
-
-   @param ciphertext  THSM_BLOCK_SIZE bytes of ciphertext buffer
-   @param plaintext   THSM_BLOCK_SIZE bytes of plaintext buffer
-   @param cipherkey   cipher-key buffer
-   @param key_length  length of cipher-key buffer
-*/
-void aes_ecb_encrypt(uint8_t *ciphertext, uint8_t *plaintext, uint8_t *cipherkey, uint16_t key_length) {
-  aes_subkeys_t sk;
-  aes_state_t   ct, pt;
-
-  /* derive sub-keys */
-  aes_init(&sk, cipherkey, key_length);
-
-  /* encrypt */
-  memcpy(pt.bytes, plaintext, THSM_BLOCK_SIZE);
-  aes_encrypt(&ct, &pt, &sk, key_length);
-  memcpy(ciphertext, ct.bytes, THSM_BLOCK_SIZE);
-
-  /* cleanup temporary variables */
-  memset(&pt, 0, sizeof(pt));
-  memset(&ct, 0, sizeof(ct));
-  memset(&sk, 0, sizeof(sk));
-}
-
-/**
-   Performs AES-ECB decryption
-
-   @param plaintext   THSM_BLOCK_SIZE bytes of plaintext buffer
-   @param ciphertext  THSM_BLOCK_SIZE bytes of ciphertext buffer
-   @param cipherkey   cipher-key buffer
-   @param key_length  length of cipher-key buffer
-*/
-void aes_ecb_decrypt(uint8_t *plaintext, uint8_t *ciphertext, uint8_t *cipherkey, uint16_t key_length) {
-  aes_subkeys_t sk;
-  aes_state_t   ct, pt;
-
-  /* derive sub-keys */
-  aes_init(&sk, cipherkey, key_length);
-
-  /* decrypt */
-  memcpy(ct.bytes, ciphertext, THSM_BLOCK_SIZE);
-  aes_decrypt(&pt, &ct, &sk, key_length);
-  memcpy(plaintext, pt.bytes, THSM_BLOCK_SIZE);
-
-  /* cleanup temporary variables */
-  memset(&pt, 0, sizeof(pt));
-  memset(&ct, 0, sizeof(ct));
-  memset(&sk, 0, sizeof(sk));
-}
-
-//--------------------------------------------------------------------------------------------------
-// AES Core
-//--------------------------------------------------------------------------------------------------
-
-/**
-   Performs AES key-derivation from AES source key to AES subkeys
-
-   @param sk          Subkeys buffer
-   @param key         AES source key
-   @param key_length  Length of AES source key
-*/
-void AES::init(uint8_t *key, uint16_t key_length) {
-  /* clear subkeys */
+void AES::init(const aes_key_t &key)
+{
     MEMSET(subkeys);
+    MEMSET(ctx);
 
-  if (key_length == THSM_KEY_SIZE) {
-    /* setup AES-128 */
-    aes_state_t *src = &(this->subkeys.keys[0]);
-    aes_state_t *dst = &(this->subkeys.keys[1]);
+    aes_state_t *src = &(subkeys[0]);
+    aes_state_t *dst = &(subkeys[1]);
 
     /* backup to temporary state */
-    memcpy(src->bytes, key, THSM_KEY_SIZE);
+    memcpy(src->bytes, key.bytes, sizeof(key.bytes));
 
-    /* derive subkeys */
-    for (uint16_t i = 1; i < 11; i++, src++, dst++) {
-      dst->bytes[ 0] = src->bytes[ 0] ^ te[src->bytes[13]] ^ rcons[i];
-      dst->bytes[ 1] = src->bytes[ 1] ^ te[src->bytes[14]];
-      dst->bytes[ 2] = src->bytes[ 2] ^ te[src->bytes[15]];
-      dst->bytes[ 3] = src->bytes[ 3] ^ te[src->bytes[12]];
-      dst->bytes[ 4] = src->bytes[ 4] ^ dst->bytes[ 0];
-      dst->bytes[ 5] = src->bytes[ 5] ^ dst->bytes[ 1];
-      dst->bytes[ 6] = src->bytes[ 6] ^ dst->bytes[ 2];
-      dst->bytes[ 7] = src->bytes[ 7] ^ dst->bytes[ 3];
-      dst->bytes[ 8] = src->bytes[ 8] ^ dst->bytes[ 4];
-      dst->bytes[ 9] = src->bytes[ 9] ^ dst->bytes[ 5];
-      dst->bytes[10] = src->bytes[10] ^ dst->bytes[ 6];
-      dst->bytes[11] = src->bytes[11] ^ dst->bytes[ 7];
-      dst->bytes[12] = src->bytes[12] ^ dst->bytes[ 8];
-      dst->bytes[13] = src->bytes[13] ^ dst->bytes[ 9];
-      dst->bytes[14] = src->bytes[14] ^ dst->bytes[10];
-      dst->bytes[15] = src->bytes[15] ^ dst->bytes[11];
+    /* derive sub-keys */
+    for (uint16_t i = 1; i < 11; i++, src++, dst++)
+    {
+        dst->bytes[0] = src->bytes[0] ^ te[src->bytes[13]] ^ rcons[i];
+        dst->bytes[1] = src->bytes[1] ^ te[src->bytes[14]];
+        dst->bytes[2] = src->bytes[2] ^ te[src->bytes[15]];
+        dst->bytes[3] = src->bytes[3] ^ te[src->bytes[12]];
+        dst->bytes[4] = src->bytes[4] ^ dst->bytes[0];
+        dst->bytes[5] = src->bytes[5] ^ dst->bytes[1];
+        dst->bytes[6] = src->bytes[6] ^ dst->bytes[2];
+        dst->bytes[7] = src->bytes[7] ^ dst->bytes[3];
+        dst->bytes[8] = src->bytes[8] ^ dst->bytes[4];
+        dst->bytes[9] = src->bytes[9] ^ dst->bytes[5];
+        dst->bytes[10] = src->bytes[10] ^ dst->bytes[6];
+        dst->bytes[11] = src->bytes[11] ^ dst->bytes[7];
+        dst->bytes[12] = src->bytes[12] ^ dst->bytes[8];
+        dst->bytes[13] = src->bytes[13] ^ dst->bytes[9];
+        dst->bytes[14] = src->bytes[14] ^ dst->bytes[10];
+        dst->bytes[15] = src->bytes[15] ^ dst->bytes[11];
     }
-  } else {
-    aes_state_t *src0 = &(this->subkeys.keys[0]);
-    aes_state_t *src1 = &(this->subkeys.keys[1]);
-    aes_state_t *dst0 = &(this->subkeys.keys[2]);
-    aes_state_t *dst1 = &(this->subkeys.keys[3]);
-
-    memcpy(src0->bytes, key,                 THSM_KEY_SIZE);
-    memcpy(src1->bytes, key + THSM_KEY_SIZE, THSM_KEY_SIZE);
-
-    for (uint16_t i = 1; i <= 7; i++) {
-      dst0->bytes[ 0] = src0->bytes[ 0] ^ te[src1->bytes[13]] ^ rcons[i];
-      dst0->bytes[ 1] = src0->bytes[ 1] ^ te[src1->bytes[14]];
-      dst0->bytes[ 2] = src0->bytes[ 2] ^ te[src1->bytes[15]];
-      dst0->bytes[ 3] = src0->bytes[ 3] ^ te[src1->bytes[12]];
-      dst0->bytes[ 4] = src0->bytes[ 4] ^ dst0->bytes[ 0];
-      dst0->bytes[ 5] = src0->bytes[ 5] ^ dst0->bytes[ 1];
-      dst0->bytes[ 6] = src0->bytes[ 6] ^ dst0->bytes[ 2];
-      dst0->bytes[ 7] = src0->bytes[ 7] ^ dst0->bytes[ 3];
-      dst0->bytes[ 8] = src0->bytes[ 8] ^ dst0->bytes[ 4];
-      dst0->bytes[ 9] = src0->bytes[ 9] ^ dst0->bytes[ 5];
-      dst0->bytes[10] = src0->bytes[10] ^ dst0->bytes[ 6];
-      dst0->bytes[11] = src0->bytes[11] ^ dst0->bytes[ 7];
-      dst0->bytes[12] = src0->bytes[12] ^ dst0->bytes[ 8];
-      dst0->bytes[13] = src0->bytes[13] ^ dst0->bytes[ 9];
-      dst0->bytes[14] = src0->bytes[14] ^ dst0->bytes[10];
-      dst0->bytes[15] = src0->bytes[15] ^ dst0->bytes[11];
-      if (i == 7) {
-        break;
-      }
-      dst1->bytes[ 0] = src1->bytes[ 0] ^ te[dst0->bytes[12]];
-      dst1->bytes[ 1] = src1->bytes[ 1] ^ te[dst0->bytes[13]];
-      dst1->bytes[ 2] = src1->bytes[ 2] ^ te[dst0->bytes[14]];
-      dst1->bytes[ 3] = src1->bytes[ 3] ^ te[dst0->bytes[15]];
-      dst1->bytes[ 4] = src1->bytes[ 4] ^ dst1->bytes[ 0];
-      dst1->bytes[ 5] = src1->bytes[ 5] ^ dst1->bytes[ 1];
-      dst1->bytes[ 6] = src1->bytes[ 6] ^ dst1->bytes[ 2];
-      dst1->bytes[ 7] = src1->bytes[ 7] ^ dst1->bytes[ 3];
-      dst1->bytes[ 8] = src1->bytes[ 8] ^ dst1->bytes[ 4];
-      dst1->bytes[ 9] = src1->bytes[ 9] ^ dst1->bytes[ 5];
-      dst1->bytes[10] = src1->bytes[10] ^ dst1->bytes[ 6];
-      dst1->bytes[11] = src1->bytes[11] ^ dst1->bytes[ 7];
-      dst1->bytes[12] = src1->bytes[12] ^ dst1->bytes[ 8];
-      dst1->bytes[13] = src1->bytes[13] ^ dst1->bytes[ 9];
-      dst1->bytes[14] = src1->bytes[14] ^ dst1->bytes[10];
-      dst1->bytes[15] = src1->bytes[15] ^ dst1->bytes[11];
-
-      /* update pointer */
-      src0 += 2; src1 += 2;
-      dst0 += 2; dst1 += 2;
-    }
-  }
 }
 
-/**
-   Performs one block encryption of AES-128/256
+void AES::encrypt_step(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key)
+{
+    const uint8_t *sb = src.bytes;
+    const uint32_t *kw = key.words;
+    uint32_t *dw = dst.words;
 
-   @param ct         : ciphertext
-   @param pt         : plaintext, content affected
-   @param sk         : AES subkeys
-   @param key_length : set to 16 for AES-128, else treated as AES-256
-*/
-static void aes_encrypt(aes_state_t *ct, aes_state_t *pt, aes_subkeys_t *sk, uint16_t key_length) {
-  aes_state_t *key = &(sk->keys[0]);
-
-  aes_state_xor(ct, pt, key);
-
-  aes_encrypt_step(pt, ct, ++key);
-  aes_encrypt_step(ct, pt, ++key);
-  aes_encrypt_step(pt, ct, ++key);
-  aes_encrypt_step(ct, pt, ++key);
-  aes_encrypt_step(pt, ct, ++key);
-  aes_encrypt_step(ct, pt, ++key);
-  aes_encrypt_step(pt, ct, ++key);
-  aes_encrypt_step(ct, pt, ++key);
-
-  if (key_length != THSM_KEY_SIZE) {
-    aes_encrypt_step(pt, ct, ++key);
-    aes_encrypt_step(ct, pt, ++key);
-    aes_encrypt_step(pt, ct, ++key);
-    aes_encrypt_step(ct, pt, ++key);
-  }
-
-  aes_encrypt_step (pt, ct, ++key);
-  aes_encrypt_final(ct, pt, ++key);
+    dw[0] = te0[sb[0]] ^ te1[sb[5]] ^ te2[sb[10]] ^ te3[sb[15]] ^ kw[0];
+    dw[1] = te0[sb[4]] ^ te1[sb[9]] ^ te2[sb[14]] ^ te3[sb[3]] ^ kw[1];
+    dw[2] = te0[sb[8]] ^ te1[sb[13]] ^ te2[sb[2]] ^ te3[sb[7]] ^ kw[2];
+    dw[3] = te0[sb[12]] ^ te1[sb[1]] ^ te2[sb[6]] ^ te3[sb[11]] ^ kw[3];
 }
 
-/**
-   Performs one block decryption of AES-128/256
+void AES::encrypt_final(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key)
+{
+    /* final shift-row & substitute */
+    const uint8_t *sb = src.bytes;
+    uint8_t *db = dst.bytes;
 
-   @param ct            Ciphertext, content affected
-   @param pt            Plaintext
-   @param sk            AES subkeys
-   @param key_length    Set to THSM_KEY_SIZE for AES-128, else treated as AES-256
-*/
-static void aes_decrypt(aes_state_t *pt, aes_state_t *ct, aes_subkeys_t *sk, uint16_t key_length) {
-  aes_state_t *key = (key_length == THSM_KEY_SIZE) ? &(sk->keys[10]) : &(sk->keys[14]);
+    db[0] = te[sb[0]];
+    db[1] = te[sb[5]];
+    db[2] = te[sb[10]];
+    db[3] = te[sb[15]];
+    db[4] = te[sb[4]];
+    db[5] = te[sb[9]];
+    db[6] = te[sb[14]];
+    db[7] = te[sb[3]];
+    db[8] = te[sb[8]];
+    db[9] = te[sb[13]];
+    db[10] = te[sb[2]];
+    db[11] = te[sb[7]];
+    db[12] = te[sb[12]];
+    db[13] = te[sb[1]];
+    db[14] = te[sb[6]];
+    db[15] = te[sb[11]];
 
-  aes_state_xor(pt, ct, key);
-
-  aes_decrypt_step(ct, pt, --key);
-  aes_decrypt_step(pt, ct, --key);
-  aes_decrypt_step(ct, pt, --key);
-  aes_decrypt_step(pt, ct, --key);
-  aes_decrypt_step(ct, pt, --key);
-  aes_decrypt_step(pt, ct, --key);
-  aes_decrypt_step(ct, pt, --key);
-  aes_decrypt_step(pt, ct, --key);
-
-  if (key_length != THSM_KEY_SIZE) {
-    aes_decrypt_step(ct, pt, --key);
-    aes_decrypt_step(pt, ct, --key);
-    aes_decrypt_step(ct, pt, --key);
-    aes_decrypt_step(pt, ct, --key);
-  }
-
-  aes_decrypt_step (ct, pt, --key);
-  aes_decrypt_final(pt, ct, --key);
+    /* add round key */
+    state_xor(dst, dst, key);
 }
 
-/**
-   Perform shift-row, substitution, mix-column and add-round key from source to destination
+void AES::decrypt_step(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key)
+{
+    aes_state_t tmp;
 
-   @param dst   Destination state
-   @param src   Source state
-   @param key   AES subkey
-*/
-static void aes_encrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *key) {
-  /* shift-row, substitute, mix-column & add-round-key */
-  dst->words[0] = te0[src->bytes[ 0]] ^ te1[src->bytes[ 5]] ^ te2[src->bytes[10]] ^ te3[src->bytes[15]] ^ key->words[0];
-  dst->words[1] = te0[src->bytes[ 4]] ^ te1[src->bytes[ 9]] ^ te2[src->bytes[14]] ^ te3[src->bytes[ 3]] ^ key->words[1];
-  dst->words[2] = te0[src->bytes[ 8]] ^ te1[src->bytes[13]] ^ te2[src->bytes[ 2]] ^ te3[src->bytes[ 7]] ^ key->words[2];
-  dst->words[3] = te0[src->bytes[12]] ^ te1[src->bytes[ 1]] ^ te2[src->bytes[ 6]] ^ te3[src->bytes[11]] ^ key->words[3];
+    const uint8_t *sb = src.bytes;
+    uint8_t *tb = tmp.bytes;
+    uint8_t *db = dst.bytes;
+    uint32_t *dw = dst.words;
+
+    db[0] = td[sb[0]];
+    db[1] = td[sb[13]];
+    db[2] = td[sb[10]];
+    db[3] = td[sb[7]];
+    db[4] = td[sb[4]];
+    db[5] = td[sb[1]];
+    db[6] = td[sb[14]];
+    db[7] = td[sb[11]];
+    db[8] = td[sb[8]];
+    db[9] = td[sb[5]];
+    db[10] = td[sb[2]];
+    db[11] = td[sb[15]];
+    db[12] = td[sb[12]];
+    db[13] = td[sb[9]];
+    db[14] = td[sb[6]];
+    db[15] = td[sb[3]];
+
+    /* add round key */
+    state_xor(tmp, dst, key);
+
+    /* inverse mix-column */
+    dw[0] = td0[tb[0]] ^ td1[tb[1]] ^ td2[tb[2]] ^ td3[tb[3]];
+    dw[1] = td0[tb[4]] ^ td1[tb[5]] ^ td2[tb[6]] ^ td3[tb[7]];
+    dw[2] = td0[tb[8]] ^ td1[tb[9]] ^ td2[tb[10]] ^ td3[tb[11]];
+    dw[3] = td0[tb[12]] ^ td1[tb[13]] ^ td2[tb[14]] ^ td3[tb[15]];
 }
 
-/**
-   Perform inverse shift-row, inverse-substitution and add-round-key from source state to destination state
+void AES::decrypt_final(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key)
+{
+    const uint8_t *sb = src.bytes;
+    uint8_t *db = dst.bytes;
 
-   @param dst   Destination state
-   @param src   Source state
-   @param key   AES sub key
-*/
-static void aes_decrypt_step(aes_state_t *dst, aes_state_t *src, aes_state_t *key) {
-  dst->bytes[ 0] = td[src->bytes[ 0]];
-  dst->bytes[ 1] = td[src->bytes[13]];
-  dst->bytes[ 2] = td[src->bytes[10]];
-  dst->bytes[ 3] = td[src->bytes[ 7]];
-  dst->bytes[ 4] = td[src->bytes[ 4]];
-  dst->bytes[ 5] = td[src->bytes[ 1]];
-  dst->bytes[ 6] = td[src->bytes[14]];
-  dst->bytes[ 7] = td[src->bytes[11]];
-  dst->bytes[ 8] = td[src->bytes[ 8]];
-  dst->bytes[ 9] = td[src->bytes[ 5]];
-  dst->bytes[10] = td[src->bytes[ 2]];
-  dst->bytes[11] = td[src->bytes[15]];
-  dst->bytes[12] = td[src->bytes[12]];
-  dst->bytes[13] = td[src->bytes[ 9]];
-  dst->bytes[14] = td[src->bytes[ 6]];
-  dst->bytes[15] = td[src->bytes[ 3]];
-
-  /* add round key */
-  aes_state_xor(src, dst, key);
-
-  /* inverse mix-column */
-  dst->words[0] = td0[src->bytes[ 0]] ^ td1[src->bytes[ 1]] ^ td2[src->bytes[ 2]] ^ td3[src->bytes[ 3]];
-  dst->words[1] = td0[src->bytes[ 4]] ^ td1[src->bytes[ 5]] ^ td2[src->bytes[ 6]] ^ td3[src->bytes[ 7]];
-  dst->words[2] = td0[src->bytes[ 8]] ^ td1[src->bytes[ 9]] ^ td2[src->bytes[10]] ^ td3[src->bytes[11]];
-  dst->words[3] = td0[src->bytes[12]] ^ td1[src->bytes[13]] ^ td2[src->bytes[14]] ^ td3[src->bytes[15]];
+    db[0] = td[sb[0]];
+    db[1] = td[sb[13]];
+    db[2] = td[sb[10]];
+    db[3] = td[sb[7]];
+    db[4] = td[sb[4]];
+    db[5] = td[sb[1]];
+    db[6] = td[sb[14]];
+    db[7] = td[sb[11]];
+    db[8] = td[sb[8]];
+    db[9] = td[sb[5]];
+    db[10] = td[sb[2]];
+    db[11] = td[sb[15]];
+    db[12] = td[sb[12]];
+    db[13] = td[sb[9]];
+    db[14] = td[sb[6]];
+    db[15] = td[sb[3]];
+    state_xor(dst, dst, key);
 }
 
-/**
-   Perform AES encryption final step
+void AES::state_xor(aes_state_t &dst, const aes_state_t &src1, const aes_state_t &src2)
+{
+    const uint32_t *sw1 = src1.words;
+    const uint32_t *sw2 = src2.words;
+    uint32_t *dw = dst.words;
 
-   @param dst   Destination state
-   @param src   Source state
-   @param key   AES subkey
-*/
-static void aes_encrypt_final(aes_state_t *dst, aes_state_t *src, aes_state_t *key) {
-  /* final shift-row & substitute */
-  dst->bytes[ 0] = te[src->bytes[ 0]];
-  dst->bytes[ 1] = te[src->bytes[ 5]];
-  dst->bytes[ 2] = te[src->bytes[10]];
-  dst->bytes[ 3] = te[src->bytes[15]];
-  dst->bytes[ 4] = te[src->bytes[ 4]];
-  dst->bytes[ 5] = te[src->bytes[ 9]];
-  dst->bytes[ 6] = te[src->bytes[14]];
-  dst->bytes[ 7] = te[src->bytes[ 3]];
-  dst->bytes[ 8] = te[src->bytes[ 8]];
-  dst->bytes[ 9] = te[src->bytes[13]];
-  dst->bytes[10] = te[src->bytes[ 2]];
-  dst->bytes[11] = te[src->bytes[ 7]];
-  dst->bytes[12] = te[src->bytes[12]];
-  dst->bytes[13] = te[src->bytes[ 1]];
-  dst->bytes[14] = te[src->bytes[ 6]];
-  dst->bytes[15] = te[src->bytes[11]];
-
-  /* add round key */
-  aes_state_xor(dst, dst, key);
-}
-
-/**
-   Perform AES decryption final step
-
-   @param dst   Destination state
-   @param src   Source state
-   @param key   AES subkey
-*/
-static void aes_decrypt_final(aes_state_t *dst, aes_state_t *src, aes_state_t *key) {
-  dst->bytes[ 0] = td[src->bytes[ 0]];
-  dst->bytes[ 1] = td[src->bytes[13]];
-  dst->bytes[ 2] = td[src->bytes[10]];
-  dst->bytes[ 3] = td[src->bytes[ 7]];
-  dst->bytes[ 4] = td[src->bytes[ 4]];
-  dst->bytes[ 5] = td[src->bytes[ 1]];
-  dst->bytes[ 6] = td[src->bytes[14]];
-  dst->bytes[ 7] = td[src->bytes[11]];
-  dst->bytes[ 8] = td[src->bytes[ 8]];
-  dst->bytes[ 9] = td[src->bytes[ 5]];
-  dst->bytes[10] = td[src->bytes[ 2]];
-  dst->bytes[11] = td[src->bytes[15]];
-  dst->bytes[12] = td[src->bytes[12]];
-  dst->bytes[13] = td[src->bytes[ 9]];
-  dst->bytes[14] = td[src->bytes[ 6]];
-  dst->bytes[15] = td[src->bytes[ 3]];
-
-  /* add round key */
-  aes_state_xor(dst, dst, key);
-}
-
-/**
-   XOR two AES states
-   @param dst   Destination state
-   @param src1  Source state #1
-   @param src2  Source state #2
-*/
-static void aes_state_xor(aes_state_t *dst, aes_state_t *src1, aes_state_t *src2) {
-  dst->words[0] = src1->words[0] ^ src2->words[0];
-  dst->words[1] = src1->words[1] ^ src2->words[1];
-  dst->words[2] = src1->words[2] ^ src2->words[2];
-  dst->words[3] = src1->words[3] ^ src2->words[3];
+    dw[0] = sw1[0] ^ sw2[0];
+    dw[1] = sw1[1] ^ sw2[1];
+    dw[2] = sw1[2] ^ sw2[2];
+    dw[3] = sw1[3] ^ sw2[3];
 }
