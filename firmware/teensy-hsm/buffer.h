@@ -10,10 +10,17 @@
 //------------------------------------------------------------------------------
 // Data Structure
 //------------------------------------------------------------------------------
-typedef struct {
-        uint8_t data_len;
-        uint8_t data[THSM_DATA_BUF_SIZE];
+typedef struct
+{
+    uint8_t data_len;
+    uint8_t data[THSM_DATA_BUF_SIZE];
 } THSM_BUFFER;
+
+typedef struct
+{
+    uint8_t *bytes;
+    uint32_t length;
+} buffer_t;
 
 //------------------------------------------------------------------------------
 // Function Prototypes

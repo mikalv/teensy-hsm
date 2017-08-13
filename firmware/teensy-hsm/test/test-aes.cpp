@@ -83,6 +83,7 @@ static void test_decrypt(const value_bin_t &value)
 
 int main(void)
 {
+    // Reference : http://csrc.nist.gov/groups/STM/cavp/block-ciphers.html#test-vectors
     value_hex_t values[] =
     {
     { "80000000000000000000000000000000", "00000000000000000000000000000000", "0edd33d3c621e546455bd8ba1418bec8" },
