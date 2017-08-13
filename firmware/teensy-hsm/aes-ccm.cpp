@@ -1,3 +1,12 @@
+#include <string.h>
+#include "aes-ccm.h"
+
+// Reference:
+// https://tools.ietf.org/html/rfc3610
+
+// MAC IV
+// ----------------------
+// | 0x19 | key_handle | nonce | counter
 
 
 //--------------------------------------------------------------------------------------------------
