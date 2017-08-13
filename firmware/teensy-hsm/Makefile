@@ -3,8 +3,11 @@
 clean: test-runner
 	@rm -f $<
 
-test-sha1: sha1.cpp sha1.h 
-	@g++ -I. sha1.cpp test/test-sha1.cpp -o test-runner && ./test-runner
+test-sha1: sha1.cpp 
+	@g++ -I. $^ -o test-runner && ./test-runner
 
-test-aes: aes.cpp aes.h
-	@g++ -I. aes.cpp test/test-aes.cpp -o test-runner && ./test-runner
+test-aes: aes.cpp test/test-aes.cpp
+	@g++ -I. $^ -o test-runner && ./test-runner
+
+test-aes-ecb: aes.cpp aes-ecb.cpp test/test-aes-ecb.cpp
+	@g++ -I. $^ -o test-runner && ./test-runner
