@@ -343,6 +343,11 @@ AES::AES(const aes_key_t &key) {
   init(key);
 }
 
+AES::~AES(){
+    MEMCLR(subkeys);
+    MEMCLR(ctx);
+}
+
 void AES::encrypt(aes_state_t &ciphertext, const aes_state_t &plaintext)
 {
     state_xor(ciphertext, plaintext, subkeys[0]);
@@ -375,8 +380,8 @@ void AES::decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext)
 
 void AES::init(const aes_key_t &key)
 {
-    MEMSET(subkeys);
-    MEMSET(ctx);
+    MEMCLR(subkeys);
+    MEMCLR(ctx);
 
     aes_state_t *src = &(subkeys[0]);
     aes_state_t *dst = &(subkeys[1]);

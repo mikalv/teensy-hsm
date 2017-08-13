@@ -33,6 +33,7 @@ class AES
 {
 public:
     AES(const aes_key_t &key);
+    ~AES();
     void encrypt(aes_state_t &ciphertext, const aes_state_t &plaintext);
     void decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext);
 private:
