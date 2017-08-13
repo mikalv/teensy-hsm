@@ -21,23 +21,18 @@ typedef union
     uint32_t words[AES_BLOCK_SIZE_WORDS];
 } aes_state_t;
 
-typedef struct
-{
-    uint8_t bytes[AES_KEY_SIZE_BYTES];
-} aes_key_t;
-
 //======================================================================================================================
 // CLASSES
 //======================================================================================================================
 class AES
 {
 public:
-    AES(const aes_key_t &key);
+    AES(const aes_state_t &key);
     ~AES();
     void encrypt(aes_state_t &ciphertext, const aes_state_t &plaintext);
     void decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext);
 private:
-    void init(const aes_key_t &key);
+    void init(const aes_state_t &key);
     void encrypt_step(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
     void encrypt_final(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
     void decrypt_step(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);

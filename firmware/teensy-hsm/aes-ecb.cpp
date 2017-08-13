@@ -5,9 +5,9 @@ AESECB::AESECB()
 {
 }
 
-int32_t AESECB::encrypt(buffer_t &ciphertext, const buffer_t &plaintext, const aes_key_t &key)
+int32_t AESECB::encrypt(buffer_t &ciphertext, const buffer_t &plaintext, const aes_state_t &key)
 {
-    if ((plaintext.bytes == NULL) || (ciphertext.bytes == NULL))
+    if (!plaintext.bytes || !ciphertext.bytes || !plaintext.length || !ciphertext.length)
     {
         return 0;
     }
@@ -19,11 +19,11 @@ int32_t AESECB::encrypt(buffer_t &ciphertext, const buffer_t &plaintext, const a
     int32_t written = 0;
     uint8_t *pin = plaintext.bytes;
     uint8_t *pout = ciphertext.bytes;
-    aes_state_t pt;
-    aes_state_t ct;
+    aes_state_t pt, ct;
     AES aes = AES(key);
+
     uint32_t blocks = plaintext.length / AES_BLOCK_SIZE_BYTES;
-    for (int i = 0; i < blocks; i++)
+    for (uint32_t i = 0; i < blocks; i++)
     {
         memcpy(pt.bytes, pin, sizeof(pt.bytes));
         aes.encrypt(ct, pt);
@@ -37,9 +37,9 @@ int32_t AESECB::encrypt(buffer_t &ciphertext, const buffer_t &plaintext, const a
     return written;
 }
 
-int32_t AESECB::decrypt(buffer_t &plaintext, const buffer_t &ciphertext, const aes_key_t &key)
+int32_t AESECB::decrypt(buffer_t &plaintext, const buffer_t &ciphertext, const aes_state_t &key)
 {
-    if ((plaintext.bytes == NULL) || (ciphertext.bytes == NULL))
+    if (!plaintext.bytes || !ciphertext.bytes || !plaintext.length || !ciphertext.length)
     {
         return 0;
     }
@@ -51,11 +51,11 @@ int32_t AESECB::decrypt(buffer_t &plaintext, const buffer_t &ciphertext, const a
     int32_t written = 0;
     uint8_t *pin = ciphertext.bytes;
     uint8_t *pout = plaintext.bytes;
-    aes_state_t pt;
-    aes_state_t ct;
+    aes_state_t pt, ct;
     AES aes = AES(key);
+
     uint32_t blocks = plaintext.length / AES_BLOCK_SIZE_BYTES;
-    for (int i = 0; i < blocks; i++)
+    for (uint32_t i = 0; i < blocks; i++)
     {
         memcpy(ct.bytes, pin, sizeof(ct.bytes));
         aes.decrypt(pt, ct);
