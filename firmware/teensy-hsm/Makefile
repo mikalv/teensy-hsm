@@ -11,3 +11,7 @@ test-aes: aes.cpp test/test-aes.cpp
 
 test-aes-ecb: aes.cpp aes-ecb.cpp test/test-aes-ecb.cpp
 	@g++ -I. $^ -o test-runner && ./test-runner
+
+test-aes-cbc: aes.cpp aes-cbc.cpp test/test-aes-cbc.cpp
+	@g++ -I. $^ -o test-runner && ./test-runner
+

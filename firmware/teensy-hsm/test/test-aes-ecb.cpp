@@ -23,7 +23,7 @@ static bool encrypt_equals(const uint8_t *input, const uint8_t *key, const uint8
     uint8_t ciphertext[AES_BLOCK_SIZE_BYTES];
     buffer_t out(ciphertext, sizeof(ciphertext));
     buffer_t in(plaintext, sizeof(plaintext));
-    aes_key_t tmp;
+    aes_state_t tmp;
 
     memcpy(in.bytes, input, in.length);
     memcpy(tmp.bytes, key, sizeof(tmp.bytes));
@@ -39,7 +39,7 @@ static bool decrypt_equals(const uint8_t *input, const uint8_t *key, const uint8
     uint8_t ciphertext[AES_BLOCK_SIZE_BYTES];
     buffer_t out(plaintext, sizeof(plaintext));
     buffer_t in(ciphertext, sizeof(ciphertext));
-    aes_key_t tmp;
+    aes_state_t tmp;
 
     memcpy(in.bytes, input,in.length);
     memcpy(tmp.bytes, key, sizeof(tmp.bytes));
