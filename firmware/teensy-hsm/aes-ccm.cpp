@@ -1,180 +1,169 @@
 #include <string.h>
 #include "aes-ccm.h"
+#include "macros.h"
 
 // Reference:
 // https://tools.ietf.org/html/rfc3610
 
-// MAC IV
-// ----------------------
-// | 0x19 | key_handle | nonce | counter
+// MAC Flag
+// 0 0 011 001
+//   |  |   |
+//   |  |   `---> 2 bytes of message length field
+//   |  `-------> 8 bytes of MAC
+//   `----------> no additional authenticated data
 
+// CTR Flag
+// 0 0 000 001
+//          |
+//          `---> 2 bytes of length field
 
-//--------------------------------------------------------------------------------------------------
-// AES-CCM block cipher
-//--------------------------------------------------------------------------------------------------
-void aes128_ccm_encrypt(uint8_t *ct, uint8_t *mac, uint8_t *pt, uint16_t length, uint8_t *kh, uint8_t *cipherkey, uint8_t *nonce) {
-  aes_subkeys_t sk;
-  aes_state_t   tmp;
-  aes_state_t   mac_in, mac_out;
-  aes_state_t   cipher_in, cipher_out;
+#define MAX_LENGTH  (BUFFER_SIZE_BYTES - AES_CCM_MAC_SIZE_BYTES)
 
-  /* set MAC IV */
-  MEMSET(mac_in);
-  mac_in.bytes[0] = 0x19; /* 8 bytes mac and 2 bytes counter */
-  memcpy(&(mac_in.bytes[1]), kh,    THSM_KEY_HANDLE_SIZE);
-  memcpy(&(mac_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
-  mac_in.bytes[15] = length;
-
-  /* set cipher IV */
-  memset(&cipher_in, 0, sizeof(cipher_in));
-  cipher_in.bytes[0] = 0x01; /* 2 bytes counter */
-  memcpy(&(cipher_in.bytes[1]), kh,    THSM_KEY_HANDLE_SIZE);
-  memcpy(&(cipher_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
-  cipher_in.bytes[15] = 1;
-
-  /* derive subkeys */
-  aes_init(&sk, cipherkey, THSM_KEY_SIZE);
-
-  /* perform encryption */
-  while (length > 0) {
-    /* load plaintext */
-    uint8_t step = (length > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : length;
-    memset(&tmp,       0, sizeof(tmp));
-    memcpy(tmp.bytes, pt, step);
-
-    /* perform encryption */
-    aes_encrypt(&mac_out,    &mac_in,    &sk, THSM_KEY_SIZE);
-    aes_encrypt(&cipher_out, &cipher_in, &sk, THSM_KEY_SIZE);
-
-    /* xor mac stream with plaintext */
-    aes_state_xor(&mac_in, &mac_out, &tmp);
-
-    /* xor cipher stream with plaintext */
-    aes_state_xor(&tmp, &tmp, &cipher_out);
-
-    /* append to ciphertext */
-    memcpy(ct, tmp.bytes, step);
-
-    if (cipher_in.bytes[15] == 0xff) {
-      cipher_in.bytes[15] = 0;
-      cipher_in.bytes[14]++;
-    } else {
-      cipher_in.bytes[15]++;
-    }
-
-    /* update counter */
-    length -= step;
-    pt     += step;
-    ct     += step;
-  }
-
-  aes_encrypt(&tmp, &mac_in, &sk, THSM_KEY_SIZE);
-
-  /* set MAC iv */
-  memset(&mac_in, 0, sizeof(mac_in));
-  mac_in.bytes[0] = 0x19; /* 8 bytes mac and 2 bytes counter */
-  memcpy(&(mac_in.bytes[1]), kh,    4);
-  memcpy(&(mac_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
-
-  /* perform encryption */
-  aes_encrypt(&mac_out, &mac_in, &sk, THSM_KEY_SIZE);
-  aes_state_xor(&tmp, &tmp, &mac_out);
-
-
-  if (mac == NULL) {
-    /* append mac to ciphertext result */
-    memcpy(ct,  tmp.bytes, THSM_AEAD_MAC_SIZE);
-  } else {
-    /* store mac */
-    memcpy(mac, tmp.bytes, THSM_AEAD_MAC_SIZE);
-  }
-
-  /* cleanup temporary variables */
-  memset(&sk,         0, sizeof(sk));
-  memset(&tmp,        0, sizeof(tmp));
-  memset(&mac_in,     0, sizeof(mac_in));
-  memset(&mac_out,    0, sizeof(mac_out));
-  memset(&cipher_in,  0, sizeof(cipher_in));
-  memset(&cipher_out, 0, sizeof(cipher_out));
+Counter::Counter(uint32_t key_handle, const ccm_nonce_t &nonce) {
+    this->flags = 0x19;
+    this->counter = 1;
+    this->key_handle = key_handle;
+    memcpy(this->nonce.bytes, nonce.bytes, sizeof(this->nonce.bytes));
 }
 
-uint8_t aes128_ccm_decrypt(uint8_t *pt, uint8_t *ct, uint16_t length, uint8_t *kh, uint8_t *cipherkey, uint8_t *nonce, uint8_t *mac) {
-  aes_subkeys_t sk;
-  aes_state_t   tmp;
-  aes_state_t   mac_in, mac_out;
-  aes_state_t   cipher_in, cipher_out;
+void Counter::encode(aes_state_t out) {
+    uint8_t *ptr = out.bytes;
 
-  /* set MAC IV */
-  memset(&mac_in, 0, sizeof(mac_in));
-  mac_in.bytes[0] = 0x19; /* 8 bytes mac and 2 bytes counter */
-  memcpy(&(mac_in.bytes[1]), kh,    4);
-  memcpy(&(mac_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
-  mac_in.bytes[15] = length;
+    uint16_t value = counter++;
+    memset(out.bytes, 0, sizeof(out.bytes));
+    *ptr++ = flags;
+    WRITE32(ptr, key_handle);
+    memcpy(ptr, nonce.bytes, sizeof(nonce.bytes));
+    out.bytes[14] = (uint8_t) (value >> 8);
+    out.bytes[15] = (uint8_t) (value >> 0);
+}
 
-  /* set cipher IV */
-  memset(&cipher_in, 0, sizeof(cipher_in));
-  cipher_in.bytes[0] = 0x01; /* 2 bytes counter */
-  memcpy(&(cipher_in.bytes[1]), kh,    4);
-  memcpy(&(cipher_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
-  cipher_in.bytes[15] = 1;
+Iv::Iv(uint32_t key_handle, const ccm_nonce_t &nonce, uint16_t length) {
+    this->flags = 0x01;
+    this->length = length;
+    this->key_handle = key_handle;
+    memcpy(this->nonce.bytes, nonce.bytes, sizeof(this->nonce.bytes));
+}
 
-  /* derive subkeys */
-  aes_init(&sk, cipherkey, THSM_KEY_SIZE);
+void Iv::encode(aes_state_t out) {
+    uint8_t *ptr = out.bytes;
 
-  /* perform decryption */
-  while (length > 0) {
-    /* load ciphertext */
-    uint8_t step = (length > THSM_BLOCK_SIZE) ? THSM_BLOCK_SIZE : length;
-    memset(&tmp,       0, sizeof(tmp));
-    memcpy(tmp.bytes, ct, step);
+    memset(out.bytes, 0, sizeof(out.bytes));
+    *ptr++ = flags;
+    WRITE32(ptr, key_handle);
+    memcpy(ptr, nonce.bytes, sizeof(nonce.bytes));
+    out.bytes[14] = (uint8_t) (length >> 8);
+    out.bytes[15] = (uint8_t) (length >> 0);
+}
 
-    /* perform encryption */
-    aes_encrypt(&mac_out,    &mac_in,    &sk, THSM_KEY_SIZE);
-    aes_encrypt(&cipher_out, &cipher_in, &sk, THSM_KEY_SIZE);
-
-    /* decrypt and update mac */
-    aes_state_xor(&tmp,    &tmp,     &cipher_out);
-    aes_state_xor(&mac_in, &mac_out, &tmp);
-
-    /* append to plaintext */
-    memcpy(pt, tmp.bytes, step);
-
-    if (cipher_in.bytes[15] == 0xff) {
-      cipher_in.bytes[15] = 0;
-      cipher_in.bytes[14]++;
-    } else {
-      cipher_in.bytes[15]++;
+int32_t AESCCM::encrypt(buffer_t &ciphertext, const buffer_t &plaintext, const aes_state_t &key,
+        const uint32_t key_handle, const ccm_nonce_t &nonce) {
+    if (!plaintext.length || !plaintext.bytes) {
+        return 0;
+    } else if (plaintext.length >= MAX_LENGTH) {
+        return -1;
+    } else if (!ciphertext.bytes || (ciphertext.length < (plaintext.length + AES_CCM_MAC_SIZE_BYTES))) {
+        return -2;
     }
 
-    /* update counter */
-    length -= step;
-    pt     += step;
-    ct     += step;
-  }
+    uint8_t *pin = plaintext.bytes;
+    uint8_t *pout = ciphertext.bytes;
+    aes_state_t mac_in, mac_out;
+    aes_state_t ctr_in, ctr_out;
+    aes_state_t pt, ct;
 
-  aes_encrypt(&tmp, &mac_in, &sk, THSM_KEY_SIZE);
+    AES aes = AES(key);
+    Counter ctr = Counter(key_handle, nonce);
+    Iv iv = Iv(key_handle, nonce, plaintext.length);
 
-  /* set MAC iv */
-  memset(&mac_in, 0, sizeof(mac_in));
-  mac_in.bytes[0] = 0x19; /* 8 bytes mac and 2 bytes counter */
-  memcpy(&(mac_in.bytes[1]), kh,    4);
-  memcpy(&(mac_in.bytes[5]), nonce, THSM_AEAD_NONCE_SIZE);
+    /* setup MAC */
+    iv.encode(mac_in);
+    aes.encrypt(mac_out, mac_in);
 
-  /* perform encryption */
-  aes_encrypt(&mac_out, &mac_in, &sk, THSM_KEY_SIZE);
-  aes_state_xor(&tmp, &tmp, &mac_out);
+    uint32_t written = 0;
+    uint32_t length = plaintext.length;
+    while (length > 0) {
+        MEMCLR(pt);
+        uint32_t step = MIN(length, AES_BLOCK_SIZE_BYTES);
 
-  /* compare known mac vs recovered mac */
-  uint8_t matched = !memcmp(&tmp.bytes, mac, THSM_AEAD_MAC_SIZE);
+        /* run AES-CTR */
+        ctr.encode(ctr_in);
+        aes.encrypt(ctr_out, ctr_in);
 
-  /* cleanup temporary variables */
-  memset(&sk,         0, sizeof(sk));
-  memset(&tmp,        0, sizeof(tmp));
-  memset(&mac_in,     0, sizeof(mac_in));
-  memset(&mac_out,    0, sizeof(mac_out));
-  memset(&cipher_in,  0, sizeof(cipher_in));
-  memset(&cipher_out, 0, sizeof(cipher_out));
+        /* XOR plain-text with ctr_out */
+        memcpy(pt.bytes, pin, step);
+        AES::state_xor(ct, pt, ctr_out);
+        memcpy(pout, ct.bytes, step);
 
-  return matched;
+        /* update MAC */
+        AES::state_xor(mac_in, pt, mac_out);
+        aes.encrypt(mac_out, mac_in);
+
+        length -= step;
+        written += step;
+        pin += step;
+        pout += step;
+    }
+
+    /* append MAC */
+    memcpy(pout, mac_out.bytes, AES_CCM_MAC_SIZE_BYTES);
+    written += AES_CCM_MAC_SIZE_BYTES;
+
+    return written;
+}
+
+int32_t AESCCM::decrypt(buffer_t &plaintext, const buffer_t &ciphertext, const aes_state_t &key,
+        const uint32_t key_handle, const ccm_nonce_t &nonce) {
+    if ((ciphertext.length <= AES_CCM_MAC_SIZE_BYTES) || !ciphertext.bytes) {
+        return 0;
+    } else if (plaintext.length < (ciphertext.length - AES_CCM_MAC_SIZE_BYTES)) {
+        return -1;
+    }
+
+    uint8_t *pin = ciphertext.bytes;
+    uint8_t *pout = plaintext.bytes;
+    aes_state_t mac_in, mac_out;
+    aes_state_t ctr_in, ctr_out;
+    aes_state_t pt, ct;
+
+    AES aes = AES(key);
+    Counter ctr = Counter(key_handle, nonce);
+    Iv iv = Iv(key_handle, nonce, plaintext.length);
+
+    /* setup MAC */
+    iv.encode(mac_in);
+    aes.encrypt(mac_out, mac_in);
+
+    uint32_t written = 0;
+    uint32_t length = ciphertext.length - AES_CCM_MAC_SIZE_BYTES;
+    while (length) {
+        MEMCLR(ct);
+        uint32_t step = MIN(length, AES_BLOCK_SIZE_BYTES);
+
+        /* run AES-CTR */
+        ctr.encode(ctr_in);
+        aes.encrypt(ctr_out, ctr_in);
+
+        /* XOR plain-text with ctr_out */
+        memcpy(ct.bytes, pin, step);
+        AES::state_xor(pt, ct, ctr_out);
+        memcpy(pout, pt.bytes, step);
+
+        /* update MAC */
+        AES::state_xor(mac_in, pt, mac_out);
+        aes.encrypt(mac_out, mac_in);
+
+        length -= step;
+        written += step;
+        pin += step;
+        pout += step;
+    }
+
+    // compare MAC
+    if (memcmp(mac_out.bytes, pin, AES_CCM_MAC_SIZE_BYTES) != 0) {
+        return -2;
+    }
+
+    return written;
 }
 

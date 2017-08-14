@@ -5,11 +5,6 @@
 //
 // This file is part of TeensyHSM project containing the implementation of AES-128.
 //======================================================================================================================
-#define UNIT_TEST_AES
-#ifdef UNIT_TEST_AES
-#include <stdio.h>
-#endif
-
 #include <string.h>
 #include "aes.h"
 #include "macros.h"

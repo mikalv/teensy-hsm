@@ -15,12 +15,34 @@ typedef struct {
     uint8_t bytes[AES_CCM_NONCE_SIZE_BYTES];
 } ccm_nonce_t;
 
+class Counter {
+public:
+    Counter(uint32_t key_handle, const ccm_nonce_t &nonce);
+    void encode(aes_state_t out);
+private:
+    uint8_t flags;
+    uint16_t counter;
+    uint32_t key_handle;
+    ccm_nonce_t nonce;
+};
+
+class Iv {
+public:
+    Iv(uint32_t key_handle, const ccm_nonce_t &nonce, uint16_t length);
+    void encode(aes_state_t out);
+private:
+    uint8_t flags;
+    uint16_t length;
+    uint32_t key_handle;
+    ccm_nonce_t nonce;
+};
+
 class AESCCM {
 public:
-    void encrypt(buffer_t &ciphertext, const buffer_t &plaintext, const aes_state_t &key, const uint32_t key_handle,
+    int32_t encrypt(buffer_t &ciphertext, const buffer_t &plaintext, const aes_state_t &key, const uint32_t key_handle,
             const ccm_nonce_t &nonce);
-    void decrypt(buffer_t &plaintext, const buffer_t &ciphertext, const aes_state_t &key, const uint32_t key_handle,
+    int32_t decrypt(buffer_t &plaintext, const buffer_t &ciphertext, const aes_state_t &key, const uint32_t key_handle,
             const ccm_nonce_t &nonce);
-private:
 };
+
 #endif

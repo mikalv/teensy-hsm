@@ -32,12 +32,12 @@ public:
     void init(const aes_state_t &key);
     void encrypt(aes_state_t &ciphertext, const aes_state_t &plaintext);
     void decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext);
+    static void state_xor(aes_state_t &dst, const aes_state_t &src1, const aes_state_t &src2);
 private:
     void encrypt_step(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
     void encrypt_final(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
     void decrypt_step(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
     void decrypt_final(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
-    void state_xor(aes_state_t &dst, const aes_state_t &src1, const aes_state_t &src2);
 
     aes_state_t subkeys[11];
 };
