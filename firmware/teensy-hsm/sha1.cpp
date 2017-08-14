@@ -26,12 +26,12 @@ SHA1::SHA1()
 
 SHA1::~SHA1()
 {
-    MEMSET(ctx);
+    MEMCLR(ctx);
 }
 
 void SHA1::reset()
 {
-    MEMSET(ctx);
+    MEMCLR(ctx);
     ctx.hashes[0] = 0x67452301;
     ctx.hashes[1] = 0xefcdab89;
     ctx.hashes[2] = 0x98badcfe;
@@ -98,7 +98,7 @@ void SHA1::final(sha1_digest_t &digest)
     }
 
     /* clear context */
-    MEMSET(ctx);
+    MEMCLR(ctx);
 
 #undef CAPACITY
 #undef OFFSET

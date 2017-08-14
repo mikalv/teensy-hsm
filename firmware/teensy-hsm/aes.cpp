@@ -521,6 +521,17 @@ void AES::state_xor(aes_state_t &dst, const aes_state_t &src1, const aes_state_t
     dw[3] = sw1[3] ^ sw2[3];
 }
 
+void AES::state_copy(aes_state_t &dst, const aes_state_t &src)
+{
+    const uint32_t *sw = src.words;
+    uint32_t *dw = dst.words;
+
+    dw[0] = sw[0];
+    dw[1] = sw[1];
+    dw[2] = sw[2];
+    dw[3] = sw[3];
+}
+
 #ifdef AES_DEBUG
 void AES::state_dump(const char *title, const aes_state_t &state)
 {
