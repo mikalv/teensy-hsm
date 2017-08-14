@@ -18,9 +18,7 @@ typedef struct
 
 static bool encrypt_equals(const uint8_t *input, const uint8_t *key, const uint8_t *expected)
 {
-    aes_state_t tmp;
-    aes_state_t out;
-    aes_state_t in;
+    aes_state_t tmp, out, in;
     memcpy(in.bytes, input, sizeof(in.bytes));
     memcpy(tmp.bytes, key, sizeof(tmp.bytes));
 
@@ -31,9 +29,7 @@ static bool encrypt_equals(const uint8_t *input, const uint8_t *key, const uint8
 
 static bool decrypt_equals(const uint8_t *input, const uint8_t *key, const uint8_t *expected)
 {
-    aes_state_t tmp;
-    aes_state_t out;
-    aes_state_t in;
+    aes_state_t tmp, out, in;
     memcpy(in.bytes, input, sizeof(in.bytes));
     memcpy(tmp.bytes, key, sizeof(tmp.bytes));
 
