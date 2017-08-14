@@ -99,6 +99,7 @@ void SHA1::final(sha1_digest_t &digest)
     if (written > OFFSET)
     {
         step();
+        MEMCLR(ctx.buffer);
     }
 
     /* append length in bits */
@@ -112,7 +113,8 @@ void SHA1::final(sha1_digest_t &digest)
     uint8_t *ptr2 = digest.bytes;
     for (uint16_t i = 0; i < SHA1_DIGEST_SIZE_WORDS; i++)
     {
-        WRITE32(ptr2, ctx.hashes[i]);
+        uint32_t value = ctx.hashes[i];
+        WRITE32(ptr2, value);
     }
 
     /* clear context */
