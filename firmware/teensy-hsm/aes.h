@@ -33,6 +33,9 @@ public:
     void encrypt(aes_state_t &ciphertext, const aes_state_t &plaintext);
     void decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext);
     static void state_xor(aes_state_t &dst, const aes_state_t &src1, const aes_state_t &src2);
+#ifdef AES_DEBUG
+    static void state_dump(const char *title, const aes_state_t &state);
+#endif
 private:
     void encrypt_step(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
     void encrypt_final(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);

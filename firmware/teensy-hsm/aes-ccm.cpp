@@ -19,36 +19,40 @@
 
 #define MAX_LENGTH  (BUFFER_SIZE_BYTES - AES_CCM_MAC_SIZE_BYTES)
 
-Counter::Counter(uint32_t key_handle, const ccm_nonce_t &nonce) {
+Counter::Counter(uint32_t key_handle, const ccm_nonce_t &nonce)
+{
     this->flags = 0x19;
     this->counter = 1;
     this->key_handle = key_handle;
     memcpy(this->nonce.bytes, nonce.bytes, sizeof(this->nonce.bytes));
 }
 
-void Counter::encode(aes_state_t out) {
+void Counter::encode(aes_state_t &out)
+{
+    memset(out.bytes, 0, sizeof(out.bytes));
     uint8_t *ptr = out.bytes;
 
-    uint16_t value = counter++;
-    memset(out.bytes, 0, sizeof(out.bytes));
     *ptr++ = flags;
     WRITE32(ptr, key_handle);
     memcpy(ptr, nonce.bytes, sizeof(nonce.bytes));
+    uint16_t value = counter++;
     out.bytes[14] = (uint8_t) (value >> 8);
     out.bytes[15] = (uint8_t) (value >> 0);
 }
 
-Iv::Iv(uint32_t key_handle, const ccm_nonce_t &nonce, uint16_t length) {
+Iv::Iv(uint32_t key_handle, const ccm_nonce_t &nonce, uint16_t length)
+{
     this->flags = 0x01;
     this->length = length;
     this->key_handle = key_handle;
     memcpy(this->nonce.bytes, nonce.bytes, sizeof(this->nonce.bytes));
 }
 
-void Iv::encode(aes_state_t out) {
+void Iv::encode(aes_state_t &out)
+{
+    memset(out.bytes, 0, sizeof(out.bytes));
     uint8_t *ptr = out.bytes;
 
-    memset(out.bytes, 0, sizeof(out.bytes));
     *ptr++ = flags;
     WRITE32(ptr, key_handle);
     memcpy(ptr, nonce.bytes, sizeof(nonce.bytes));
@@ -57,17 +61,23 @@ void Iv::encode(aes_state_t out) {
 }
 
 int32_t AESCCM::encrypt(buffer_t &ciphertext, const buffer_t &plaintext, const aes_state_t &key,
-        const uint32_t key_handle, const ccm_nonce_t &nonce) {
-    if (!plaintext.length || !plaintext.bytes) {
+        const uint32_t key_handle, const ccm_nonce_t &nonce)
+{
+    if (!plaintext.length || !plaintext.bytes)
+    {
         return 0;
-    } else if (plaintext.length >= MAX_LENGTH) {
+    }
+    else if (plaintext.length >= MAX_LENGTH)
+    {
         return -1;
-    } else if (!ciphertext.bytes || (ciphertext.length < (plaintext.length + AES_CCM_MAC_SIZE_BYTES))) {
+    }
+    else if (!ciphertext.bytes || (ciphertext.length < (plaintext.length + AES_CCM_MAC_SIZE_BYTES)))
+    {
         return -2;
     }
 
-    uint8_t *pin = plaintext.bytes;
-    uint8_t *pout = ciphertext.bytes;
+    uint8_t *p_in = plaintext.bytes;
+    uint8_t *p_out = ciphertext.bytes;
     aes_state_t mac_in, mac_out, ctr_in, ctr_out, pt, ct;
 
     AES aes = AES(key);
@@ -80,7 +90,8 @@ int32_t AESCCM::encrypt(buffer_t &ciphertext, const buffer_t &plaintext, const a
 
     uint32_t written = 0;
     uint32_t length = plaintext.length;
-    while (length > 0) {
+    while (length)
+    {
         MEMCLR(pt);
         uint32_t step = MIN(length, AES_BLOCK_SIZE_BYTES);
 
@@ -89,9 +100,9 @@ int32_t AESCCM::encrypt(buffer_t &ciphertext, const buffer_t &plaintext, const a
         aes.encrypt(ctr_out, ctr_in);
 
         /* XOR plain-text with ctr_out */
-        memcpy(pt.bytes, pin, step);
+        memcpy(pt.bytes, p_in, step);
         AES::state_xor(ct, pt, ctr_out);
-        memcpy(pout, ct.bytes, step);
+        memcpy(p_out, ct.bytes, step);
 
         /* update MAC */
         AES::state_xor(mac_in, pt, mac_out);
@@ -99,22 +110,26 @@ int32_t AESCCM::encrypt(buffer_t &ciphertext, const buffer_t &plaintext, const a
 
         length -= step;
         written += step;
-        pin += step;
-        pout += step;
+        p_in += step;
+        p_out += step;
     }
 
     /* append MAC */
-    memcpy(pout, mac_out.bytes, AES_CCM_MAC_SIZE_BYTES);
+    memcpy(p_out, mac_out.bytes, AES_CCM_MAC_SIZE_BYTES);
     written += AES_CCM_MAC_SIZE_BYTES;
 
     return written;
 }
 
 int32_t AESCCM::decrypt(buffer_t &plaintext, const buffer_t &ciphertext, const aes_state_t &key,
-        const uint32_t key_handle, const ccm_nonce_t &nonce) {
-    if ((ciphertext.length <= AES_CCM_MAC_SIZE_BYTES) || !ciphertext.bytes) {
+        const uint32_t key_handle, const ccm_nonce_t &nonce)
+{
+    if ((ciphertext.length <= AES_CCM_MAC_SIZE_BYTES) || !ciphertext.bytes)
+    {
         return 0;
-    } else if (plaintext.length < (ciphertext.length - AES_CCM_MAC_SIZE_BYTES)) {
+    }
+    else if (plaintext.length < (ciphertext.length - AES_CCM_MAC_SIZE_BYTES))
+    {
         return -1;
     }
 
@@ -132,7 +147,8 @@ int32_t AESCCM::decrypt(buffer_t &plaintext, const buffer_t &ciphertext, const a
 
     uint32_t written = 0;
     uint32_t length = ciphertext.length - AES_CCM_MAC_SIZE_BYTES;
-    while (length) {
+    while (length)
+    {
         MEMCLR(ct);
         uint32_t step = MIN(length, AES_BLOCK_SIZE_BYTES);
 
@@ -156,7 +172,8 @@ int32_t AESCCM::decrypt(buffer_t &plaintext, const buffer_t &ciphertext, const a
     }
 
     // compare MAC
-    if (memcmp(mac_out.bytes, pin, AES_CCM_MAC_SIZE_BYTES) != 0) {
+    if (memcmp(mac_out.bytes, pin, AES_CCM_MAC_SIZE_BYTES) != 0)
+    {
         return -2;
     }
 

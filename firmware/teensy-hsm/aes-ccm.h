@@ -18,7 +18,7 @@ typedef struct {
 class Counter {
 public:
     Counter(uint32_t key_handle, const ccm_nonce_t &nonce);
-    void encode(aes_state_t out);
+    void encode(aes_state_t &out);
 private:
     uint8_t flags;
     uint16_t counter;
@@ -29,7 +29,7 @@ private:
 class Iv {
 public:
     Iv(uint32_t key_handle, const ccm_nonce_t &nonce, uint16_t length);
-    void encode(aes_state_t out);
+    void encode(aes_state_t &out);
 private:
     uint8_t flags;
     uint16_t length;
