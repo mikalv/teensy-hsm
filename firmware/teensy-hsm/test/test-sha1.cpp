@@ -1,41 +1,47 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "sha1.h"
-
-static int digest_equals(const void *message, size_t length, const char *expected)
-{
-    sha1_digest_t actual;
-    SHA1 sha1 = SHA1();
-    sha1.update((uint8_t *) message, length);
-    sha1.final(actual);
-
-    char buffer[1024];
-    char *ptr = buffer;
-    memset(buffer, 0, sizeof(buffer));
-    for (int i = 0; i < sizeof(actual.bytes); i++, ptr += 2)
-    {
-        sprintf(ptr, "%02x", actual.bytes[i]);
-    }
-    return strncmp(buffer, expected, 40) == 0;
-}
-
-static void expect(int success, const char * title)
-{
-    if (success > 0)
-    {
-        printf("TEST sha1('%s') passed\n", title);
-    }
-    else
-    {
-        printf("TEST sha1('%s') failed\n", title);
-    }
-}
 
 typedef struct
 {
     const char *message;
     const char *digest;
 } test_vector_t;
+
+static void hexdump(char *buffer, const uint8_t *values, size_t length)
+{
+    for (int i = 0; i < length; i++, buffer += 2)
+    {
+        sprintf(buffer, "%02x", values[i]);
+    }
+}
+
+static void decode(uint8_t *buffer, const char *values, size_t length)
+{
+    for (int i = 0; i < length; i++, values += 2)
+    {
+        sscanf(values, "%2hhx", &buffer[i]);
+    }
+}
+
+static void digest_equals(const buffer_t &data, const sha1_digest_t &expected, const char * title)
+{
+    sha1_digest_t actual;
+    SHA1 sha1 = SHA1();
+    sha1.update(data);
+    sha1.final(actual);
+
+    char buffer[64];
+    hexdump(buffer, actual.bytes, sizeof(actual.bytes));
+
+    bool success = (memcmp(actual.bytes, expected.bytes, sizeof(expected.bytes)) == 0);
+    printf("TEST sha1('%s') -> %s [%s]\n", title, buffer, success ? "PASSED" : "FAILED");
+    if (!success)
+    {
+        exit(1);
+    }
+}
 
 int main(void)
 {
@@ -51,8 +57,10 @@ int main(void)
     for (int i = 0; i < tests; i++)
     {
         const char *message = values[i].message;
-        const char *digest = values[i].digest;
-        size_t length = strlen(message);
-        expect(digest_equals(message, length, digest), message);
+        buffer_t data = buffer_t((uint8_t *) message, strlen(message));
+        sha1_digest_t expected;
+
+        decode(expected.bytes, values[i].digest, sizeof(expected.bytes));
+        digest_equals(data, expected, message);
     }
 }

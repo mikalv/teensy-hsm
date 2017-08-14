@@ -3,7 +3,7 @@
 clean: test-runner
 	@rm -f $<
 
-test-sha1: sha1.cpp 
+test-sha1: sha1.cpp test/test-sha1.cpp
 	@g++ -I. $(USER_DEFINES) $^ -o test-runner && ./test-runner
 
 test-aes: aes.cpp test/test-aes.cpp

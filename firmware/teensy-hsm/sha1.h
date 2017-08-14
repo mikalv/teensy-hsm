@@ -48,7 +48,7 @@ class SHA1 {
     int32_t update(const buffer_t &data);
     void final(sha1_digest_t &digest);
     int32_t calculate(sha1_digest_t &digest, const buffer_t &data);
-    bool compare(const buffer_t &data, const sha1_digest_t &digest);
+    bool compare(const buffer_t &data, const sha1_digest_t &reference);
   private:
     void step();
     sha1_ctx_t ctx;
