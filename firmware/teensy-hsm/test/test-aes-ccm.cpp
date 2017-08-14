@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "aes-ccm.h"
 #include "buffer.h"
 
@@ -105,7 +106,12 @@ static void test_encrypt(const value_bin_t &value)
     hexdump(str_ciphertext, value.ciphertext, sizeof(value.ciphertext));
 
     bool passed = encrypt_equals(value.plaintext, value.key, value.key_handle, value.nonce, value.ciphertext);
-    printf("TEST encrypt_ccm(%s,%s,0x%04x,%s) -> %s [%s]\n", str_plaintext, str_key, value.key_handle, str_nonce, str_ciphertext, passed ? "PASSED" : "FAILED");
+    printf("TEST encrypt_ccm(%s,%s,0x%04x,%s) -> %s [%s]\n", str_plaintext, str_key, value.key_handle, str_nonce,
+            str_ciphertext, passed ? "PASSED" : "FAILED");
+    if (!passed)
+    {
+        exit(1);
+    }
 }
 
 static void test_decrypt(const value_bin_t &value)
@@ -121,7 +127,12 @@ static void test_decrypt(const value_bin_t &value)
     hexdump(str_ciphertext, value.ciphertext, sizeof(value.ciphertext));
 
     bool passed = decrypt_equals(value.ciphertext, value.key, value.key_handle, value.nonce, value.plaintext);
-    printf("TEST decrypt_ccm(%s,%s,0x%04x,%s) -> %s [%s]\n", str_ciphertext, str_key, value.key_handle, str_nonce, str_plaintext, passed ? "PASSED" : "FAILED");
+    printf("TEST decrypt_ccm(%s,%s,0x%04x,%s) -> %s [%s]\n", str_ciphertext, str_key, value.key_handle, str_nonce,
+            str_plaintext, passed ? "PASSED" : "FAILED");
+    if (!passed)
+    {
+        exit(1);
+    }
 }
 
 int main(void)
@@ -473,7 +484,7 @@ int main(void)
         {0x00000000, "00000000000000000000000000000000", "000000000000", "fffffffffffffffffffffffffffffffc", "01595d777bfaecfcb68a663c5f060acee1e2b65ea07c9da1"},
         {0x00000000, "00000000000000000000000000000000", "000000000000", "fffffffffffffffffffffffffffffffe", "01595d777bfaecfcb68a663c5f060acc8f547dbe483918ad"},
         {0x00000000, "00000000000000000000000000000000", "000000000000", "ffffffffffffffffffffffffffffffff", "01595d777bfaecfcb68a663c5f060acd1516b5a9a1cda0c3"},
-            };
+    };
 
     value_bin_t value;
     for (int i = 0; i < sizeof(values) / sizeof(values[0]); i++)
