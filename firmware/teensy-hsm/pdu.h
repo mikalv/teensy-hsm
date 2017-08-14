@@ -65,12 +65,6 @@ typedef struct {
   uint8_t post_inc[sizeof(uint16_t)];
 } THSM_NONCE_GET_REQ;
 
-typedef struct {
-  uint8_t nonce[THSM_AEAD_NONCE_SIZE];
-  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
-  uint8_t data_len;
-  uint8_t data[THSM_DATA_BUF_SIZE];
-} THSM_AEAD_GENERATE_REQ;
 
 typedef struct {
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
@@ -191,14 +185,6 @@ typedef struct {
   uint8_t status;
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];
 } THSM_NONCE_GET_RESP;
-
-typedef struct {
-  uint8_t nonce[THSM_AEAD_NONCE_SIZE];
-  uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
-  uint8_t status;
-  uint8_t data_len;
-  uint8_t data[THSM_AEAD_MAX_SIZE];
-} THSM_AEAD_GENERATE_RESP;
 
 typedef struct {
   uint8_t nonce[THSM_AEAD_NONCE_SIZE];

@@ -1,37 +1,68 @@
 #ifndef __COMMANDS_H__
 #define __COMMANDS_H__
 
-//------------------------------------------------------------------------------
-// Command Identifier
-//------------------------------------------------------------------------------
-#define THSM_CMD_NULL                       0x00
-#define THSM_CMD_AEAD_GENERATE              0x01
-#define THSM_CMD_BUFFER_AEAD_GENERATE       0x02
-#define THSM_CMD_RANDOM_AEAD_GENERATE       0x03
-#define THSM_CMD_AEAD_DECRYPT_CMP           0x04
-#define THSM_CMD_DB_AEAD_STORE              0x05
-#define THSM_CMD_AEAD_OTP_DECODE            0x06
-#define THSM_CMD_DB_OTP_VALIDATE            0x07
-#define THSM_CMD_DB_AEAD_STORE2             0x08
-#define THSM_CMD_AES_ECB_BLOCK_ENCRYPT      0x0d
-#define THSM_CMD_AES_ECB_BLOCK_DECRYPT      0x0e
-#define THSM_CMD_AES_ECB_BLOCK_DECRYPT_CMP  0x0f
-#define THSM_CMD_HMAC_SHA1_GENERATE         0x10
-#define THSM_CMD_TEMP_KEY_LOAD              0x11
-#define THSM_CMD_BUFFER_LOAD                0x20
-#define THSM_CMD_BUFFER_RANDOM_LOAD         0x21
-#define THSM_CMD_NONCE_GET                  0x22
-#define THSM_CMD_ECHO                       0x23
-#define THSM_CMD_RANDOM_GENERATE            0x24
-#define THSM_CMD_RANDOM_RESEED              0x25
-#define THSM_CMD_SYSTEM_INFO_QUERY          0x26
-#define THSM_CMD_HSM_UNLOCK                 0x28
-#define THSM_CMD_KEY_STORE_DECRYPT          0x29
-#define THSM_CMD_MONITOR_EXIT               0x7f
+#include <stdint.h>
+#include "flags.h"
+#include "buffer.h"
+#include "sizes.h"
 
 //------------------------------------------------------------------------------
 // Response Flags
 //------------------------------------------------------------------------------
 #define THSM_FLAG_RESPONSE                  0x80
 
+#define THSM_STATUS_OK                      0x80
+#define THSM_STATUS_KEY_HANDLE_INVALID      0x81
+#define THSM_STATUS_AEAD_INVALID            0x82
+#define THSM_STATUS_OTP_INVALID             0x83
+#define THSM_STATUS_OTP_REPLAY              0x84
+#define THSM_STATUS_ID_DUPLICATE            0x85
+#define THSM_STATUS_ID_NOT_FOUND            0x86
+#define THSM_STATUS_DB_FULL                 0x87
+#define THSM_STATUS_MEMORY_ERROR            0x88
+#define THSM_STATUS_FUNCTION_DISABLED       0x89
+#define THSM_STATUS_KEY_STORAGE_LOCKED      0x8a
+#define THSM_STATUS_MISMATCH                0x8b
+#define THSM_STATUS_INVALID_PARAMETER       0x8c
+#define THSM_STATUS_EXT_UNKNOWN_COMMAND     -1
+#define THSM_STATUS_EXT_INVALID_REQUEST     -2
+
+typedef struct
+{
+    uint8_t bytes[THSM_MAX_PKT_SIZE];
+    uint32_t length;
+} packet_t;
+
+class Commands
+{
+public:
+    Commands();
+    int32_t process(uint8_t cmd, packet_t &response, const packet_t &request);
+private:
+    int32_t null(packet_t &response, const packet_t &request);
+    int32_t aead_generate(packet_t &response, const packet_t &request);
+    int32_t buffer_aead_generate(packet_t &response, const packet_t &request);
+    int32_t random_aead_generate(packet_t &response, const packet_t &request);
+    int32_t aead_decrypt_cmp(packet_t &response, const packet_t &request);
+    int32_t db_aead_store(packet_t &response, const packet_t &request);
+    int32_t aead_otp_decode(packet_t &response, const packet_t &request);
+    int32_t db_otp_validate(packet_t &response, const packet_t &request);
+    int32_t db_aead_store2(packet_t &response, const packet_t &request);
+    int32_t aes_ecb_block_encrypt(packet_t &response, const packet_t &request);
+    int32_t aes_ecb_block_decrypt(packet_t &response, const packet_t &request);
+    int32_t aes_ecb_block_decrypt_cmp(packet_t &response, const packet_t &request);
+    int32_t hmac_sha1_generate(packet_t &response, const packet_t &request);
+    int32_t temp_key_load(packet_t &response, const packet_t &request);
+    int32_t buffer_load(packet_t &response, const packet_t &request);
+    int32_t buffer_random_load(packet_t &response, const packet_t &request);
+    int32_t nonce_get(packet_t &response, const packet_t &request);
+    int32_t echo(packet_t &response, const packet_t &request);
+    int32_t random_generate(packet_t &response, const packet_t &request);
+    int32_t random_reseed(packet_t &response, const packet_t &request);
+    int32_t system_info_query(packet_t &response, const packet_t &request);
+    int32_t hsm_unlock(packet_t &response, const packet_t &request);
+    int32_t key_store_decrypt(packet_t &response, const packet_t &request);
+    int32_t monitor_exit(packet_t &response, const packet_t &request);
+    Flags flags;
+};
 #endif
