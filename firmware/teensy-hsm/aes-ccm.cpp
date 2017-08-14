@@ -68,9 +68,7 @@ int32_t AESCCM::encrypt(buffer_t &ciphertext, const buffer_t &plaintext, const a
 
     uint8_t *pin = plaintext.bytes;
     uint8_t *pout = ciphertext.bytes;
-    aes_state_t mac_in, mac_out;
-    aes_state_t ctr_in, ctr_out;
-    aes_state_t pt, ct;
+    aes_state_t mac_in, mac_out, ctr_in, ctr_out, pt, ct;
 
     AES aes = AES(key);
     Counter ctr = Counter(key_handle, nonce);
@@ -122,9 +120,7 @@ int32_t AESCCM::decrypt(buffer_t &plaintext, const buffer_t &ciphertext, const a
 
     uint8_t *pin = ciphertext.bytes;
     uint8_t *pout = plaintext.bytes;
-    aes_state_t mac_in, mac_out;
-    aes_state_t ctr_in, ctr_out;
-    aes_state_t pt, ct;
+    aes_state_t mac_in, mac_out, ctr_in, ctr_out, pt, ct;
 
     AES aes = AES(key);
     Counter ctr = Counter(key_handle, nonce);
