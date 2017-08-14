@@ -96,7 +96,7 @@ void SHA1::final(sha1_digest_t &digest)
         memset(ctx.buffer.bytes + written, 0, step);
     }
 
-    if (written > (CAPACITY - 9))
+    if (written > OFFSET)
     {
         step();
     }
