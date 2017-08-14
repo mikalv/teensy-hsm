@@ -43,7 +43,8 @@ int32_t SHA1::update(const buffer_t &data)
 {
 #define CAPACITY sizeof(ctx.buffer.bytes)
 
-    if(!data.bytes || !data.length){
+    if (!data.bytes || !data.length)
+    {
         return 0;
     }
 
@@ -83,8 +84,17 @@ void SHA1::final(sha1_digest_t &digest)
     uint32_t written = ctx.buffer.length;
 
     /* append padding */
-    ctx.buffer.bytes[written] = 0x80;
-    memset(ctx.buffer.bytes + written + 1, 0, (CAPACITY - (written + 1)));
+    if (written < CAPACITY)
+    {
+        ctx.buffer.bytes[written++] = 0x80;
+        ctx.buffer.length = written;
+    }
+
+    if (written < CAPACITY)
+    {
+        uint32_t step = (CAPACITY - written);
+        memset(ctx.buffer.bytes + written, 0, step);
+    }
 
     if (written > (CAPACITY - 9))
     {
@@ -116,7 +126,8 @@ int32_t SHA1::calculate(sha1_digest_t &digest, const buffer_t &data)
 {
     reset();
     int32_t ret = update(data);
-    if(ret>=  0){
+    if (ret >= 0)
+    {
         final(digest);
     }
 

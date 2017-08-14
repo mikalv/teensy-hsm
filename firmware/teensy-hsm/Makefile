@@ -6,6 +6,9 @@ clean: test-runner
 test-sha1: sha1.cpp test/test-sha1.cpp
 	@g++ -I. $(USER_DEFINES) $^ -o test-runner && ./test-runner
 
+test-sha1-hmac: sha1.cpp sha1-hmac.cpp test/test-sha1-hmac.cpp
+	@g++ -I. $(USER_DEFINES) $^ -o test-runner && ./test-runner
+
 test-aes: aes.cpp test/test-aes.cpp
 	@g++ -I. $(USER_DEFINES) $^ -o test-runner && ./test-runner
 

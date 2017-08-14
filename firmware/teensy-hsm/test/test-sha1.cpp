@@ -45,13 +45,13 @@ static void digest_equals(const buffer_t &data, const sha1_digest_t &expected, c
 
 int main(void)
 {
-    test_vector_t values[] =
-    {
-    { "abc", "a9993e364706816aba3e25717850c26c9cd0d89d" },
-    { "", "da39a3ee5e6b4b0d3255bfef95601890afd80709" },
-    { "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq", "84983e441c3bd26ebaae4aa1f95129e5e54670f1" },
-    { "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopq"
-            "rstu", "a49b2446a02c645bf419f995b67091253a04a259" } };
+    test_vector_t values[] = {
+        { "abc", "a9993e364706816aba3e25717850c26c9cd0d89d" },
+        { "", "da39a3ee5e6b4b0d3255bfef95601890afd80709" },
+        { "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq", "84983e441c3bd26ebaae4aa1f95129e5e54670f1" },
+        { "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu", "a49b2446a02c645bf419f995b67091253a04a259" },
+        { "the quick brown fox jumps over the lazy dog", "16312751ef9307c3fd1afbcb993cdc80464ba0f1"}
+    };
 
     int tests = sizeof(values) / sizeof(values[0]);
     for (int i = 0; i < tests; i++)
