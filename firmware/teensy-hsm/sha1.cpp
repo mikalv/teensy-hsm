@@ -106,7 +106,7 @@ void SHA1::final(sha1_digest_t &digest)
     }
 
     /* clear context */
-    MEMCLR(ctx);
+    reset();
 
 #undef CAPACITY
 #undef OFFSET
@@ -120,6 +120,7 @@ int32_t SHA1::calculate(sha1_digest_t &digest, const buffer_t &data)
         final(digest);
     }
 
+    reset();
     return ret;
 }
 

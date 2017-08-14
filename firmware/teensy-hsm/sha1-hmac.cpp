@@ -1,71 +1,92 @@
-#include "hmac.h"
+#include "sha1-hmac.h"
+#include "macros.h"
 
-//------------------------------------------------------------------------------
-// GLobal Variables
-//------------------------------------------------------------------------------
-hmac_sha1_ctx_t hmac_sha1_ctx;
+SHA1HMAC::SHA1HMAC(const buffer_t &key)
+{
+    MEMCLR(this->key);
+    ctx = SHA1();
 
-//--------------------------------------------------------------------------------------------------
-// HMAC-SHA1
-//--------------------------------------------------------------------------------------------------
-void hmac_reset() {
-  memset(&hmac_sha1_ctx, 0, sizeof(hmac_sha1_ctx));
+    if (key.length > sizeof(this->key))
+    {
+        sha1_digest_t digest;
+        ctx.update(key);
+        ctx.final(digest);
+        memcpy(this->key, digest.bytes, sizeof(digest.bytes));
+        ctx.reset();
+    }
+    else
+    {
+        memcpy(this->key, key.bytes, key.length);
+    }
+
+    reset();
 }
 
-void hmac_sha1_init(hmac_sha1_ctx_t *ctx, uint8_t *key, uint16_t len)
+SHA1HMAC::~SHA1HMAC()
 {
-  /* clear and initialize context */
-  memset(ctx, 0, sizeof(hmac_sha1_ctx_t));
-
-  if (len > sizeof(ctx->key))
-  {
-    sha1_init(&(ctx->hash));
-    sha1_update(&(ctx->hash), key, len);
-    sha1_final(&(ctx->hash), ctx->key);
-  }
-  else
-  {
-    memcpy(ctx->key, key, len);
-  }
-
-  /* xor key with ipad */
-  uint8_t tmp[SHA1_BLOCK_SIZE_BYTES];
-  for (uint16_t i = 0; i < sizeof(tmp); i++)
-  {
-    tmp[i] = 0x36 ^ ctx->key[i];
-  }
-
-  /* init and update hash */
-  sha1_init(&(ctx->hash));
-  sha1_update(&(ctx->hash), tmp, sizeof(tmp));
+    MEMCLR(key);
 }
 
-void hmac_sha1_update(hmac_sha1_ctx_t *ctx, uint8_t *data, uint16_t len)
+void SHA1HMAC::reset()
 {
-  /* update hash */
-  sha1_update(&(ctx->hash), data, len);
+    /* xor key with ipad */
+    uint8_t tmp[SHA1_BLOCK_SIZE_BYTES];
+    for (uint16_t i = 0; i < sizeof(tmp); i++)
+    {
+        tmp[i] = 0x36 ^ this->key[i];
+    }
+
+    /* update hash */
+    buffer_t data = buffer_t(tmp, sizeof(tmp));
+    ctx.update(data);
 }
 
-void hmac_sha1_final(hmac_sha1_ctx_t *ctx, uint8_t *mac)
+int32_t SHA1HMAC::update(const buffer_t &data)
 {
-  uint8_t digest[SHA1_DIGEST_SIZE_BYTES];
-  uint8_t tmp[SHA1_BLOCK_SIZE_BYTES];
+    return ctx.update(data);
+}
 
-  /* finalize hash */
-  sha1_final(&(ctx->hash), digest);
+void SHA1HMAC::final(sha1_digest_t &mac)
+{
+    sha1_digest_t digest;
+    uint8_t tmp[SHA1_BLOCK_SIZE_BYTES];
+    buffer_t data1 = buffer_t(tmp, sizeof(tmp));
+    buffer_t data2 = buffer_t(digest.bytes, sizeof(digest.bytes));
 
-  /* xor key with opad */
-  for (uint16_t i = 0; i < sizeof(tmp); i++)
-  {
-    tmp[i] = 0x5c ^ ctx->key[i];
-  }
+    /* finalize hash */
+    ctx.final(digest);
 
-  /* reinitialize hash context */
-  sha1_init  (&(ctx->hash));
-  sha1_update(&(ctx->hash), tmp, sizeof(tmp));
-  sha1_update(&(ctx->hash), digest, sizeof(digest));
-  sha1_final (&(ctx->hash), mac);
+    /* xor key with opad */
+    for (uint16_t i = 0; i < sizeof(tmp); i++)
+    {
+        tmp[i] = 0x5c ^ this->key[i];
+    }
 
-  /* clear context */
-  memset(ctx, 0, sizeof(hmac_sha1_ctx_t));
+    /* reinitialize hash context */
+    ctx.reset();
+    ctx.update(data1);
+    ctx.update(data2);
+    ctx.final(mac);
+
+    reset();
+}
+
+int32_t SHA1HMAC::calculate(sha1_digest_t &mac, const buffer_t &data)
+{
+    ctx.reset();
+    int32_t ret = ctx.update(data);
+    if(ret >= 0){
+        ctx.final(mac);
+    }
+
+    ctx.reset();
+    return ret;
+}
+
+bool SHA1HMAC::compare(const buffer_t &data, const sha1_digest_t &mac)
+{
+    sha1_digest_t actual;
+    calculate(actual, data);
+
+    return memcmp(actual.bytes, mac.bytes, sizeof(mac.bytes)) == 0;
 }
