@@ -20,7 +20,8 @@ class SHA1HMAC
 public:
     SHA1HMAC(const buffer_t &buffer);
     void update(const buffer_t &data);
-    void final:
+    void final(sha1_digest_t &digest);
+    void calculate(sha1_digest_t &digest, const buffer_t &data);
 private:
     SHA1 ctx;
     uint8_t key[SHA1_BLOCK_SIZE_BYTES];

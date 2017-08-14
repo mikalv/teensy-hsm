@@ -39,11 +39,17 @@ void SHA1::reset()
     ctx.hashes[4] = 0xc3d2e1f0;
 }
 
-void SHA1::update(uint8_t *data, uint32_t length)
+int32_t SHA1::update(const buffer_t &data)
 {
 #define CAPACITY sizeof(ctx.buffer.bytes)
 
+    if(!data.bytes || !data.length){
+        return 0;
+    }
+
     /* update total length */
+    uint32_t length = data.length;
+    uint8_t *p_data = data.bytes;
     ctx.msg_length += length;
     while (length > 0)
     {
@@ -51,9 +57,9 @@ void SHA1::update(uint8_t *data, uint32_t length)
         if (written < CAPACITY)
         {
             uint32_t step = MIN(length, (CAPACITY - written));
-            memcpy(ctx.buffer.bytes + written, data, step);
+            memcpy(ctx.buffer.bytes + written, p_data, step);
 
-            data += step;
+            p_data += step;
             length -= step;
             written += step;
             ctx.buffer.length += step;
@@ -64,6 +70,8 @@ void SHA1::update(uint8_t *data, uint32_t length)
             step();
         }
     }
+
+    return data.length;
 #undef CAPACITY
 }
 
@@ -104,19 +112,23 @@ void SHA1::final(sha1_digest_t &digest)
 #undef OFFSET
 }
 
-void SHA1::digest(sha1_digest_t &digest, uint8_t *data, uint32_t length)
+int32_t SHA1::calculate(sha1_digest_t &digest, const buffer_t &data)
 {
     reset();
-    update(data, length);
-    final(digest);
+    int32_t ret = update(data);
+    if(ret>=  0){
+        final(digest);
+    }
+
+    return ret;
 }
 
-bool SHA1::compare(uint8_t *data, uint32_t length, uint8_t *reference)
+bool SHA1::compare(const buffer_t &data, const sha1_digest_t &reference)
 {
     sha1_digest_t actual;
-    digest(actual, data, length);
+    calculate(actual, data);
 
-    return memcmp(actual.bytes, reference, sizeof(actual.bytes)) == 0;
+    return memcmp(actual.bytes, reference.bytes, sizeof(actual.bytes)) == 0;
 }
 
 void SHA1::step()
@@ -177,5 +189,5 @@ void SHA1::step()
     ctx.hashes[4] += e;
 
     /* clear buffer */
-    MEMSET(ctx.buffer);
+    MEMCLR(ctx.buffer);
 }

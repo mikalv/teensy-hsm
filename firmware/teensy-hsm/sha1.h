@@ -2,6 +2,7 @@
 #define __SHA1_H__
 
 #include <stdint.h>
+#include "buffer.h"
 
 /**
    DEFINITIONS
@@ -44,10 +45,10 @@ class SHA1 {
     SHA1();
     ~SHA1();
     void reset();
-    void update(uint8_t *data, uint32_t length);
+    int32_t update(const buffer_t &data);
     void final(sha1_digest_t &digest);
-    void digest(sha1_digest_t &digest, uint8_t *data, uint32_t length);
-    bool compare(uint8_t *data, uint32_t length, uint8_t *reference);
+    int32_t calculate(sha1_digest_t &digest, const buffer_t &data);
+    bool compare(const buffer_t &data, const sha1_digest_t &digest);
   private:
     void step();
     sha1_ctx_t ctx;
