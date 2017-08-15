@@ -17,6 +17,7 @@ public:
     bool compare(const buffer_t &data, const sha1_digest_t &mac);
 private:
     SHA1 ctx;
-    uint8_t key[SHA1_BLOCK_SIZE_BYTES];
+    uint8_t ipad[SHA1_BLOCK_SIZE_BYTES];
+    uint8_t opad[SHA1_BLOCK_SIZE_BYTES];
 };
 #endif

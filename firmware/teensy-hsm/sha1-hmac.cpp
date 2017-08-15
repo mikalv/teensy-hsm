@@ -3,20 +3,22 @@
 
 SHA1HMAC::SHA1HMAC(const buffer_t &key)
 {
-    MEMCLR(this->key);
+    MEMCLR(ipad);
+    MEMCLR(opad);
     ctx = SHA1();
 
-    if (key.length > sizeof(this->key))
+    if (key.length > sizeof(this->ipad))
     {
         sha1_digest_t digest;
         ctx.update(key);
         ctx.final(digest);
-        memcpy(this->key, digest.bytes, sizeof(digest.bytes));
-        ctx.reset();
+        memcpy(this->ipad, digest.bytes, sizeof(digest.bytes));
+        memcpy(this->opad, digest.bytes, sizeof(digest.bytes));
     }
     else
     {
-        memcpy(this->key, key.bytes, key.length);
+        memcpy(this->ipad, key.bytes, key.length);
+        memcpy(this->opad, key.bytes, key.length);
     }
 
     reset();
@@ -24,20 +26,21 @@ SHA1HMAC::SHA1HMAC(const buffer_t &key)
 
 SHA1HMAC::~SHA1HMAC()
 {
-    MEMCLR(key);
+    MEMCLR(ipad);
+    MEMCLR(opad);
 }
 
 void SHA1HMAC::reset()
 {
     /* xor key with ipad */
-    uint8_t tmp[SHA1_BLOCK_SIZE_BYTES];
-    for (uint16_t i = 0; i < sizeof(tmp); i++)
+    for (uint16_t i = 0; i < sizeof(ipad); i++)
     {
-        tmp[i] = 0x36 ^ this->key[i];
+        ipad[i] ^= 0x36;
+        opad[i] ^= 0x5c;
     }
 
     /* update hash */
-    buffer_t data = buffer_t(tmp, sizeof(tmp));
+    buffer_t data = buffer_t(ipad, sizeof(ipad));
     ctx.update(data);
 }
 
@@ -49,21 +52,11 @@ int32_t SHA1HMAC::update(const buffer_t &data)
 void SHA1HMAC::final(sha1_digest_t &mac)
 {
     sha1_digest_t digest;
-    uint8_t tmp[SHA1_BLOCK_SIZE_BYTES];
-    buffer_t data1 = buffer_t(tmp, sizeof(tmp));
+    buffer_t data1 = buffer_t(opad, sizeof(opad));
     buffer_t data2 = buffer_t(digest.bytes, sizeof(digest.bytes));
 
     /* finalize hash */
     ctx.final(digest);
-
-    /* xor key with opad */
-    for (uint16_t i = 0; i < sizeof(tmp); i++)
-    {
-        tmp[i] = 0x5c ^ this->key[i];
-    }
-
-    /* reinitialize hash context */
-    ctx.reset();
     ctx.update(data1);
     ctx.update(data2);
     ctx.final(mac);
@@ -75,11 +68,15 @@ int32_t SHA1HMAC::calculate(sha1_digest_t &mac, const buffer_t &data)
 {
     ctx.reset();
     int32_t ret = ctx.update(data);
-    if(ret >= 0){
+    if (ret >= 0)
+    {
         ctx.final(mac);
     }
+    else
+    {
+        ctx.reset();
+    }
 
-    ctx.reset();
     return ret;
 }
 
