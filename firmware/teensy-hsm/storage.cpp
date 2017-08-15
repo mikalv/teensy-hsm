@@ -28,28 +28,45 @@ Storage::Storage() {
     eeprom = eeprom_buffer_t;
 }
 
-void Storage::load(aes_state_t &key) {
-    aes_state_t iv;
+bool Storage::load(const aes_state_t &key, const aes_state_t &iv) {
     eeprom_buffer_t decrypted;
-
-    MEMCLR(iv);
     MEMCLR(decrypted);
 
     buffer_t plaintext = buffer_t(decrypted.bytes, sizeof(decrypted.bytes));
     buffer_t ciphertext = buffer_t(eeprom.bytes, sizeof(eeprom.bytes));
     buffer_t mac_key = buffer_t(key.bytes, sizeof(key.bytes));
 
-    SHA1HMAC hmac = SHA1HMAC(mac_key);
-    AESCBC aes = AESCBC();
+    /* load and decrypt */
     load_raw();
-
+    AESCBC aes = AESCBC();
     aes.decrypt(plaintext, ciphertext, key, iv);
+
+    /* verify mac */
+    SHA1HMAC hmac = SHA1HMAC(mac_key);
+    buffer_t hmac_in = buffer_t((uint8_t *)decrypted.layout.storage.body, sizeof(decrypted.layout.storage.body));
+    bool match = hmac.compare(hmac_in, decrypted.layout.storage.mac);
+    return match;
 }
 
-void Storage::store(aes_state_t &key) {
+void Storage::store(const aes_state_t &key, const aes_state_t &iv) {
+}
+
+int32_t Storage::load_key(key_info_t &key, uint32_t handle) {
+}
+
+int32_t Storage::store_key(uint32_t slot, const key_info_t &key) {
+}
+
+int32_t Storage::load_secret(secret_info_t &secret, uint32_t key_handle, const ccm_nonce_t &nonce) {
+}
+
+int32_t Storage::store_secret(uint32_t slot, const secret_info_t & secret, uint32_t key_handle,
+        const ccm_nonce_t &nonce) {
 }
 
 void Storage::clear() {
+}
+void Storage::format() {
 }
 
 void Storage::load_raw() {

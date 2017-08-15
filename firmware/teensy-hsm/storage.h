@@ -60,12 +60,28 @@ typedef union {
     eeprom_layout_t layout;
 } eeprom_buffer_t;
 
+typedef struct {
+    uint32_t handle;
+    uint32_t flags;
+    uint8_t key[AES_KEY_SIZE_BYTES];
+} key_info_t;
+
+typedef struct {
+    uint8_t key[AES_KEY_SIZE_BYTES];
+    uint8_t uid[AES_CCM_NONCE_SIZE_BYTES];
+} secret_info_t;
+
 class Storage {
 public:
     Storage();
-    void load(aes_state_t &key);
-    void store(aes_state_t &key);
+    bool load(const aes_state_t &key, const aes_state_t &iv);
+    void store(const aes_state_t &key, const aes_state_t &iv);
+    int32_t load_key(key_info_t &key, uint32_t handle);
+    int32_t store_key(uint32_t slot, const key_info_t &key);
+    int32_t load_secret(secret_info_t &secret, uint32_t key_handle, const ccm_nonce_t &nonce);
+    int32_t store_secret(uint32_t slot, const secret_info_t & secret, uint32_t key_handle, const ccm_nonce_t &nonce);
     void clear();
+    void format();
 
 private:
     void load_raw();
