@@ -6,58 +6,60 @@
 // This file is part of TeensyHSM project containing the implementation of persistent storage
 // (EEPROM) related functionality.
 //==================================================================================================
+#define STORAGE_DEBUG
 
-
-#include <EEPROM.h>
 #include "storage.h"
+#include "aes-cbc.h"
+#include "sha1-hmac.h"
 
-Storage::Storage() {}
+#ifndef STORAGE_DEBUG
+#include <EEPROM.h>
+#define NV_WRITE(i,v)   EEPROM.write((i), (v))
+#define NV_READ(i)      EEPROM.read((i))
+#else
+uint8_t nv_storage[EEPROM_SIZE_BYTES];
+#define NV_WRITE(i,v)   nv_storage[(i) & EEPROM_SIZE_BYTES] = (v)
+#define NV_READ(i)      nv_storage[(i) & EEPROM_SIZE_BYTES]
+#endif
 
-void Storage::load(uint8_t *key, uint16_t key_length) {
-  uint8_t buffer[EEPROM_SIZE];
-
-  for (uint16_t i = 0; i < sizeof(buffer); i++) {
-    buffer[i] = EEPROM.read(i);
-  }
-
-  AES aes = AES();
-  aes.init(key, key_length);
+Storage::Storage() {
+    loaded = false;
+    decrypted = false;
+    eeprom = eeprom_buffer_t;
 }
 
-void Storage::store(uint8_t *key) {
+void Storage::load(aes_state_t &key) {
+    aes_state_t iv;
+    eeprom_buffer_t decrypted;
+
+    MEMCLR(iv);
+    MEMCLR(decrypted);
+
+    buffer_t plaintext = buffer_t(decrypted.bytes, sizeof(decrypted.bytes));
+    buffer_t ciphertext = buffer_t(eeprom.bytes, sizeof(eeprom.bytes));
+    buffer_t mac_key = buffer_t(key.bytes, sizeof(key.bytes));
+
+    SHA1HMAC hmac = SHA1HMAC(mac_key);
+    AESCBC aes = AESCBC();
+    load_raw();
+
+    aes.decrypt(plaintext, ciphertext, key, iv);
 }
 
-
-//--------------------------------------------------------------------------------------------------
-// EEPROM Storage
-//--------------------------------------------------------------------------------------------------
-uint16_t storage_read(uint8_t *dst, uint16_t length) {
-  uint16_t max = (length > EEPROM_SIZE) ? EEPROM_SIZE : length;
-  for (uint16_t i = 0; i < max; i++) {
-    *dst++ = EEPROM.read(i);
-  }
-
-  return max;
+void Storage::store(aes_state_t &key) {
 }
 
-uint16_t storage_write(uint8_t *src, uint16_t length) {
-  if ((offset > 2047) || (length > 2048)) {
-    return 0;
-  }
+void Storage::clear() {
+}
 
-  length = ((offset + length) > 2048) ? (2048 - offset) : length;
-  uint16_t index = offset;
-
-
-  for (; length--; index++) {
-    uint8_t val_new = *src++;
-
-    uint8_t val_old = EEPROM.read(index);
-    if (val_old != val_new) {
-      EEPROM.write(index, val_new);
+void Storage::load_raw() {
+    for (int i = 0; i < sizeof(eeprom.bytes); i++) {
+        eeprom.bytes[i] = NV_READ(i);
     }
+}
 
-  }
-
-  return (index - offset);
+void Storage::store_raw() {
+    for (int i = 0; i < sizeof(eeprom.bytes); i++) {
+        NV_WRITE(i, eeprom.bytes[i]);
+    }
 }
