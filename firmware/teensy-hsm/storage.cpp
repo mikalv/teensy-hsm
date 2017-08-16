@@ -42,22 +42,20 @@ int32_t Storage::load(const aes_state_t &key, const aes_state_t &iv)
     aes.init(key, iv);
 
     /* setup HMAC */
+    sha1_digest_t mac;
     SHA1HMAC hmac = SHA1HMAC();
     hmac.init(key.bytes, sizeof(key.bytes));
-
-#ifdef DEBUG_STORAGE
-    printf("[DEBUG] decrypting storage\n");
-#endif
 
     /* decipher storage */
     while (length)
     {
-        MEMCLR(ct);
         uint32_t step = MIN(length, AES_BLOCK_SIZE_BYTES);
-        AES::state_fill(ct, ptr_in);
+        MEMCLR(ct);
+        memcpy(ct.bytes, ptr_in, step);
+
         aes.decrypt(pt, ct);
-        hmac.update(pt.bytes, step);
         memcpy(ptr_out, pt.bytes, step);
+        hmac.update(pt.bytes, step);
 
         ptr_in += step;
         ptr_out += step;
@@ -65,30 +63,10 @@ int32_t Storage::load(const aes_state_t &key, const aes_state_t &iv)
     }
 
     /* verify deciphered storage */
-    sha1_digest_t mac;
     hmac.final(mac);
-
     bool validated = memcmp(mac.bytes, eeprom.layout.storage.mac.bytes, sizeof(mac.bytes)) == 0;
     if (!validated)
     {
-#ifdef DEBUG_STORAGE
-        printf("[DEBUG] mac verification failed\n");
-        printf("[DEBUG] mac actual   : ");
-
-        for(int i=0;i<sizeof(mac.bytes);i++)
-        {
-            printf("%02x ", mac.bytes[i]);
-        }
-        putchar('\n');
-
-        printf("[DEBUG] mac expected : ");
-        for(int j=0;j<sizeof(mac.bytes);j++)
-        {
-            printf("%02x ", eeprom.layout.storage.mac.bytes[j]);
-        }
-        putchar('\n');
-#endif
-
         clear();
         return ERROR_CODE_STORAGE_ENCRYPTED;
     }
@@ -97,20 +75,13 @@ int32_t Storage::load(const aes_state_t &key, const aes_state_t &iv)
     return ERROR_CODE_NONE;
 }
 
-int32_t Storage::store(const aes_state_t &key, const aes_state_t &iv)
+void Storage::store(const aes_state_t &key, const aes_state_t &iv)
 {
-    /* ignore if storage not deciphered yet */
-    if (!storage_decrypted)
-    {
-        return ERROR_CODE_STORAGE_ENCRYPTED;
-    }
-
     eeprom_buffer_t current;
     MEMCLR(current);
     load_from_eeprom(current);
 
     store(key, iv, current);
-    return ERROR_CODE_NONE;
 }
 
 int32_t Storage::get_key(key_info_t &key, uint32_t handle)
@@ -140,9 +111,6 @@ int32_t Storage::put_key(const key_info_t &key)
     {
         if (READ32(storage.keys[i].handle) == 0)
         {
-#ifdef DEBUG_STORAGE
-            printf("[DEBUG] putting key at slot #%d\n", i);
-#endif
             WRITE32(storage.keys[i].handle, key.handle)
             WRITE32(storage.keys[i].flags, key.flags);
             memcpy(storage.keys[i].bytes, key.bytes, sizeof(key.bytes));
@@ -281,18 +249,13 @@ void Storage::format(const aes_state_t &key, const aes_state_t &iv)
     eeprom_buffer_t current;
     MEMCLR(current);
 
-    WRITE32(storage.keys[0].flags, 0x01);
-    WRITE32(storage.keys[0].bytes, 0x02);
+    MEMCLR(storage);
     store(key, iv, current);
     clear();
 }
 
 void Storage::load_from_eeprom(eeprom_buffer_t &eeprom)
 {
-#ifdef DEBUG_STORAGE
-    printf("[DEBUG] loading from eeprom\n");
-#endif
-
     MEMCLR(eeprom);
     for (int i = 0; i < sizeof(eeprom.bytes); i++)
     {
@@ -318,24 +281,23 @@ void Storage::store_to_eeprom(const eeprom_buffer_t &eeprom)
 
 void Storage::store(const aes_state_t &key, const aes_state_t &iv, const eeprom_buffer_t &current)
 {
-    uint8_t buffer[sizeof(storage_body_t)];
     eeprom_buffer_t eeprom;
 
     MEMCLR(eeprom);
-    memcpy(buffer, &storage, sizeof(buffer));
 
     /* copy plain values */
-    uint32_t store_counter = READ32(current.layout.storage.store_counter) + 1;
+    uint32_t store_counter = READ32(current.layout.storage.body.store_counter) + 1;
     memcpy(eeprom.layout.restart_counter, current.layout.restart_counter, sizeof(current.layout.restart_counter));
-    WRITE32(eeprom.layout.storage.store_counter, store_counter);
+    WRITE32(eeprom.layout.storage.body.store_counter, store_counter);
     memcpy(eeprom.layout.prng_seed, current.layout.prng_seed, sizeof(current.layout.prng_seed));
 
     /* calculate MAC */
+    sha1_digest_t mac;
     SHA1HMAC hmac = SHA1HMAC();
     hmac.init(key.bytes, sizeof(key.bytes));
 
     /* encrypt storage */
-    uint8_t *ptr_in = buffer;
+    uint8_t *ptr_in = (uint8_t *) &storage;
     uint8_t *ptr_out = (uint8_t *) &eeprom.layout.storage.body;
     uint32_t length = sizeof(storage);
 
@@ -347,11 +309,12 @@ void Storage::store(const aes_state_t &key, const aes_state_t &iv, const eeprom_
     /* encipher storage */
     while (length)
     {
-        MEMCLR(pt);
         uint32_t step = MIN(length, AES_BLOCK_SIZE_BYTES);
-        AES::state_fill(pt, ptr_in);
+        MEMCLR(pt);
+        memcpy(pt.bytes, ptr_in, step);
+
+        hmac.update(pt.bytes, step);
         aes.encrypt(ct, pt);
-        hmac.update(pt.bytes, sizeof(pt.bytes));
         memcpy(ptr_out, ct.bytes, step);
 
         ptr_in += step;
@@ -359,7 +322,6 @@ void Storage::store(const aes_state_t &key, const aes_state_t &iv, const eeprom_
         length -= step;
     }
 
-    sha1_digest_t mac;
     hmac.final(mac);
     memcpy(eeprom.layout.storage.mac.bytes, mac.bytes, sizeof(mac.bytes));
 

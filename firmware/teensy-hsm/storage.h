@@ -6,7 +6,7 @@
 #include "sha1.h"
 #include "hardware.h"
 
-#define STORAGE_KEY_ENTRIES     32
+#define STORAGE_KEY_ENTRIES     31
 #define STORAGE_SECRET_ENTRIES  31
 #define AES_AEAD_SECRET_SIZE_BYTES   (AES_KEY_SIZE_BYTES + AES_CCM_NONCE_SIZE_BYTES)
 
@@ -37,20 +37,22 @@ typedef struct
 } storage_secret_t;
 
 // Storage body layout
-// Size: 2008
+// Size: 2000
 typedef struct
 {
-    storage_key_t keys[STORAGE_KEY_ENTRIES]; // [768] 32 * 24 -> 768
+    uint8_t store_counter[sizeof(uint32_t)]; // [4]
+    storage_key_t keys[STORAGE_KEY_ENTRIES]; // [768] 31 * 24 -> 744
     storage_secret_t secrets[STORAGE_SECRET_ENTRIES]; // [1240] 31 * 40
+    uint8_t padding[12]; // [12] padding
 } storage_body_t;
 
 // Storage layout structure
 // Size : 2032
 typedef struct
 {
-    uint8_t store_counter[sizeof(uint32_t)]; // [4] // store counter
     sha1_digest_t mac; // [20] MAC of body
-    storage_body_t body; // [2008] storage body
+    storage_body_t body; // [2000] storage body
+    uint8_t padding[12]; // [12] padding
 } storage_layout_t;
 
 typedef struct
@@ -85,7 +87,7 @@ class Storage
 public:
     Storage();
     int32_t load(const aes_state_t &key, const aes_state_t &iv);
-    int32_t store(const aes_state_t &key, const aes_state_t &iv);
+    void store(const aes_state_t &key, const aes_state_t &iv);
     int32_t get_key(key_info_t &key, uint32_t key_handle);
     int32_t put_key(const key_info_t &key);
     int32_t get_secret(secret_info_t &secret, uint32_t key_handle, const aes_ccm_nonce_t &public_id);
