@@ -64,6 +64,11 @@ void AESCCM::encrypt_final(aes_ccm_mac_t &mac)
 
 void AESCCM::decrypt_update(aes_state_t &plaintext, const aes_state_t &ciphertext)
 {
+    if (!remaining)
+    {
+        return;
+    }
+
     aes_state_t token, tmp;
     uint32_t step = MIN(remaining, sizeof(tmp.bytes));
 
