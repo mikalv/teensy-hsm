@@ -32,13 +32,14 @@ static void decode(uint8_t *buffer, const char *values, size_t length)
     }
 }
 
-static void hmac_equals(const buffer_t &data, const buffer_t &key, const sha1_digest_t &expected, const char *hex_msg, const char *hex_key)
+static void hmac_equals(const uint8_t *data, uint32_t data_length, const uint8_t *key, uint32_t key_length,
+        const sha1_digest_t &expected, const char *hex_msg, const char *hex_key)
 {
     sha1_digest_t actual;
     SHA1HMAC hmac = SHA1HMAC();
-    hmac.init(key);
-    hmac.update(data);
-    hmac.final(actual);
+
+    hmac.init(key, key_length);
+    hmac.calculate(actual, data, data_length);
 
     char buffer[64];
     hexdump(buffer, actual.bytes, sizeof(actual.bytes));
@@ -75,13 +76,11 @@ int main(void)
         size_t message_len = values[i].message_len;
 
         /* decode key and message */
-        buffer_t key = buffer_t(buffer_key, key_len);
-        buffer_t message = buffer_t(buffer_message, message_len);
         decode(buffer_key, values[i].key, key_len);
         decode(buffer_message, values[i].message, message_len);
         decode(mac.bytes, values[i].mac, sizeof(mac.bytes));
 
-        hmac_equals(message,key, mac, values[i].message, values[i].key);
+        hmac_equals(buffer_message, message_len, buffer_key, key_len, mac, values[i].message, values[i].key);
     }
 }
 

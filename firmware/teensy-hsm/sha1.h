@@ -45,10 +45,10 @@ class SHA1 {
     SHA1();
     ~SHA1();
     void reset();
-    int32_t update(const buffer_t &data);
+    void update(const uint8_t *data, uint32_t data_length);
     void final(sha1_digest_t &digest);
-    int32_t calculate(sha1_digest_t &digest, const buffer_t &data);
-    bool compare(const buffer_t &data, const sha1_digest_t &reference);
+    void calculate(sha1_digest_t &digest, const uint8_t *data, uint32_t data_length);
+    bool compare(sha1_digest_t &reference, const uint8_t *data, uint32_t data_length);
   private:
     void step();
     sha1_ctx_t ctx;

@@ -25,11 +25,11 @@ static void decode(uint8_t *buffer, const char *values, size_t length)
     }
 }
 
-static void digest_equals(const buffer_t &data, const sha1_digest_t &expected, const char * title)
+static void digest_equals(const uint8_t *data, uint32_t data_length, const sha1_digest_t &expected, const char * title)
 {
     sha1_digest_t actual;
     SHA1 sha1 = SHA1();
-    sha1.update(data);
+    sha1.update(data, data_length);
     sha1.final(actual);
 
     char buffer[64];
@@ -57,10 +57,10 @@ int main(void)
     for (int i = 0; i < tests; i++)
     {
         const char *message = values[i].message;
-        buffer_t data = buffer_t((uint8_t *) message, strlen(message));
+        uint32_t length = strlen(message);
         sha1_digest_t expected;
 
         decode(expected.bytes, values[i].digest, sizeof(expected.bytes));
-        digest_equals(data, expected, message);
+        digest_equals((const uint8_t *)message, length, expected, message);
     }
 }
