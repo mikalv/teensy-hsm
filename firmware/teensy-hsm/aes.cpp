@@ -5,7 +5,7 @@
 //
 // This file is part of TeensyHSM project containing the implementation of AES-128.
 //======================================================================================================================
-#ifdef AES_DEBUG
+#ifdef DEBUG_AES
 #include <stdio.h>
 #endif
 
@@ -445,7 +445,7 @@ void AES::state_copy(aes_state_t &dst, const aes_state_t &src)
 	dw[3] = sw[3];
 }
 
-#ifdef AES_DEBUG
+#ifdef DEBUG_AES
 void AES::state_dump(const char *title, const aes_state_t &state)
 {
 	char buffer[64];

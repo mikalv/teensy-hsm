@@ -54,9 +54,8 @@ void AESCCM::encrypt_update(aes_state_t &ciphertext, const aes_state_t &plaintex
 	ctx.encrypt(tmp_mac, tmp);
 }
 
-void AESCCM::encrypt_final(aes_state_t &ciphertext, aes_ccm_mac_t &mac, const aes_state_t &plaintext)
+void AESCCM::encrypt_final(aes_ccm_mac_t &mac)
 {
-	encrypt_update(ciphertext, plaintext);
 	memcpy(mac.bytes, tmp_mac.bytes, AES_CCM_MAC_SIZE_BYTES);
 }
 
@@ -74,11 +73,9 @@ void AESCCM::decrypt_update(aes_state_t &plaintext, const aes_state_t &ciphertex
 	ctx.encrypt(tmp_mac, tmp);
 }
 
-bool AESCCM::decrypt_final(aes_state_t &plaintext, const aes_ccm_mac_t &mac, const aes_state_t &ciphertext)
+bool AESCCM::decrypt_final(const aes_ccm_mac_t &mac)
 {
-	decrypt_update(plaintext, ciphertext);
-
-	return memcmp(tmp_mac.bytes, mac.bytes, sizeof(mac.bytes)) == 0;
+    return memcmp(tmp_mac.bytes, mac.bytes, sizeof(mac.bytes)) == 0;
 }
 
 void AESCCM::reset()
@@ -107,6 +104,7 @@ void AESCCM::generate_token(aes_state_t &out)
 
 	*ptr++ = 0x19;
 	WRITE32(ptr, key_handle);
+	ptr += sizeof(uint32_t);
 	memcpy(ptr, nonce.bytes, sizeof(nonce.bytes));
 	uint16_t value = ++counter;
 	out.bytes[14] = (uint8_t) (value >> 8);
@@ -120,6 +118,7 @@ void AESCCM::generate_iv(aes_state_t &out)
 
 	*ptr++ = 0x01;
 	WRITE32(ptr, key_handle);
+	ptr += sizeof(uint32_t);
 	memcpy(ptr, nonce.bytes, sizeof(nonce.bytes));
 	out.bytes[14] = (uint8_t) (length >> 8);
 	out.bytes[15] = (uint8_t) (length >> 0);

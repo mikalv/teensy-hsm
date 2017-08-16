@@ -9,13 +9,13 @@ typedef struct {
         uint8_t flags [sizeof(uint32_t)];
         uint8_t key   [THSM_KEY_SIZE];
 } THSM_DB_KEY_ENTRY;
-
-typedef struct {
-        uint8_t public_id [THSM_PUBLIC_ID_SIZE];
-        uint8_t key       [THSM_KEY_SIZE];
-        uint8_t nonce     [THSM_AEAD_NONCE_SIZE];
-        uint8_t counter   [sizeof(uint32_t)];
-} THSM_DB_SECRET_ENTRY;
+//
+//typedef struct {
+//        uint8_t public_id [THSM_PUBLIC_ID_SIZE];
+//        uint8_t key       [THSM_KEY_SIZE];
+//        uint8_t nonce     [THSM_AEAD_NONCE_SIZE];
+//        uint8_t counter   [sizeof(uint32_t)];
+//} THSM_DB_SECRET_ENTRY;
 
 typedef struct {
         THSM_DB_KEY_ENTRY entries[THSM_DB_KEY_ENTRIES];

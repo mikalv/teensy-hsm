@@ -63,9 +63,9 @@ public:
 	~AESCCM();
 	void init(const aes_state_t &key, const uint32_t key_handle, const aes_ccm_nonce_t &nonce, uint16_t message_length);
 	void encrypt_update(aes_state_t &ciphertext, const aes_state_t &plaintext);
-	void encrypt_final(aes_state_t &ciphertext, aes_ccm_mac_t &mac, const aes_state_t &plaintext);
+	void encrypt_final(aes_ccm_mac_t &mac);
 	void decrypt_update(aes_state_t &plaintext, const aes_state_t &ciphertext);
-	bool decrypt_final(aes_state_t &plaintext, const aes_ccm_mac_t &mac, const aes_state_t &ciphertext);
+	bool decrypt_final(const aes_ccm_mac_t &mac);
 	void reset();
 	void clear();
 private:

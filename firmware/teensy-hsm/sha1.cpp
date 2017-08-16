@@ -109,6 +109,7 @@ void SHA1::final(sha1_digest_t &digest)
     {
         uint32_t value = ctx.hashes[i];
         WRITE32(ptr2, value);
+        ptr2 += sizeof(uint32_t);
     }
 
     /* clear context */

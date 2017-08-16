@@ -17,3 +17,7 @@ test-aes-cbc: aes.cpp aes-cbc.cpp test/test-aes-cbc.cpp
 
 test-aes-ccm: aes.cpp aes-ccm.cpp test/test-aes-ccm.cpp
 	@g++ -I. $(USER_DEFINES) $^ -o test-runner && ./test-runner
+
+test-storage: sha1.cpp sha1-hmac.cpp aes.cpp aes-ccm.cpp aes-cbc.cpp storage.cpp test/test-storage.cpp
+	@g++ -I. $(USER_DEFINES) -DDEBUG_STORAGE $^ -o test-runner && ./test-runner
+
