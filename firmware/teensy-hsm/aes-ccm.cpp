@@ -43,6 +43,11 @@ void AESCCM::init(const aes_state_t &key, const uint32_t key_handle, const aes_c
 
 void AESCCM::encrypt_update(aes_state_t &ciphertext, const aes_state_t &plaintext)
 {
+    if (!remaining)
+    {
+        return;
+    }
+
     aes_state_t token, tmp;
     uint32_t step = MIN(remaining, sizeof(tmp.bytes));
 
