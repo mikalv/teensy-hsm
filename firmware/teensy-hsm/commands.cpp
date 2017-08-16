@@ -2,6 +2,8 @@
 #include "macros.h"
 #include "aes.h"
 #include "aes-ccm.h"
+#include "error.h"
+#include "util.h"
 
 //------------------------------------------------------------------------------
 // Command Identifier
@@ -37,7 +39,7 @@
 typedef struct
 {
     uint8_t nonce[AES_CCM_NONCE_SIZE_BYTES];
-    uint8_t key_handle[AES_CCM_KEY_HANDLE_SIZE_BYTES];
+    uint8_t key_handle[sizeof(uint32_t)];
     uint8_t data_len;
     uint8_t data[THSM_DATA_BUF_SIZE];
 } THSM_AEAD_GENERATE_REQ;
@@ -45,7 +47,7 @@ typedef struct
 typedef struct
 {
     uint8_t nonce[AES_CCM_NONCE_SIZE_BYTES];
-    uint8_t key_handle[AES_CCM_KEY_HANDLE_SIZE_BYTES];
+    uint8_t key_handle[sizeof(uint32_t)];
     uint8_t status;
     uint8_t data_len;
     uint8_t data[AES_CCM_MAX_AEAD_LENGTH_BYTES];
@@ -109,7 +111,7 @@ int32_t Commands::process(uint8_t cmd, packet_t &response, const packet_t &reque
     case THSM_CMD_MONITOR_EXIT:
         return monitor_exit(response, request);
     default:
-        return THSM_STATUS_EXT_UNKNOWN_COMMAND;
+        return ERROR_CODE_UNKNOWN_COMMAND;
     }
 }
 
@@ -122,7 +124,7 @@ int32_t Commands::aead_generate(packet_t &output, const packet_t &input)
 {
     if (input.length < 11)
     {
-        return THSM_STATUS_EXT_INVALID_REQUEST;
+        return ERROR_CODE_INVALID_REQUEST;
     }
 
     THSM_AEAD_GENERATE_REQ request;
@@ -133,59 +135,62 @@ int32_t Commands::aead_generate(packet_t &output, const packet_t &input)
 
     if (input.length < (request.data_len + 11))
     {
-        return THSM_STATUS_EXT_INVALID_REQUEST;
+        return ERROR_CODE_INVALID_REQUEST;
     }
-
-    uint8_t key[THSM_KEY_SIZE];
-    //uint32_t flags;
-
-    /* prepare response */
-    response.status = THSM_STATUS_OK;
-
-    uint8_t *src_nonce = request.nonce;
-    uint8_t *dst_nonce = response.nonce;
-    uint8_t *src_key = request.key_handle;
-    uint8_t *dst_key = response.key_handle;
-    uint8_t *src_data = request.data;
-    uint8_t *dst_data = response.data;
-
-    /* copy key handle and nonce */
-    memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
-    memcpy(dst_nonce, src_nonce, AES_CCM_NONCE_SIZE_BYTES);
 
     /* get key handle, status and length */
-    uint32_t key_handle = READ32(src_key);
-    uint8_t status = THSM_STATUS_OK;
-    uint16_t length = request.data_len;
+    uint32_t key_handle = READ32(request.key_handle);
 
-    /* check parameters */
-    if (!flags.is_storage_decrypted())
+    /* get key */
+    key_info_t key_info;
+    int ret = storage.get_key(key_info, key_handle);
+    if (ret < 0)
     {
-        response.status = THSM_STATUS_KEY_STORAGE_LOCKED;
-    }
-    else if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK)
-    {
-        response.payload.aead_generate.status = status;
-    }
-    else
-    {
-
-        /* generate nonce */
-        if (!memcmp(dst_nonce, null_nonce, THSM_AEAD_NONCE_SIZE))
-        {
-            nonce_pool_read(dst_nonce, 1);
-        }
-
-        /* perform encryption */
-        aes128_ccm_encrypt(dst_data, NULL, src_data, length, dst_key, key, dst_nonce);
-
-        /* set response */
-        response.payload.aead_generate.data_len = length + THSM_AEAD_MAC_SIZE;
-        response.bcnt += response.payload.aead_generate.data_len;
+        return ret;
     }
 
-    /* clear key */
-    memset(key, 0, sizeof(key));
+    /* generate nonce if it is null */
+    if (Util::is_empty(request.nonce, sizeof(request.nonce)))
+    {
+        // FIXME generate nonce
+    }
+
+    aes_state_t key, pt, ct;
+    aes_ccm_nonce_t nonce;
+    aes_ccm_mac_t mac;
+    AES::state_fill(key, key_info.bytes);
+    memcpy(nonce.bytes, request.nonce, sizeof(request.nonce));
+
+    AESCCM aes = AESCCM();
+    aes.init(key, key_handle, nonce, request.data_len);
+
+    uint32_t length = request.data_len;
+    uint8_t *src_data = request.data;
+    uint8_t *dst_data = response.data;
+    while (length)
+    {
+        MEMCLR(pt);
+        uint32_t step = MIN(length, sizeof(pt.bytes));
+        memcpy(pt.bytes, src_data, step);
+
+        aes.encrypt_update(ct, pt);
+        memcpy(dst_data, ct.bytes, step);
+
+        src_data += step;
+        dst_data += step;
+        length -= step;
+    }
+
+    aes.encrypt_final(mac);
+
+    /* copy key handle and nonce */
+    response.status = THSM_STATUS_OK;
+    response.data_len = request.data_len + sizeof(mac.bytes);
+    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
+    memcpy(response.nonce, request.nonce, sizeof(request.nonce));
+    memcpy(dst_data, mac.bytes, sizeof(mac.bytes));
+
+    return response.data_len + 12;
 }
 
 int32_t Commands::buffer_aead_generate(packet_t &response, const packet_t &request)
@@ -276,35 +281,6 @@ int32_t Commands::monitor_exit(packet_t &response, const packet_t &request)
 {
 }
 
-//==================================================================================================
-// Project : Teensy HSM
-// Author  : Edi Permadi
-// Repo    : https://github.com/edipermadi/teensy-hsm
-//
-// This file is part of TeensyHSM project containing the implementation command dispaching and
-// processing functionality
-//==================================================================================================
-
-//--------------------------------------------------------------------------------------------------
-// Includes
-//--------------------------------------------------------------------------------------------------
-#include <stdint.h>
-#include <string.h>
-#include <FastCRC.h>
-#include "commands.h"
-#include "buffer.h"
-#include "status.h"
-#include "flags.h"
-#include "pdu.h"
-#include "keystore.h"
-#include "sha1.h"
-
-//--------------------------------------------------------------------------------------------------
-// Lookup tables
-//--------------------------------------------------------------------------------------------------
-static const uint8_t null_nonce[THSM_AEAD_NONCE_SIZE] =
-{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-
 //--------------------------------------------------------------------------------------------------
 // GLobal variables
 //--------------------------------------------------------------------------------------------------
@@ -327,9 +303,6 @@ void execute_cmd()
 
     switch (request.cmd)
     {
-    case THSM_CMD_AEAD_GENERATE:
-        cmd_aead_generate();
-        break;
     case THSM_CMD_BUFFER_AEAD_GENERATE:
         cmd_buffer_aead_generate();
         break;
@@ -463,8 +436,7 @@ static void cmd_hmac_sha1_generate()
     uint8_t *dst_data = response.payload.hmac_sha1_generate.data;
 
     /* set common response */
-    response.bcnt = (sizeof(response.payload.hmac_sha1_generate) - sizeof(response.payload.hmac_sha1_generate.data))
-            + 1;
+    response.bcnt = (sizeof(response.payload.hmac_sha1_generate) - sizeof(response.payload.hmac_sha1_generate.data)) + 1;
     response.payload.hmac_sha1_generate.data_len = 0;
     response.payload.hmac_sha1_generate.status = THSM_STATUS_OK;
 
@@ -823,8 +795,7 @@ static void cmd_buffer_aead_generate()
     uint32_t flags;
 
     /* prepare response */
-    response.bcnt = (sizeof(response.payload.buffer_aead_generate) - sizeof(response.payload.buffer_aead_generate.data))
-            + 1;
+    response.bcnt = (sizeof(response.payload.buffer_aead_generate) - sizeof(response.payload.buffer_aead_generate.data)) + 1;
     response.payload.buffer_aead_generate.status = THSM_STATUS_OK;
 
     uint8_t *src_nonce = request.payload.buffer_aead_generate.nonce;
@@ -885,8 +856,7 @@ static void cmd_random_aead_generate()
     uint32_t flags;
 
     /* prepare response */
-    response.bcnt = (sizeof(response.payload.random_aead_generate) - sizeof(response.payload.random_aead_generate.data))
-            + 1;
+    response.bcnt = (sizeof(response.payload.random_aead_generate) - sizeof(response.payload.random_aead_generate.data)) + 1;
     response.payload.random_aead_generate.status = THSM_STATUS_OK;
 
     uint8_t *src_nonce = request.payload.random_aead_generate.nonce;

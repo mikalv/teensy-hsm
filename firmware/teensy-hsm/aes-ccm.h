@@ -4,7 +4,6 @@
 #include "aes.h"
 #include "buffer.h"
 
-#define AES_CCM_KEY_HANDLE_SIZE_BYTES   sizeof(uint32_t)
 #define AES_CCM_MAC_SIZE_BITS           64
 #define AES_CCM_MAC_SIZE_BYTES          (AES_CCM_MAC_SIZE_BITS / 8)
 #define AES_CCM_MAC_SIZE_WORDS          (AES_CCM_MAC_SIZE_BYTES / sizeof(uint32_t))

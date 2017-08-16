@@ -5,6 +5,7 @@
 #include "flags.h"
 #include "buffer.h"
 #include "sizes.h"
+#include "storage.h"
 
 //------------------------------------------------------------------------------
 // Response Flags
@@ -62,5 +63,6 @@ private:
     int32_t key_store_decrypt(packet_t &response, const packet_t &request);
     int32_t monitor_exit(packet_t &response, const packet_t &request);
     Flags flags;
+    Storage storage;
 };
 #endif
