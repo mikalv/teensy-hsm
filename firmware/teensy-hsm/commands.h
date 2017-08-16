@@ -24,8 +24,6 @@
 #define THSM_STATUS_KEY_STORAGE_LOCKED      0x8a
 #define THSM_STATUS_MISMATCH                0x8b
 #define THSM_STATUS_INVALID_PARAMETER       0x8c
-#define THSM_STATUS_EXT_UNKNOWN_COMMAND     -1
-#define THSM_STATUS_EXT_INVALID_REQUEST     -2
 
 typedef struct
 {

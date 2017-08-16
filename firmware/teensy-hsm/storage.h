@@ -84,9 +84,9 @@ class Storage
 {
 public:
 	Storage();
-	bool load(const aes_state_t &key, const aes_state_t &iv);
-	void store(const aes_state_t &key, const aes_state_t &iv);
-	int32_t load_key(key_info_t &key, uint32_t handle);
+	int32_t load(const aes_state_t &key, const aes_state_t &iv);
+	int32_t store(const aes_state_t &key, const aes_state_t &iv);
+	int32_t load_key(key_info_t &key, uint32_t key_handle);
 	int32_t store_key(uint32_t slot, const key_info_t &key);
 	int32_t load_secret(secret_info_t &secret, uint32_t key_handle, const aes_ccm_nonce_t &nonce);
 	int32_t store_secret(uint32_t slot, const secret_info_t & secret, uint32_t key_handle, const aes_ccm_nonce_t &nonce);
@@ -98,6 +98,6 @@ private:
 	void store_to_eeprom(const eeprom_buffer_t &eeprom);
 	bool storage_decrypted;
 	bool secret_unlocked;
-	storage_layout_t storage;
+	storage_body_t storage;
 };
 #endif

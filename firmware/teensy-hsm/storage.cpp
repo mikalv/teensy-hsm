@@ -8,6 +8,7 @@
 //==================================================================================================
 #define STORAGE_DEBUG
 
+#include "error.h"
 #include "storage.h"
 #include "aes-cbc.h"
 #include "sha1-hmac.h"
@@ -28,24 +29,16 @@ Storage::Storage()
 	secret_unlocked = false;
 }
 
-bool Storage::load(const aes_state_t &key, const aes_state_t &iv)
+int32_t Storage::load(const aes_state_t &key, const aes_state_t &iv)
 {
-	/* load eeprom */
+	/* load EEPROM */
 	eeprom_buffer_t eeprom;
 	load_from_eeprom(eeprom);
 
-	/* setup hmac */
-	uint32_t hmac_key_buffer[AES_BLOCK_SIZE_BYTES * 2];
-	buffer_t hmac_key = buffer_t(hmac_key_buffer, sizeof(hmac_key_buffer));
-	memcpy(&hmac_key_buffer[0], key.bytes, sizeof(key.bytes));
-	memcpy(&hmac_key_buffer[sizeof(key.bytes)], iv.bytes, sizeof(iv.bytes));
-	SHA1HMAC hmac = SHA1HMAC();
-	hmac.init(hmac_key);
-
 	/* setup pointers */
 	uint8_t *ptr_in = &eeprom.layout.storage.body;
-	uint8_t *ptr_out = &storage.body;
-	uint32_t length = sizeof(storage.body);
+	uint8_t *ptr_out = &storage;
+	uint32_t length = sizeof(storage);
 
 	/* setup AES */
 	aes_state_t pt, ct;
@@ -67,41 +60,93 @@ bool Storage::load(const aes_state_t &key, const aes_state_t &iv)
 	}
 
 	/* verify deciphered storage */
-	buffer_t decrypted = buffer_t(&storage.body, sizeof(storage.body));
-	bool validated = hmac.compare(decrypted, eeprom.layout.storage.mac);
-	if (validated)
-	{
-		memcpy(storage.mac.bytes, eeprom.layout.storage.mac.bytes, sizeof(eeprom.layout.storage.mac.bytes));
-		storage.store_counter = eeprom.layout.storage.store_counter;
-		storage_decrypted = true;
-	}
-	else
+	SHA1HMAC hmac = SHA1HMAC();
+	hmac.init(key.bytes, sizeof(key.bytes));
+	bool validated = hmac.compare(eeprom.layout.storage.mac, (uint8_t *) &storage, sizeof(storage));
+	if (!validated)
 	{
 		clear();
+		return ERROR_CODE_STORAGE_ENCRYPTED;
 	}
 
-	return validated;
+	storage_decrypted = true;
+	return ERROR_CODE_NONE;
 }
 
-void Storage::store(const aes_state_t &key, const aes_state_t &iv)
+int32_t Storage::store(const aes_state_t &key, const aes_state_t &iv)
 {
-	eeprom_buffer_t eeprom;
+	/* ignore if storage not deciphered yet */
+	if (!storage_decrypted)
+	{
+		return ERROR_CODE_STORAGE_ENCRYPTED;
+	}
 
+	eeprom_buffer_t eeprom, current;
+	MEMCLR(eeprom);
+	MEMCLR(current);
+
+	/* load current EEPROM */
+	load_from_eeprom(current);
+
+	/* copy plain values */
+	eeprom.layout.restart_counter = current.layout.restart_counter;
+	eeprom.layout.storage.store_counter = (current.layout.storage.store_counter + 1);
+	memcpy(eeprom.layout.prng_seed, current.layout.prng_seed, sizeof(current.layout.prng_seed));
+
+	/* calculate MAC */
+	SHA1HMAC hmac = SHA1HMAC();
+	hmac.init(key.bytes, sizeof(key.bytes));
+	hmac.calculate(eeprom.layout.storage.mac, (uint8_t *) &storage, sizeof(storage));
+
+	/* encrypt storage */
+	uint8_t *ptr_in = &storage;
+	uint8_t *ptr_out = &eeprom.layout.storage.body;
+	uint32_t length = sizeof(storage);
+
+	/* setup AES */
+	aes_state_t pt, ct;
+	AESCBC aes = AESCBC();
+	aes.init(key, iv);
+
+	/* encipher storage */
+	while (length)
+	{
+		MEMCLR(pt);
+		uint32_t step = MIN(length, AES_BLOCK_SIZE_BYTES);
+		AES::state_fill(pt, ptr_in);
+		aes.encrypt(ct, pt);
+		memcpy(ptr_out, ct.bytes, step);
+
+		ptr_in += step;
+		ptr_out += step;
+		length -= step;
+	}
+
+	return ERROR_CODE_NONE;
 }
 
-int32_t Storage::load_key(key_info_t &key, uint32_t handle)
+int32_t Storage::load_key(key_info_t &key, uint32_t key_handle)
 {
+	for (int i = 0; i < STORAGE_KEY_ENTRIES; i++)
+	{
+		if(storage.keys[i].key_handle == key_handle){
+			key.handle = key_handle;
+			key.flags = storage.keys[i].key_flags;
+		}
+	}
+
+	return ERROR_CODE_KEY_NOT_FOUND;
 }
 
 int32_t Storage::store_key(uint32_t slot, const key_info_t &key)
 {
 }
 
-int32_t Storage::load_secret(secret_info_t &secret, uint32_t key_handle, const ccm_nonce_t &nonce)
+int32_t Storage::load_secret(secret_info_t &secret, uint32_t key_handle, const aes_ccm_nonce_t &nonce)
 {
 }
 
-int32_t Storage::store_secret(uint32_t slot, const secret_info_t & secret, uint32_t key_handle, const ccm_nonce_t &nonce)
+int32_t Storage::store_secret(uint32_t slot, const secret_info_t & secret, uint32_t key_handle, const aes_ccm_nonce_t &nonce)
 {
 }
 

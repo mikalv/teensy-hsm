@@ -40,6 +40,12 @@ void SHA1HMAC::init(const buffer_t &key)
 	reset();
 }
 
+void SHA1HMAC::init(const uint8_t *key, uint32_t key_length)
+{
+	buffer_t tmp = buffer_t(key, key_length);
+	init(tmp);
+}
+
 void SHA1HMAC::reset()
 {
 	/* update hash */
@@ -51,6 +57,12 @@ void SHA1HMAC::reset()
 int32_t SHA1HMAC::update(const buffer_t &data)
 {
 	return ctx.update(data);
+}
+
+int32_t SHA1HMAC::update(const uint8_t *data, uint32_t data_length)
+{
+	buffer_t tmp = buffer_t(data, data_length);
+	return update(tmp);
 }
 
 void SHA1HMAC::final(sha1_digest_t &mac)
@@ -84,10 +96,24 @@ int32_t SHA1HMAC::calculate(sha1_digest_t &mac, const buffer_t &data)
 	return ret;
 }
 
-bool SHA1HMAC::compare(const buffer_t &data, const sha1_digest_t &mac)
+int32_t SHA1HMAC::calculate(sha1_digest_t &mac, const uint8_t *data, uint32_t data_length)
+{
+	buffer_t tmp = buffer_t(data, data_length);
+	return calculate(mac, tmp);
+}
+
+bool SHA1HMAC::compare(const sha1_digest_t &mac, const buffer_t &data)
 {
 	sha1_digest_t actual;
 	calculate(actual, data);
+
+	return memcmp(actual.bytes, mac.bytes, sizeof(mac.bytes)) == 0;
+}
+
+bool SHA1HMAC::compare(const sha1_digest_t &mac, const uint8_t *data, uint32_t data_length)
+{
+	sha1_digest_t actual;
+	calculate(actual, data, data_length);
 
 	return memcmp(actual.bytes, mac.bytes, sizeof(mac.bytes)) == 0;
 }
