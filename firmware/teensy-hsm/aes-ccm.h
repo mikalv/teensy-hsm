@@ -14,38 +14,69 @@
 #define AES_CCM_MAX_DATA_LENGTH_BYTES     64
 #define AES_CCM_MAX_AEAD_LENGTH_BYTES   (AES_CCM_MAX_DATA_LENGTH_BYTES + AES_CCM_MAC_SIZE_BYTES)
 
-typedef struct {
-    uint8_t bytes[AES_CCM_NONCE_SIZE_BYTES];
-} ccm_nonce_t;
+typedef struct
+{
+	uint8_t bytes[AES_CCM_NONCE_SIZE_BYTES];
+} aes_ccm_nonce_t;
 
-class Counter {
+typedef struct
+{
+	uint8_t bytes[AES_CCM_MAC_SIZE_BYTES];
+} aes_ccm_mac_t;
+
+class Counter
+{
 public:
-    Counter(uint32_t key_handle, const ccm_nonce_t &nonce);
-    void encode(aes_state_t &out);
+	Counter();
+	~Counter();
+	void init(uint32_t key_handle, const aes_ccm_nonce_t &nonce);
+	void encode(aes_state_t &out);
+	void reset();
+	void clear();
 private:
-    uint8_t flags;
-    uint16_t counter;
-    uint32_t key_handle;
-    ccm_nonce_t nonce;
+	uint8_t flags;
+	uint16_t counter;
+	uint32_t key_handle;
+	aes_ccm_nonce_t nonce;
 };
 
-class Iv {
+class Iv
+{
 public:
-    Iv(uint32_t key_handle, const ccm_nonce_t &nonce, uint16_t length);
-    void encode(aes_state_t &out);
+	Iv();
+	~Iv();
+	void init(uint32_t key_handle, const aes_ccm_nonce_t &nonce, uint16_t length);
+	void encode(aes_state_t &out);
+	void reset();
+	void clear();
 private:
-    uint8_t flags;
-    uint16_t length;
-    uint32_t key_handle;
-    ccm_nonce_t nonce;
+	uint8_t flags;
+	uint16_t length;
+	uint32_t key_handle;
+	aes_ccm_nonce_t nonce;
 };
 
-class AESCCM {
+class AESCCM
+{
 public:
-    int32_t encrypt(buffer_t &ciphertext, const buffer_t &plaintext, const aes_state_t &key, const uint32_t key_handle,
-            const ccm_nonce_t &nonce);
-    int32_t decrypt(buffer_t &plaintext, const buffer_t &ciphertext, const aes_state_t &key, const uint32_t key_handle,
-            const ccm_nonce_t &nonce);
+	AESCCM();
+	~AESCCM();
+	void init(const aes_state_t &key, const uint32_t key_handle, const aes_ccm_nonce_t &nonce, uint16_t message_length);
+	void encrypt_update(aes_state_t &ciphertext, const aes_state_t &plaintext);
+	void encrypt_final(aes_state_t &ciphertext, aes_ccm_mac_t &mac, const aes_state_t &plaintext);
+	void decrypt_update(aes_state_t &plaintext, const aes_state_t &ciphertext);
+	bool decrypt_final(aes_state_t &plaintext, const aes_ccm_mac_t &mac, const aes_state_t &ciphertext);
+	void reset();
+	void clear();
+private:
+	void generate_token(aes_state_t &token);
+	void generate_iv(aes_state_t &out);
+	AES ctx;
+	aes_state_t tmp_mac;
+	uint16_t length;
+	uint16_t counter;
+	uint32_t key_handle;
+	aes_ccm_nonce_t nonce;
 };
 
 #endif

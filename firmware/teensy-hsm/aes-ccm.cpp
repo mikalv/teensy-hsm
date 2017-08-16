@@ -19,164 +19,108 @@
 
 #define MAX_LENGTH  (BUFFER_SIZE_BYTES - AES_CCM_MAC_SIZE_BYTES)
 
-Counter::Counter(uint32_t key_handle, const ccm_nonce_t &nonce)
+AESCCM::AESCCM()
 {
-    this->flags = 0x19;
-    this->counter = 1;
-    this->key_handle = key_handle;
-    memcpy(this->nonce.bytes, nonce.bytes, sizeof(this->nonce.bytes));
+	clear();
 }
 
-void Counter::encode(aes_state_t &out)
+AESCCM::~AESCCM()
 {
-    memset(out.bytes, 0, sizeof(out.bytes));
-    uint8_t *ptr = out.bytes;
 
-    *ptr++ = flags;
-    WRITE32(ptr, key_handle);
-    memcpy(ptr, nonce.bytes, sizeof(nonce.bytes));
-    uint16_t value = counter++;
-    out.bytes[14] = (uint8_t) (value >> 8);
-    out.bytes[15] = (uint8_t) (value >> 0);
 }
 
-Iv::Iv(uint32_t key_handle, const ccm_nonce_t &nonce, uint16_t length)
+void AESCCM::init(const aes_state_t &key, const uint32_t key_handle, const aes_ccm_nonce_t &nonce, uint16_t length)
 {
-    this->flags = 0x01;
-    this->length = length;
-    this->key_handle = key_handle;
-    memcpy(this->nonce.bytes, nonce.bytes, sizeof(this->nonce.bytes));
+	this->counter = 0;
+	this->key_handle = key_handle;
+	this->length = length;
+	memcpy(this->nonce.bytes, nonce.bytes, sizeof(nonce.bytes));
+
+	ctx.init(key);
+	reset();
 }
 
-void Iv::encode(aes_state_t &out)
+void AESCCM::encrypt_update(aes_state_t &ciphertext, const aes_state_t &plaintext)
 {
-    memset(out.bytes, 0, sizeof(out.bytes));
-    uint8_t *ptr = out.bytes;
+	aes_state_t token, tmp;
 
-    *ptr++ = flags;
-    WRITE32(ptr, key_handle);
-    memcpy(ptr, nonce.bytes, sizeof(nonce.bytes));
-    out.bytes[14] = (uint8_t) (length >> 8);
-    out.bytes[15] = (uint8_t) (length >> 0);
+	/* encrypt */
+	generate_token(tmp);
+	ctx.encrypt(token, tmp);
+	AES::state_xor(ciphertext, plaintext, token);
+
+	/* update MAC */
+	AES::state_xor(tmp, plaintext, tmp_mac);
+	ctx.encrypt(tmp_mac, tmp);
 }
 
-int32_t AESCCM::encrypt(buffer_t &ciphertext, const buffer_t &plaintext, const aes_state_t &key,
-        const uint32_t key_handle, const ccm_nonce_t &nonce)
+void AESCCM::encrypt_final(aes_state_t &ciphertext, aes_ccm_mac_t &mac, const aes_state_t &plaintext)
 {
-    if (!plaintext.length || !plaintext.bytes)
-    {
-        return 0;
-    }
-    else if (plaintext.length >= MAX_LENGTH)
-    {
-        return -1;
-    }
-    else if (!ciphertext.bytes || (ciphertext.length < (plaintext.length + AES_CCM_MAC_SIZE_BYTES)))
-    {
-        return -2;
-    }
-
-    uint8_t *p_in = plaintext.bytes;
-    uint8_t *p_out = ciphertext.bytes;
-    aes_state_t mac_in, mac_out, ctr_in, ctr_out, pt, ct;
-
-    AES aes = AES(key);
-    Counter ctr = Counter(key_handle, nonce);
-    Iv iv = Iv(key_handle, nonce, plaintext.length);
-
-    /* setup MAC */
-    iv.encode(mac_in);
-    aes.encrypt(mac_out, mac_in);
-
-    uint32_t written = 0;
-    uint32_t length = plaintext.length;
-    while (length)
-    {
-        MEMCLR(pt);
-        uint32_t step = MIN(length, AES_BLOCK_SIZE_BYTES);
-
-        /* run AES-CTR */
-        ctr.encode(ctr_in);
-        aes.encrypt(ctr_out, ctr_in);
-
-        /* XOR plain-text with ctr_out */
-        memcpy(pt.bytes, p_in, step);
-        AES::state_xor(ct, pt, ctr_out);
-        memcpy(p_out, ct.bytes, step);
-
-        /* update MAC */
-        AES::state_xor(mac_in, pt, mac_out);
-        aes.encrypt(mac_out, mac_in);
-
-        length -= step;
-        written += step;
-        p_in += step;
-        p_out += step;
-    }
-
-    /* append MAC */
-    memcpy(p_out, mac_out.bytes, AES_CCM_MAC_SIZE_BYTES);
-    written += AES_CCM_MAC_SIZE_BYTES;
-
-    return written;
+	encrypt_update(ciphertext, plaintext);
+	memcpy(mac.bytes, tmp_mac.bytes, AES_CCM_MAC_SIZE_BYTES);
 }
 
-int32_t AESCCM::decrypt(buffer_t &plaintext, const buffer_t &ciphertext, const aes_state_t &key,
-        const uint32_t key_handle, const ccm_nonce_t &nonce)
+void AESCCM::decrypt_update(aes_state_t &plaintext, const aes_state_t &ciphertext)
 {
-    if ((ciphertext.length <= AES_CCM_MAC_SIZE_BYTES) || !ciphertext.bytes)
-    {
-        return 0;
-    }
-    else if (plaintext.length < (ciphertext.length - AES_CCM_MAC_SIZE_BYTES))
-    {
-        return -1;
-    }
+	aes_state_t token, tmp;
 
-    uint8_t *pin = ciphertext.bytes;
-    uint8_t *pout = plaintext.bytes;
-    aes_state_t mac_in, mac_out, ctr_in, ctr_out, pt, ct;
+	/* encrypt */
+	generate_token(tmp);
+	ctx.encrypt(token, tmp);
+	AES::state_xor(plaintext, ciphertext, token);
 
-    AES aes = AES(key);
-    Counter ctr = Counter(key_handle, nonce);
-    Iv iv = Iv(key_handle, nonce, plaintext.length);
-
-    /* setup MAC */
-    iv.encode(mac_in);
-    aes.encrypt(mac_out, mac_in);
-
-    uint32_t written = 0;
-    uint32_t length = ciphertext.length - AES_CCM_MAC_SIZE_BYTES;
-    while (length)
-    {
-        MEMCLR(ct);
-        uint32_t step = MIN(length, AES_BLOCK_SIZE_BYTES);
-
-        /* run AES-CTR */
-        ctr.encode(ctr_in);
-        aes.encrypt(ctr_out, ctr_in);
-
-        /* XOR plain-text with ctr_out */
-        memcpy(ct.bytes, pin, step);
-        AES::state_xor(pt, ct, ctr_out);
-        memcpy(pout, pt.bytes, step);
-
-        /* update MAC */
-        AES::state_xor(mac_in, pt, mac_out);
-        aes.encrypt(mac_out, mac_in);
-
-        length -= step;
-        written += step;
-        pin += step;
-        pout += step;
-    }
-
-    // compare MAC
-    if (memcmp(mac_out.bytes, pin, AES_CCM_MAC_SIZE_BYTES) != 0)
-    {
-        return -2;
-    }
-
-    return written;
+	/* update MAC */
+	AES::state_xor(tmp, plaintext, tmp_mac);
+	ctx.encrypt(tmp_mac, tmp);
 }
 
+bool AESCCM::decrypt_final(aes_state_t &plaintext, const aes_ccm_mac_t &mac, const aes_state_t &ciphertext)
+{
+	decrypt_update(plaintext, ciphertext);
+
+	return memcmp(tmp_mac.bytes, mac.bytes, sizeof(mac.bytes)) == 0;
+}
+
+void AESCCM::reset()
+{
+	aes_state_t tmp;
+
+	counter = 0;
+	generate_iv(tmp);
+	ctx.encrypt(tmp_mac, tmp);
+}
+
+void AESCCM::clear()
+{
+	counter = 0;
+	length = 0;
+	key_handle = 0;
+	ctx.clear();
+	MEMCLR(tmp_mac);
+	MEMCLR(nonce);
+}
+
+void AESCCM::generate_token(aes_state_t &out)
+{
+	MEMCLR(out);
+	uint8_t *ptr = out.bytes;
+
+	*ptr++ = 0x19;
+	WRITE32(ptr, key_handle);
+	memcpy(ptr, nonce.bytes, sizeof(nonce.bytes));
+	uint16_t value = ++counter;
+	out.bytes[14] = (uint8_t) (value >> 8);
+	out.bytes[15] = (uint8_t) (value >> 0);
+}
+
+void AESCCM::generate_iv(aes_state_t &out)
+{
+	MEMCLR(out);
+	uint8_t *ptr = out.bytes;
+
+	*ptr++ = 0x01;
+	WRITE32(ptr, key_handle);
+	memcpy(ptr, nonce.bytes, sizeof(nonce.bytes));
+	out.bytes[14] = (uint8_t) (length >> 8);
+	out.bytes[15] = (uint8_t) (length >> 0);
+}
