@@ -35,7 +35,8 @@ static void decode(uint8_t *buffer, const char *values, size_t length)
 static void hmac_equals(const buffer_t &data, const buffer_t &key, const sha1_digest_t &expected, const char *hex_msg, const char *hex_key)
 {
     sha1_digest_t actual;
-    SHA1HMAC hmac = SHA1HMAC(key);
+    SHA1HMAC hmac = SHA1HMAC();
+    hmac.init(key);
     hmac.update(data);
     hmac.final(actual);
 

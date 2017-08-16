@@ -22,61 +22,112 @@ uint8_t nv_storage[EEPROM_SIZE_BYTES];
 #define NV_READ(i)      nv_storage[(i) & EEPROM_SIZE_BYTES]
 #endif
 
-Storage::Storage() {
-    loaded = false;
-    decrypted = false;
-    eeprom = eeprom_buffer_t;
+Storage::Storage()
+{
+	storage_decrypted = false;
+	secret_unlocked = false;
 }
 
-bool Storage::load(const aes_state_t &key, const aes_state_t &iv) {
-    eeprom_buffer_t decrypted;
-    MEMCLR(decrypted);
+bool Storage::load(const aes_state_t &key, const aes_state_t &iv)
+{
+	/* load eeprom */
+	eeprom_buffer_t eeprom;
+	load_from_eeprom(eeprom);
 
-    buffer_t plaintext = buffer_t(decrypted.bytes, sizeof(decrypted.bytes));
-    buffer_t ciphertext = buffer_t(eeprom.bytes, sizeof(eeprom.bytes));
-    buffer_t mac_key = buffer_t(key.bytes, sizeof(key.bytes));
+	/* setup hmac */
+	uint32_t hmac_key_buffer[AES_BLOCK_SIZE_BYTES * 2];
+	buffer_t hmac_key = buffer_t(hmac_key_buffer, sizeof(hmac_key_buffer));
+	memcpy(&hmac_key_buffer[0], key.bytes, sizeof(key.bytes));
+	memcpy(&hmac_key_buffer[sizeof(key.bytes)], iv.bytes, sizeof(iv.bytes));
+	SHA1HMAC hmac = SHA1HMAC();
+	hmac.init(hmac_key);
 
-    /* load and decrypt */
-    load_raw();
-    AESCBC aes = AESCBC();
-    aes.decrypt(plaintext, ciphertext, key, iv);
+	/* setup pointers */
+	uint8_t *ptr_in = &eeprom.layout.storage.body;
+	uint8_t *ptr_out = &storage.body;
+	uint32_t length = sizeof(storage.body);
 
-    /* verify mac */
-    SHA1HMAC hmac = SHA1HMAC(mac_key);
-    buffer_t hmac_in = buffer_t((uint8_t *)decrypted.layout.storage.body, sizeof(decrypted.layout.storage.body));
-    bool match = hmac.compare(hmac_in, decrypted.layout.storage.mac);
-    return match;
+	/* setup AES */
+	aes_state_t pt, ct;
+	AESCBC aes = AESCBC();
+	aes.init(key, iv);
+
+	/* decipher storage */
+	while (length)
+	{
+		MEMCLR(pt);
+		uint32_t step = MIN(length, AES_BLOCK_SIZE_BYTES);
+		AES::state_fill(ct, ptr_in);
+		aes.decrypt(pt, ct);
+		memcpy(ptr_out, pt.bytes, step);
+
+		ptr_in += step;
+		ptr_out += step;
+		length -= step;
+	}
+
+	/* verify deciphered storage */
+	buffer_t decrypted = buffer_t(&storage.body, sizeof(storage.body));
+	bool validated = hmac.compare(decrypted, eeprom.layout.storage.mac);
+	if (validated)
+	{
+		memcpy(storage.mac.bytes, eeprom.layout.storage.mac.bytes, sizeof(eeprom.layout.storage.mac.bytes));
+		storage.store_counter = eeprom.layout.storage.store_counter;
+		storage_decrypted = true;
+	}
+	else
+	{
+		clear();
+	}
+
+	return validated;
 }
 
-void Storage::store(const aes_state_t &key, const aes_state_t &iv) {
+void Storage::store(const aes_state_t &key, const aes_state_t &iv)
+{
+	eeprom_buffer_t eeprom;
+
 }
 
-int32_t Storage::load_key(key_info_t &key, uint32_t handle) {
+int32_t Storage::load_key(key_info_t &key, uint32_t handle)
+{
 }
 
-int32_t Storage::store_key(uint32_t slot, const key_info_t &key) {
+int32_t Storage::store_key(uint32_t slot, const key_info_t &key)
+{
 }
 
-int32_t Storage::load_secret(secret_info_t &secret, uint32_t key_handle, const ccm_nonce_t &nonce) {
+int32_t Storage::load_secret(secret_info_t &secret, uint32_t key_handle, const ccm_nonce_t &nonce)
+{
 }
 
-int32_t Storage::store_secret(uint32_t slot, const secret_info_t & secret, uint32_t key_handle,
-        const ccm_nonce_t &nonce) {
+int32_t Storage::store_secret(uint32_t slot, const secret_info_t & secret, uint32_t key_handle, const ccm_nonce_t &nonce)
+{
 }
 
-void Storage::clear() {
+void Storage::clear()
+{
+	storage_decrypted = false;
+	secret_unlocked = false;
+	MEMCLR(storage);
 }
-void Storage::format() {
+void Storage::format()
+{
 }
 
-void Storage::load_raw() {
-    for (int i = 0; i < sizeof(eeprom.bytes); i++) {
-        eeprom.bytes[i] = NV_READ(i);
-    }
+void Storage::load_from_eeprom(eeprom_buffer_t &eeprom)
+{
+	MEMCLR(eeprom);
+	for (int i = 0; i < sizeof(eeprom.bytes); i++)
+	{
+		eeprom.bytes[i] = NV_READ(i);
+	}
 }
 
-void Storage::store_raw() {
-    for (int i = 0; i < sizeof(eeprom.bytes); i++) {
-        NV_WRITE(i, eeprom.bytes[i]);
-    }
+void Storage::store_to_eeprom(const eeprom_buffer_t &eeprom)
+{
+	for (int i = 0; i < sizeof(eeprom.bytes); i++)
+	{
+		NV_WRITE(i, eeprom.bytes[i]);
+	}
 }

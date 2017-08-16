@@ -17,8 +17,8 @@
 //======================================================================================================================
 typedef union
 {
-    uint8_t bytes[AES_BLOCK_SIZE_BYTES];
-    uint32_t words[AES_BLOCK_SIZE_WORDS];
+	uint8_t bytes[AES_BLOCK_SIZE_BYTES];
+	uint32_t words[AES_BLOCK_SIZE_WORDS];
 } aes_state_t;
 
 //======================================================================================================================
@@ -28,23 +28,24 @@ class AES
 {
 public:
 	AES();
-    ~AES();
-    void init(const aes_state_t &key);
-    void encrypt(aes_state_t &ciphertext, const aes_state_t &plaintext);
-    void decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext);
-    void clear();
-    static void state_xor(aes_state_t &dst, const aes_state_t &src1, const aes_state_t &src2);
-    static void state_copy(aes_state_t &dst, const aes_state_t &src);
+	~AES();
+	void init(const aes_state_t &key);
+	void encrypt(aes_state_t &ciphertext, const aes_state_t &plaintext);
+	void decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext);
+	void clear();
+	static void state_fill(aes_state_t &dst, uint8_t *data);
+	static void state_xor(aes_state_t &dst, const aes_state_t &src1, const aes_state_t &src2);
+	static void state_copy(aes_state_t &dst, const aes_state_t &src);
 #ifdef AES_DEBUG
-    static void state_dump(const char *title, const aes_state_t &state);
+	static void state_dump(const char *title, const aes_state_t &state);
 #endif
 private:
-    void encrypt_step(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
-    void encrypt_final(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
-    void decrypt_step(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
-    void decrypt_final(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
+	void encrypt_step(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
+	void encrypt_final(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
+	void decrypt_step(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
+	void decrypt_final(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key);
 
-    aes_state_t subkeys[11];
+	aes_state_t subkeys[11];
 };
 
 #endif

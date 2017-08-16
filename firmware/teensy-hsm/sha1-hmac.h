@@ -8,8 +8,9 @@
 class SHA1HMAC
 {
 public:
-    SHA1HMAC(const buffer_t &key);
+    SHA1HMAC();
     ~SHA1HMAC();
+    void init(const buffer_t &key);
     void reset();
     int32_t update(const buffer_t &data);
     void final(sha1_digest_t &digest);
