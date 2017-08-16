@@ -127,6 +127,10 @@ int32_t Storage::get_secret(secret_info_t &secret, uint32_t key_handle, const ae
     int32_t ret = get_key(key_info, key_handle);
     if (ret < 0)
     {
+#ifdef DEBUG_STORAGE
+        printf("ERROR 1\n");
+#endif
+
         return ret;
     }
 
@@ -156,7 +160,7 @@ int32_t Storage::get_secret(secret_info_t &secret, uint32_t key_handle, const ae
                 MEMCLR(ct);
                 memcpy(ct.bytes, ptr_in, step);
 
-                aes.decrypt_update(pt, ct);
+                aes.decrypt_update(pt, ct, step);
                 memcpy(ptr_out, pt.bytes, step);
 
                 ptr_in += step;
@@ -171,9 +175,17 @@ int32_t Storage::get_secret(secret_info_t &secret, uint32_t key_handle, const ae
                 unpack_secret(secret, plaintext);
                 return ERROR_CODE_NONE;
             }
+
+#ifdef DEBUG_STORAGE
+            printf("ERROR 2\n");
+#endif
             return ERROR_CODE_WRONG_KEY;
         }
     }
+
+#ifdef DEBUG_STORAGE
+    printf("ERROR 3\n");
+#endif
 
     return ERROR_CODE_SECRET_NOT_FOUND;
 }

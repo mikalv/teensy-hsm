@@ -92,7 +92,7 @@ static bool decrypt_equals(const uint8_t *p_input, const uint8_t *p_key, const u
 
     AESCCM aes = AESCCM();
     aes.init(key, key_handle, nonce, AES_BLOCK_SIZE_BYTES);
-    aes.decrypt_update(plaintext, ciphertext);
+    aes.decrypt_update(plaintext, ciphertext, AES_BLOCK_SIZE_BYTES);
     bool mac_matched = aes.decrypt_final(mac);
     return mac_matched && memcmp(plaintext.bytes, expected, sizeof(plaintext.bytes)) == 0;
 }

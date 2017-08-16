@@ -24,38 +24,6 @@ typedef struct
 	uint8_t bytes[AES_CCM_MAC_SIZE_BYTES];
 } aes_ccm_mac_t;
 
-class Counter
-{
-public:
-	Counter();
-	~Counter();
-	void init(uint32_t key_handle, const aes_ccm_nonce_t &nonce);
-	void encode(aes_state_t &out);
-	void reset();
-	void clear();
-private:
-	uint8_t flags;
-	uint16_t counter;
-	uint32_t key_handle;
-	aes_ccm_nonce_t nonce;
-};
-
-class Iv
-{
-public:
-	Iv();
-	~Iv();
-	void init(uint32_t key_handle, const aes_ccm_nonce_t &nonce, uint16_t length);
-	void encode(aes_state_t &out);
-	void reset();
-	void clear();
-private:
-	uint8_t flags;
-	uint16_t length;
-	uint32_t key_handle;
-	aes_ccm_nonce_t nonce;
-};
-
 class AESCCM
 {
 public:
@@ -64,7 +32,7 @@ public:
 	void init(const aes_state_t &key, const uint32_t key_handle, const aes_ccm_nonce_t &nonce, uint16_t message_length);
 	void encrypt_update(aes_state_t &ciphertext, const aes_state_t &plaintext);
 	void encrypt_final(aes_ccm_mac_t &mac);
-	void decrypt_update(aes_state_t &plaintext, const aes_state_t &ciphertext);
+	void decrypt_update(aes_state_t &plaintext, const aes_state_t &ciphertext, uint32_t length);
 	bool decrypt_final(const aes_ccm_mac_t &mac);
 	void reset();
 	void clear();
