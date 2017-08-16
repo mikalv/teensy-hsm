@@ -34,6 +34,7 @@ void AESCCM::init(const aes_state_t &key, const uint32_t key_handle, const aes_c
     this->counter = 0;
     this->key_handle = key_handle;
     this->length = length;
+    this->remaining = length;
     memcpy(this->nonce.bytes, nonce.bytes, sizeof(nonce.bytes));
 
     ctx.init(key);
@@ -43,6 +44,7 @@ void AESCCM::init(const aes_state_t &key, const uint32_t key_handle, const aes_c
 void AESCCM::encrypt_update(aes_state_t &ciphertext, const aes_state_t &plaintext)
 {
     aes_state_t token, tmp;
+    uint32_t step = MIN(remaining, sizeof(tmp.bytes));
 
     /* encrypt */
     generate_token(tmp);
@@ -52,6 +54,7 @@ void AESCCM::encrypt_update(aes_state_t &ciphertext, const aes_state_t &plaintex
     /* update MAC */
     AES::state_xor(tmp, plaintext, tmp_mac);
     ctx.encrypt(tmp_mac, tmp);
+    remaining -= step;
 }
 
 void AESCCM::encrypt_final(aes_ccm_mac_t &mac)
@@ -59,19 +62,21 @@ void AESCCM::encrypt_final(aes_ccm_mac_t &mac)
     memcpy(mac.bytes, tmp_mac.bytes, AES_CCM_MAC_SIZE_BYTES);
 }
 
-void AESCCM::decrypt_update(aes_state_t &plaintext, const aes_state_t &ciphertext, uint32_t length)
+void AESCCM::decrypt_update(aes_state_t &plaintext, const aes_state_t &ciphertext)
 {
     aes_state_t token, tmp;
+    uint32_t step = MIN(remaining, sizeof(tmp.bytes));
 
     /* encrypt */
     generate_token(tmp);
     ctx.encrypt(token, tmp);
     AES::state_xor(plaintext, ciphertext, token);
-    AES::state_truncate(plaintext, length);
+    AES::state_truncate(plaintext, step);
 
     /* update MAC */
     AES::state_xor(tmp, plaintext, tmp_mac);
     ctx.encrypt(tmp_mac, tmp);
+    remaining -= step;
 }
 
 bool AESCCM::decrypt_final(const aes_ccm_mac_t &mac)
@@ -83,6 +88,7 @@ void AESCCM::reset()
 {
     aes_state_t tmp;
 
+    remaining = length;
     counter = 0;
     generate_iv(tmp);
     ctx.encrypt(tmp_mac, tmp);
@@ -92,6 +98,7 @@ void AESCCM::clear()
 {
     counter = 0;
     length = 0;
+    remaining = 0;
     key_handle = 0;
     ctx.clear();
     MEMCLR(tmp_mac);

@@ -160,7 +160,7 @@ int32_t Storage::get_secret(secret_info_t &secret, uint32_t key_handle, const ae
                 MEMCLR(ct);
                 memcpy(ct.bytes, ptr_in, step);
 
-                aes.decrypt_update(pt, ct, step);
+                aes.decrypt_update(pt, ct);
                 memcpy(ptr_out, pt.bytes, step);
 
                 ptr_in += step;
