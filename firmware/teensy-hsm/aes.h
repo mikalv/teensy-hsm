@@ -28,7 +28,6 @@ class AES
 {
 public:
 	AES();
-    AES(const aes_state_t &key);
     ~AES();
     void init(const aes_state_t &key);
     void encrypt(aes_state_t &ciphertext, const aes_state_t &plaintext);

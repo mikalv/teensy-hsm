@@ -5,8 +5,9 @@
 
 class AESCBC {
 public:
-    AESCBC(const aes_state_t &key, const aes_state_t &iv);
+    AESCBC();
     ~AESCBC();
+    void init(const aes_state_t &key, const aes_state_t &iv);
     void encrypt(aes_state_t &ciphertext, const aes_state_t &plaintext);
     void decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext);
     void reset();
