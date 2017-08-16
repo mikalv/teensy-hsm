@@ -22,7 +22,8 @@ static bool encrypt_equals(const uint8_t *input, const uint8_t *key, const uint8
     memcpy(in.bytes, input, sizeof(in.bytes));
     memcpy(tmp.bytes, key, sizeof(tmp.bytes));
 
-    AES aes = AES(tmp);
+    AES aes = AES();
+    aes.init(tmp);
     aes.encrypt(out, in);
     return memcmp(out.bytes, expected, sizeof(out.bytes)) == 0;
 }
@@ -33,7 +34,8 @@ static bool decrypt_equals(const uint8_t *input, const uint8_t *key, const uint8
     memcpy(in.bytes, input, sizeof(in.bytes));
     memcpy(tmp.bytes, key, sizeof(tmp.bytes));
 
-    AES aes = AES(tmp);
+    AES aes = AES();
+    aes.init(tmp);
     aes.decrypt(out, in);
     return memcmp(out.bytes, expected, sizeof(out.bytes)) == 0;
 }
