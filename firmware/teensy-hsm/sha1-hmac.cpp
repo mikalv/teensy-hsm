@@ -21,6 +21,13 @@ SHA1HMAC::SHA1HMAC(const buffer_t &key)
         memcpy(this->opad, key.bytes, key.length);
     }
 
+    /* xor key with ipad */
+    for (uint16_t i = 0; i < sizeof(ipad); i++)
+    {
+        ipad[i] ^= 0x36;
+        opad[i] ^= 0x5c;
+    }
+
     reset();
 }
 
@@ -32,15 +39,9 @@ SHA1HMAC::~SHA1HMAC()
 
 void SHA1HMAC::reset()
 {
-    /* xor key with ipad */
-    for (uint16_t i = 0; i < sizeof(ipad); i++)
-    {
-        ipad[i] ^= 0x36;
-        opad[i] ^= 0x5c;
-    }
-
     /* update hash */
     buffer_t data = buffer_t(ipad, sizeof(ipad));
+    ctx.reset();
     ctx.update(data);
 }
 
