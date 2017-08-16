@@ -2,14 +2,18 @@
 #define __AES_CBC_H__
 
 #include "aes.h"
-#include "buffer.h"
 
-class AESCBC
-{
+class AESCBC {
 public:
-    AESCBC();
-    int32_t encrypt(buffer_t &ciphertext, const buffer_t &plaintext, const aes_state_t &key, const aes_state_t &iv);
-    int32_t decrypt(buffer_t &plaintext, const buffer_t &ciphertext, const aes_state_t &key, const aes_state_t &iv);
+    AESCBC(const aes_state_t &key, const aes_state_t &iv);
+    ~AESCBC();
+    void encrypt(aes_state_t &ciphertext, const aes_state_t &plaintext);
+    void decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext);
+    void reset();
+    void clear();
+private:
+    AES ctx;
+    aes_state_t iv, tmp_enc, tmp_dec;
 };
 
 #endif

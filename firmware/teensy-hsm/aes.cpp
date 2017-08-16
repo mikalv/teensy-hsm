@@ -338,12 +338,15 @@ static const uint32_t td3[] = {
 
 static const uint8_t rcons[] = {0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36};
 
+AES::AES() {
+}
+
 AES::AES(const aes_state_t &key) {
     init(key);
 }
 
-AES::~AES(){
-    MEMCLR(subkeys);
+AES::~AES() {
+    clear();
 }
 
 void AES::encrypt(aes_state_t &ciphertext, const aes_state_t &plaintext)
@@ -376,6 +379,10 @@ void AES::decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext)
       decrypt_step(plaintext, ctx, subkeys[2]);
       decrypt_step (ctx, plaintext, subkeys[1]);
       decrypt_final(plaintext, ctx, subkeys[0]);
+}
+
+void AES::clear(){
+    MEMCLR(subkeys);
 }
 
 void AES::init(const aes_state_t &key)
