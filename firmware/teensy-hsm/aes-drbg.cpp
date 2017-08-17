@@ -52,7 +52,7 @@ int32_t AESDRBG::generate(aes_state_t &random)
     {
         return ERROR_CODE_DRBG_NOT_INITIALIZED;
     }
-    else if (reseed_counter == 0)
+    else if (!reseed_counter)
     {
         return ERROR_CODE_DRBG_EXHAUSTED;
     }
