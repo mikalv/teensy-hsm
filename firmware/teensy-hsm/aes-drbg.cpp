@@ -12,16 +12,15 @@
 #include "macros.h"
 #include "error.h"
 
-#define RESEE_COUNTER_VALUE 0x0001000000000000
+#define RESEED_COUNTER_VALUE 0x0001000000000000
 
-AESDRBG::AESDRBG::()
+AESDRBG::AESDRBG()
 {
     clear();
     initialized = false;
     reseed_counter = 0;
 }
 
-// Instantiate_algorithm (entropy_input, nonce, personalization_string, security_strength)
 void AESDRBG::init(const aes_drbg_entropy_t &seed)
 {
     initialized = false;
@@ -67,8 +66,10 @@ int32_t AESDRBG::generate(aes_state_t &random)
 void AESDRBG::update(const aes_drbg_entropy_t &seed)
 {
     aes_state_t left, right, seed_left, seed_right;
-    AES::state_fill(seed_left, seed.bytes);
-    AES::state_fill(seed_right, seed.bytes + sizeof(seed_right.bytes));
+
+    uint8_t *ptr = seed.bytes;
+    ptr = AES::state_fill(seed_left, ptr);
+    AES::state_fill(seed_right, ptr);
 
     AES::state_increment(value);
     aes.encrypt(left, value);

@@ -415,9 +415,10 @@ void AES::decrypt_final(aes_state_t &dst, const aes_state_t &src, const aes_stat
     state_xor(dst, dst, key);
 }
 
-void AES::state_fill(aes_state_t &dst, uint8_t *data)
+uint8_t *AES::state_fill(aes_state_t &dst, uint8_t *data)
 {
     memcpy(dst.bytes, data, sizeof(dst.bytes));
+    return data + sizeof(dst.bytes);
 }
 
 void AES::state_xor(aes_state_t &dst, const aes_state_t &src1, const aes_state_t &src2)
