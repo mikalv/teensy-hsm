@@ -37,6 +37,7 @@ public:
 	static void state_xor(aes_state_t &dst, const aes_state_t &src1, const aes_state_t &src2);
 	static void state_copy(aes_state_t &dst, const aes_state_t &src);
 	static void state_truncate(aes_state_t &state, uint32_t length);
+	static void state_increment(aes_state_t &state);
 #ifdef DEBUG_AES
 	static void state_dump(const char *title, const aes_state_t &state);
 #endif
