@@ -22,11 +22,12 @@ public:
     AESDRBG();
     void init(const aes_drbg_entropy_t &seed);
     int32_t generate(aes_state_t &random);
-    void update(const aes_drbg_entropy_t &seed);
     void reseed(const aes_drbg_entropy_t &seed);
 private:
+    void update(const aes_drbg_entropy_t &seed);
     void clear();
     AES aes;
+    bool initialized;
     aes_state_t key, value;
     uint64_t reseed_counter;
 };

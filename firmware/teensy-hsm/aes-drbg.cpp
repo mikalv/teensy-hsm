@@ -17,16 +17,28 @@
 AESDRBG::AESDRBG::()
 {
     clear();
+    initialized = false;
     reseed_counter = 0;
 }
 
 // Instantiate_algorithm (entropy_input, nonce, personalization_string, security_strength)
 void AESDRBG::init(const aes_drbg_entropy_t &seed)
 {
-    clear();
+    initialized = false;
+    reseed(seed);
+}
+
+void AESDRBG::reseed(const aes_drbg_entropy_t &seed)
+{
+    if (!initialized)
+    {
+        initialized = true;
+
+        clear();
+        aes.init(key);
+    }
 
     /* derive key and value from seed */
-    aes.init(key);
     update(seed);
 
     /* initialize with derived key */
@@ -36,7 +48,11 @@ void AESDRBG::init(const aes_drbg_entropy_t &seed)
 
 int32_t AESDRBG::generate(aes_state_t &random)
 {
-    if (reseed_counter == 0)
+    if (!initialized)
+    {
+        return ERROR_CODE_DRBG_NOT_INITIALIZED;
+    }
+    else if (reseed_counter == 0)
     {
         return ERROR_CODE_DRBG_EXHAUSTED;
     }
@@ -61,16 +77,6 @@ void AESDRBG::update(const aes_drbg_entropy_t &seed)
     AES::state_increment(value);
     aes.encrypt(right, value);
     AES::state_xor(value, right, seed_right);
-}
-
-void AESDRBG::reseed(const aes_drbg_entropy_t &seed)
-{
-    /* derive key and value from seed */
-    update(seed);
-
-    /* initialize with derived key */
-    aes.init(key);
-    reseed_counter = RESEED_COUNTER_VALUE;
 }
 
 void AESDRBG::clear()
