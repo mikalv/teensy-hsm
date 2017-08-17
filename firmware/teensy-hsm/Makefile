@@ -12,6 +12,9 @@ test-sha1-hmac: sha1.cpp sha1-hmac.cpp test/test-sha1-hmac.cpp
 test-aes: aes.cpp test/test-aes.cpp
 	@g++ -I. $(USER_DEFINES) $^ -o test-runner && ./test-runner
 
+test-aes-drbg: aes.cpp aes-drbg.cpp test/test-aes-drbg.cpp
+	@g++ -I. $(USER_DEFINES) $^ -o test-runner && ./test-runner
+
 test-aes-cbc: aes.cpp aes-cbc.cpp test/test-aes-cbc.cpp
 	@g++ -I. $(USER_DEFINES) $^ -o test-runner && ./test-runner
 
