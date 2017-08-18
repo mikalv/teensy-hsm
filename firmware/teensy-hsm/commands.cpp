@@ -125,6 +125,10 @@ int32_t Commands::aead_generate(packet_t &output, const packet_t &input)
     {
         return ERROR_CODE_INVALID_REQUEST;
     }
+    else if (request.data_len > sizeof(request.data))
+    {
+        return ERROR_CODE_INVALID_REQUEST;
+    }
 
     /* get key */
     uint32_t key_handle = READ32(request.key_handle);
@@ -157,15 +161,13 @@ int32_t Commands::aead_generate(packet_t &output, const packet_t &input)
     aes.init(key, key_handle, nonce, request.data_len);
 
     /* encrypt data */
-    uint32_t max_ciphertext = (sizeof(response.data) - sizeof(mac.bytes));
-    uint32_t length = MIN(request.data_len, max_ciphertext);
-    uint32_t remaining = length;
+    uint32_t length = request.data_len;
     uint8_t *src_data = request.data;
     uint8_t *dst_data = response.data;
-    while (remaining)
+    while (length)
     {
         MEMCLR(pt);
-        uint32_t step = MIN(remaining, sizeof(pt.bytes));
+        uint32_t step = MIN(length, sizeof(pt.bytes));
         memcpy(pt.bytes, src_data, step);
 
         aes.encrypt_update(ct, pt);
@@ -173,14 +175,14 @@ int32_t Commands::aead_generate(packet_t &output, const packet_t &input)
 
         src_data += step;
         dst_data += step;
-        remaining -= step;
+        length -= step;
     }
 
     aes.encrypt_final(mac);
 
     /* copy key handle and nonce */
     response.status = THSM_STATUS_OK;
-    response.data_len = length + sizeof(mac.bytes);
+    response.data_len = request.data_len + sizeof(mac.bytes);
     memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
     memcpy(response.nonce, nonce.bytes, sizeof(nonce.bytes));
     memcpy(dst_data, mac.bytes, sizeof(mac.bytes));
