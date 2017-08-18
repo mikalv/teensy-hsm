@@ -560,8 +560,8 @@ int32_t Commands::random_generate(packet_t &output, const packet_t &input)
     }
 
     /* initialize buffer */
-    memcpy(&request, input.bytes, sizeof(request));
     MEMCLR(response);
+    memcpy(&request, input.bytes, sizeof(request));
 
     /* truncate requested length */
     uint8_t *ptr = response.bytes;
@@ -591,9 +591,28 @@ int32_t Commands::random_generate(packet_t &output, const packet_t &input)
     return ERROR_CODE_NONE;
 }
 
-int32_t Commands::random_reseed(packet_t &response, const packet_t &request)
+int32_t Commands::random_reseed(packet_t &output, const packet_t &input)
 {
-    /* FIXME add implementation */
+    THSM_RANDOM_RESEED_REQ request;
+    THSM_RANDOM_RESEED_RESP response;
+    aes_drbg_entropy_t entropy;
+
+    if (input.length < sizeof(request))
+    {
+        return ERROR_CODE_INVALID_REQUEST;
+    }
+
+    MEMCLR(response);
+    memcpy(&request, input.bytes, sizeof(request));
+    memcpy(entropy.bytes, request.seed, sizeof(entropy.bytes));
+
+    /* reseed */
+    drbg.reseed(entropy);
+
+    response.status = THSM_STATUS_OK;
+    output.length = sizeof(response);
+    memcpy(output.bytes, &response, sizeof(response));
+    return ERROR_CODE_NONE;
 }
 
 int32_t Commands::system_info_query(packet_t &response, const packet_t &request)
@@ -643,15 +662,6 @@ static void cmd_info_query()
     response.payload.system_info.version_build = 4;
     response.payload.system_info.protocol_version = THSM_PROTOCOL_VERSION;
     memcpy(response.payload.system_info.system_uid, "Teensy HSM  ", THSM_SYSTEM_ID_SIZE);
-}
-
-static void cmd_random_reseed()
-{
-    response.bcnt = 2;
-    response.payload.random_reseed.status = THSM_STATUS_OK;
-
-    /* reseed drbg */
-    drbg_reseed(request.payload.random_reseed.seed);
 }
 
 static void cmd_hmac_sha1_generate()
