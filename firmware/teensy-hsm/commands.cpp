@@ -53,6 +53,277 @@ typedef struct
     uint8_t data[AES_CCM_MAX_AEAD_LENGTH_BYTES];
 } THSM_AEAD_GENERATE_RESP;
 
+typedef struct
+{
+    uint8_t nonce[THSM_AEAD_NONCE_SIZE];
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+} THSM_BUFFER_AEAD_GENERATE_REQ;
+
+typedef struct
+{
+    uint8_t nonce[THSM_AEAD_NONCE_SIZE];
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t status;
+    uint8_t data_len;
+    uint8_t data[THSM_AEAD_MAX_SIZE];
+} THSM_BUFFER_AEAD_GENERATE_RESP;
+
+typedef struct
+{
+    uint8_t nonce[THSM_AEAD_NONCE_SIZE];
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t random_len;
+} THSM_RANDOM_AEAD_GENERATE_REQ;
+
+typedef struct
+{
+    uint8_t nonce[THSM_AEAD_NONCE_SIZE];
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t status;
+    uint8_t data_len;
+    uint8_t data[THSM_AEAD_MAX_SIZE];
+} THSM_RANDOM_AEAD_GENERATE_RESP;
+
+typedef struct
+{
+    uint8_t nonce[THSM_AEAD_NONCE_SIZE];
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t data_len;
+    uint8_t data[THSM_MAX_PKT_SIZE - 0x10];
+} THSM_AEAD_DECRYPT_CMP_REQ;
+
+typedef struct
+{
+    uint8_t nonce[THSM_AEAD_NONCE_SIZE];
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t status;
+} THSM_AEAD_DECRYPT_CMP_RESP;
+
+typedef struct
+{
+    uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t aead[THSM_AEAD_SIZE]; // key || nonce || mac
+} THSM_DB_AEAD_STORE_REQ;
+
+typedef struct
+{
+    uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t status;
+} THSM_DB_AEAD_STORE_RESP;
+
+typedef struct
+{
+    uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t otp[THSM_OTP_SIZE];
+    uint8_t aead[THSM_AEAD_SIZE];
+} THSM_AEAD_OTP_DECODE_REQ;
+
+typedef struct
+{
+    uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t counter_timestamp[THSM_AEAD_NONCE_SIZE]; // uint16_use_ctr | uint8_session_ctr | uint24_timestamp
+    uint8_t status;
+} THSM_AEAD_OTP_DECODE_RESP;
+
+typedef struct
+{
+    uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+    uint8_t otp[THSM_OTP_SIZE];
+} THSM_DB_OTP_VALIDATE_REQ;
+
+typedef struct
+{
+    uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+    uint8_t counter_timestamp[THSM_AEAD_NONCE_SIZE]; // uint16_use_ctr | uint8_session_ctr | uint24_timestamp
+    uint8_t status;
+} THSM_DB_OTP_VALIDATE_RESP;
+
+typedef struct
+{
+    uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t aead[THSM_AEAD_SIZE]; // key || nonce || mac
+    uint8_t nonce[THSM_AEAD_NONCE_SIZE];
+} THSM_DB_AEAD_STORE2_REQ;
+
+typedef struct
+{
+    uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t status;
+} THSM_DB_AEAD_STORE2_RESP;
+
+typedef struct
+{
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t plaintext[THSM_BLOCK_SIZE];
+} THSM_AES_ECB_BLOCK_ENCRYPT_REQ;
+
+typedef struct
+{
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t ciphertext[THSM_BLOCK_SIZE];
+    uint8_t status;
+} THSM_AES_ECB_BLOCK_ENCRYPT_RESP;
+
+typedef struct
+{
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t ciphertext[THSM_BLOCK_SIZE];
+} THSM_AES_ECB_BLOCK_DECRYPT_REQ;
+
+typedef struct
+{
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t plaintext[THSM_BLOCK_SIZE];
+    uint8_t status;
+} THSM_AES_ECB_BLOCK_DECRYPT_RESP;
+
+typedef struct
+{
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t status;
+} THSM_AES_ECB_BLOCK_DECRYPT_CMP_RESP;
+
+typedef struct
+{
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t ciphertext[THSM_BLOCK_SIZE];
+    uint8_t plaintext[THSM_BLOCK_SIZE];
+} THSM_AES_ECB_BLOCK_DECRYPT_CMP_REQ;
+
+typedef struct
+{
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t flags;
+    uint8_t data_len;
+    uint8_t data[THSM_MAX_PKT_SIZE - 6];
+} THSM_HMAC_SHA1_GENERATE_REQ;
+
+typedef struct
+{
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t status;
+    uint8_t data_len;
+    uint8_t data[THSM_SHA1_HASH_SIZE];
+} THSM_HMAC_SHA1_GENERATE_RESP;
+
+typedef struct
+{
+    uint8_t nonce[THSM_AEAD_NONCE_SIZE];
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t data_len;
+    uint8_t data[THSM_MAX_KEY_SIZE + sizeof(uint32_t) + THSM_AEAD_MAC_SIZE];
+} THSM_TEMP_KEY_LOAD_REQ;
+
+typedef struct
+{
+    uint8_t nonce[THSM_AEAD_NONCE_SIZE];
+    uint8_t key_handle[THSM_KEY_HANDLE_SIZE];
+    uint8_t status;
+} THSM_TEMP_KEY_LOAD_RESP;
+
+typedef struct
+{
+    uint8_t offset;
+    uint8_t data_len;
+    uint8_t data[THSM_DATA_BUF_SIZE];
+} THSM_BUFFER_LOAD_REQ;
+
+typedef struct
+{
+    uint8_t length;
+} THSM_BUFFER_LOAD_RESP;
+
+typedef struct
+{
+    uint8_t offset;
+    uint8_t length;
+} THSM_BUFFER_RANDOM_LOAD_REQ;
+
+typedef struct
+{
+    uint8_t length;
+} THSM_BUFFER_RANDOM_LOAD_RESP;
+
+typedef struct
+{
+    uint8_t post_inc[sizeof(uint16_t)];
+} THSM_NONCE_GET_REQ;
+
+typedef struct
+{
+    uint8_t status;
+    uint8_t nonce[THSM_AEAD_NONCE_SIZE];
+} THSM_NONCE_GET_RESP;
+
+typedef struct
+{
+    uint8_t data_len;
+    uint8_t data[THSM_MAX_PKT_SIZE - 1];
+} THSM_ECHO_REQ;
+
+typedef struct
+{
+    uint8_t data_len;
+    uint8_t data[THSM_MAX_PKT_SIZE - 1];
+} THSM_ECHO_RESP;
+
+typedef struct
+{
+    uint8_t bytes_len;
+} THSM_RANDOM_GENERATE_REQ;
+
+typedef struct
+{
+    uint8_t bytes_len;
+    uint8_t bytes[THSM_MAX_PKT_SIZE - 1];
+} THSM_RANDOM_GENERATE_RESP;
+
+typedef struct
+{
+    uint8_t seed[AES_DRBG_SEED_SIZE_BYTES];
+} THSM_RANDOM_RESEED_REQ;
+
+typedef struct
+{
+    uint8_t status;
+} THSM_RANDOM_RESEED_RESP;
+
+typedef struct
+{
+    uint8_t version_major;             // Major version number
+    uint8_t version_minor;             // Minor version number
+    uint8_t version_build;             // Build version number
+    uint8_t protocol_version;          // Protocol version number
+    uint8_t system_uid[THSM_SYSTEM_ID_SIZE]; // System unique identifier
+} THSM_SYSTEM_INFO_QUERY_RESP;
+
+typedef struct
+{
+    uint8_t public_id[THSM_PUBLIC_ID_SIZE];
+    uint8_t otp[THSM_OTP_SIZE];
+} THSM_HSM_UNLOCK_REQ;
+
+typedef struct
+{
+    uint8_t status;
+} THSM_HSM_UNLOCK_RESP;
+
+typedef struct
+{
+    uint8_t key[THSM_MAX_KEY_SIZE];
+} THSM_KEY_STORE_DECRYPT_REQ;
+
+typedef struct
+{
+    uint8_t status;
+} THSM_KEY_STORE_DECRYPT_RESP;
+
 Commands::Commands()
 {
     flags = Flags();
@@ -150,16 +421,21 @@ int32_t Commands::aead_generate(packet_t &output, const packet_t &input)
     }
 
     /* generate nonce if it is null */
+    aes_ccm_nonce_t nonce;
     if (Util::is_empty(request.nonce, sizeof(request.nonce)))
     {
-        // FIXME generate nonce
+        aes_state_t random;
+        drbg.generate(random);
+        memcpy(nonce.bytes, random.bytes, sizeof(nonce.bytes));
+    }
+    else
+    {
+        memcpy(nonce.bytes, request.nonce, sizeof(nonce.bytes));
     }
 
     aes_state_t key, pt, ct;
-    aes_ccm_nonce_t nonce;
     aes_ccm_mac_t mac;
     AES::state_fill(key, key_info.bytes);
-    memcpy(nonce.bytes, request.nonce, sizeof(request.nonce));
 
     AESCCM aes = AESCCM();
     aes.init(key, key_handle, nonce, request.data_len);
@@ -195,90 +471,112 @@ int32_t Commands::aead_generate(packet_t &output, const packet_t &input)
 
 int32_t Commands::buffer_aead_generate(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::random_aead_generate(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::aead_decrypt_cmp(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::db_aead_store(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::aead_otp_decode(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::db_otp_validate(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::db_aead_store2(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::aes_ecb_block_encrypt(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::aes_ecb_block_decrypt(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::aes_ecb_block_decrypt_cmp(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::hmac_sha1_generate(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::temp_key_load(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::buffer_load(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::buffer_random_load(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::nonce_get(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::echo(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::random_generate(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::random_reseed(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::system_info_query(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::hsm_unlock(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::key_store_decrypt(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 int32_t Commands::monitor_exit(packet_t &response, const packet_t &request)
 {
+    /* FIXME add implementation */
 }
 
 //--------------------------------------------------------------------------------------------------

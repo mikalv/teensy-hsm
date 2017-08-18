@@ -6,6 +6,7 @@
 #include "buffer.h"
 #include "sizes.h"
 #include "storage.h"
+#include "aes-drbg.h"
 
 //------------------------------------------------------------------------------
 // Response Flags
@@ -64,5 +65,6 @@ private:
     int32_t monitor_exit(packet_t &response, const packet_t &request);
     Flags flags;
     Storage storage;
+    AESDRBG drbg;
 };
 #endif
