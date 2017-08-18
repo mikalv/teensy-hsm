@@ -4,8 +4,6 @@
 #include <stdint.h>
 #include "commands.h"
 
-#define THSM_MAX_PKT_SIZE        0x60 // Max size of a packet (excluding command byte)
-
 typedef struct
 {
     uint8_t bcnt;
@@ -25,7 +23,7 @@ class HSM
 public:
     HSM();
     void init();
-    void run();
+    void process(uint8_t byte);
 private:
     THSM_PKT_REQ request;
     THSM_PKT_REQ response;

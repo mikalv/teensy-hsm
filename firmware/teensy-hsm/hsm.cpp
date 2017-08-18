@@ -8,6 +8,6 @@ void HSM::init()
 {
 }
 
-void HSM::run()
+void HSM::process(uint8_t byte)
 {
 }

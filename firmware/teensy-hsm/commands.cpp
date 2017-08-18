@@ -549,9 +549,46 @@ int32_t Commands::echo(packet_t &response, const packet_t &request)
     /* FIXME add implementation */
 }
 
-int32_t Commands::random_generate(packet_t &response, const packet_t &request)
+int32_t Commands::random_generate(packet_t &output, const packet_t &input)
 {
-    /* FIXME add implementation */
+    THSM_RANDOM_GENERATE_REQ request;
+    THSM_RANDOM_GENERATE_RESP response;
+
+    if (input.length < sizeof(request))
+    {
+        return ERROR_CODE_INVALID_REQUEST;
+    }
+
+    /* initialize buffer */
+    memcpy(&request, input.bytes, sizeof(request));
+    MEMCLR(response);
+
+    /* truncate requested length */
+    uint8_t *ptr = response.bytes;
+    uint8_t length = MIN(request.bytes_len, sizeof(response.bytes));
+    response.bytes_len = length;
+
+    while (length)
+    {
+        aes_state_t random;
+        int32_t ret = drbg.generate(random);
+        if (ret < 0)
+        {
+            return ret;
+        }
+
+        uint32_t step = MIN(length, sizeof(random.bytes));
+        memcpy(ptr, random.bytes, step);
+
+        ptr += step;
+        length -= step;
+    }
+
+    uint32_t output_length = (response.bytes_len + 1);
+    output.length = output_length;
+    memcpy(output.bytes, &response, output_length);
+
+    return ERROR_CODE_NONE;
 }
 
 int32_t Commands::random_reseed(packet_t &response, const packet_t &request)
@@ -577,101 +614,6 @@ int32_t Commands::key_store_decrypt(packet_t &response, const packet_t &request)
 int32_t Commands::monitor_exit(packet_t &response, const packet_t &request)
 {
     /* FIXME add implementation */
-}
-
-//--------------------------------------------------------------------------------------------------
-// GLobal variables
-//--------------------------------------------------------------------------------------------------
-static FastCRC16 CRC16;
-extern THSM_BUFFER thsm_buffer;
-extern THSM_PKT_REQ request;
-extern THSM_PKT_RESP response;
-extern hmac_sha1_ctx_t hmac_sha1_ctx;
-
-//--------------------------------------------------------------------------------------------------
-// Functions
-//--------------------------------------------------------------------------------------------------
-void execute_cmd()
-{
-    led_on();
-
-    /* cleanup response and set flag */
-    memset(&response, 0, sizeof(response));
-    response.cmd = request.cmd | THSM_FLAG_RESPONSE;
-
-    switch (request.cmd)
-    {
-    case THSM_CMD_BUFFER_AEAD_GENERATE:
-        cmd_buffer_aead_generate();
-        break;
-    case THSM_CMD_RANDOM_AEAD_GENERATE:
-        cmd_random_aead_generate();
-        break;
-    case THSM_CMD_AEAD_DECRYPT_CMP:
-        cmd_aead_decrypt_cmp();
-        break;
-    case THSM_CMD_DB_AEAD_STORE:
-        cmd_db_aead_store();
-        break;
-    case THSM_CMD_AEAD_OTP_DECODE:
-        cmd_aead_otp_decode();
-        break;
-    case THSM_CMD_DB_OTP_VALIDATE:
-        cmd_db_otp_validate();
-        break;
-    case THSM_CMD_DB_AEAD_STORE2:
-        cmd_db_aead_store2();
-        break;
-    case THSM_CMD_AES_ECB_BLOCK_ENCRYPT:
-        cmd_ecb_encrypt();
-        break;
-    case THSM_CMD_AES_ECB_BLOCK_DECRYPT:
-        cmd_ecb_decrypt();
-        break;
-    case THSM_CMD_AES_ECB_BLOCK_DECRYPT_CMP:
-        cmd_ecb_decrypt_cmp();
-        break;
-    case THSM_CMD_HMAC_SHA1_GENERATE:
-        cmd_hmac_sha1_generate();
-        break;
-    case THSM_CMD_TEMP_KEY_LOAD:
-        cmd_temp_key_load();
-        break;
-    case THSM_CMD_BUFFER_LOAD:
-        cmd_buffer_load();
-        break;
-    case THSM_CMD_BUFFER_RANDOM_LOAD:
-        cmd_buffer_random_load();
-        break;
-    case THSM_CMD_NONCE_GET:
-        cmd_nonce_get();
-        break;
-    case THSM_CMD_ECHO:
-        cmd_echo();
-        break;
-    case THSM_CMD_RANDOM_GENERATE:
-        cmd_random_generate();
-        break;
-    case THSM_CMD_RANDOM_RESEED:
-        cmd_random_reseed();
-        break;
-    case THSM_CMD_SYSTEM_INFO_QUERY:
-        cmd_info_query();
-        break;
-    case THSM_CMD_HSM_UNLOCK:
-        cmd_hsm_unlock();
-        break;
-    case THSM_CMD_KEY_STORE_DECRYPT:
-        cmd_key_store_decrypt();
-        break;
-    case THSM_CMD_MONITOR_EXIT:
-        break;
-    }
-
-    /* send data */
-    Serial.write((const char *) &response, (response.bcnt + 1));
-
-    led_off();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -701,17 +643,6 @@ static void cmd_info_query()
     response.payload.system_info.version_build = 4;
     response.payload.system_info.protocol_version = THSM_PROTOCOL_VERSION;
     memcpy(response.payload.system_info.system_uid, "Teensy HSM  ", THSM_SYSTEM_ID_SIZE);
-}
-
-static void cmd_random_generate()
-{
-    uint8_t curr_length = request.payload.random_generate.bytes_len;
-    uint8_t max_length = sizeof(response.payload.random_generate.bytes);
-    uint8_t length = (curr_length > max_length) ? max_length : curr_length;
-
-    response.bcnt = length + 2;
-    response.payload.random_generate.bytes_len = length;
-    drbg_read(response.payload.random_generate.bytes, length);
 }
 
 static void cmd_random_reseed()
