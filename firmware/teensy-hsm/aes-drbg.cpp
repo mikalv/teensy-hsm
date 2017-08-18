@@ -63,6 +63,36 @@ int32_t AESDRBG::generate(aes_state_t &random)
     return ERROR_CODE_NONE;
 }
 
+int32_t AESDRBG::generate(buffer_t &output, uint32_t length)
+{
+    if (length > sizeof(output.bytes))
+    {
+        return ERROR_CODE_INVALID_REQUEST;
+    }
+
+    MEMCLR(output);
+    output.length = length;
+    uint8_t *ptr = output.bytes;
+
+    while (length)
+    {
+        aes_state_t random;
+        int32_t ret = generate(random);
+        if (ret < 0)
+        {
+            return ret;
+        }
+
+        uint32_t step = MIN(length, sizeof(random.bytes));
+        memcpy(ptr, random.bytes, step);
+
+        ptr += step;
+        length -= step;
+    }
+
+    return ERROR_CODE_NONE;
+}
+
 void AESDRBG::update(const aes_drbg_entropy_t &seed)
 {
     aes_state_t left, right, seed_left, seed_right;
