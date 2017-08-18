@@ -35,6 +35,9 @@
 Commands::Commands()
 {
     flags = Flags();
+    //drbg.init()
+    buffer.init();
+    storage.init();
 }
 
 int32_t Commands::process(uint8_t cmd, packet_t &response, const packet_t &request)
@@ -195,9 +198,88 @@ int32_t Commands::aead_generate(packet_t &output, const packet_t &input)
     return ERROR_CODE_NONE;
 }
 
-int32_t Commands::buffer_aead_generate(packet_t &response, const packet_t &request)
+int32_t Commands::buffer_aead_generate(packet_t &output, const packet_t &input)
 {
-    /* FIXME add implementation */
+    THSM_BUFFER_AEAD_GENERATE_REQ request;
+    THSM_BUFFER_AEAD_GENERATE_RESP response;
+    aes_state_t key, pt, ct;
+    aes_ccm_mac_t mac;
+    key_info_t key_info;
+    aes_ccm_nonce_t nonce;
+
+    /* check against minimum length */
+    if (input.length < sizeof(request))
+    {
+        return ERROR_CODE_INVALID_REQUEST;
+    }
+
+    /* initialize buffers */
+    MEMCLR(response);
+    memcpy(&request, input.bytes, MIN(sizeof(request), input.length));
+
+    /* get key */
+    uint32_t key_handle = READ32(request.key_handle);
+    int ret = storage.get_key(key_info, key_handle);
+    if (ret < 0)
+    {
+        return ret;
+    }
+
+    /* generate nonce if it is null */
+    if (Util::is_empty(request.nonce, sizeof(request.nonce)))
+    {
+        aes_state_t random;
+        int32_t ret = drbg.generate(random);
+        if (ret < 0)
+        {
+            return ret;
+        }
+
+        memcpy(nonce.bytes, random.bytes, sizeof(nonce.bytes));
+    }
+    else
+    {
+        memcpy(nonce.bytes, request.nonce, sizeof(nonce.bytes));
+    }
+
+    /* initialize AES-CCM */
+    AESCCM aes = AESCCM();
+    AES::state_fill(key, key_info.bytes);
+    aes.init(key, key_handle, nonce, request.data_len);
+
+    /* encrypt data */
+    uint32_t length = request.data_len;
+    uint8_t *src_data = request.data;
+    uint8_t *dst_data = response.data;
+    while (length)
+    {
+        MEMCLR(pt);
+        uint32_t step = MIN(length, sizeof(pt.bytes));
+        memcpy(pt.bytes, src_data, step);
+
+        aes.encrypt_update(ct, pt);
+        memcpy(dst_data, ct.bytes, step);
+
+        src_data += step;
+        dst_data += step;
+        length -= step;
+    }
+
+    aes.encrypt_final(mac);
+
+    /* copy key handle and nonce */
+    response.status = THSM_STATUS_OK;
+    response.data_len = request.data_len + sizeof(mac.bytes);
+    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
+    memcpy(response.nonce, nonce.bytes, sizeof(nonce.bytes));
+    memcpy(dst_data, mac.bytes, sizeof(mac.bytes));
+
+    /* copy to output */
+    uint32_t output_length = response.data_len + 12;
+    output.length = output_length;
+    memcpy(output.bytes, &response, output_length);
+
+    return ERROR_CODE_NONE;
 }
 
 int32_t Commands::random_aead_generate(packet_t &response, const packet_t &request)

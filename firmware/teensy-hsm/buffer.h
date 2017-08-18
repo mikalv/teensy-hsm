@@ -5,34 +5,33 @@
 // Imports
 //------------------------------------------------------------------------------
 #include <stdint.h>
-#include <string.h>
-#include "sizes.h"
-#include "macros.h"
 
-#define BUFFER_SIZE_BYTES   72
+#define BUFFER_SIZE_BYTES   64
 
 //------------------------------------------------------------------------------
 // Data Structure
 //------------------------------------------------------------------------------
-typedef struct {
-    uint8_t data_len;
-    uint8_t data[THSM_DATA_BUF_SIZE];
-} THSM_BUFFER;
-
-typedef struct buffer_t {
-public:
-    buffer_t(uint8_t *bytes, uint32_t length) {
-        this->bytes = bytes;
-        this->length = length;
-    }
-
-    uint8_t *bytes;
+typedef struct buffer_t
+{
+    uint8_t bytes[BUFFER_SIZE_BYTES];
     uint32_t length;
 } buffer_t;
 
 //------------------------------------------------------------------------------
-// Function Prototypes
+// Classes
 //------------------------------------------------------------------------------
-void buffer_init();
+class Buffer
+{
+public:
+    Buffer();
+    ~Buffer();
+    void init();
+    void clear();
+    void encode(buffer_t buffer);
+    int32_t write(uint32_t offset, const uint8_t *data, uint32_t data_len);
+private:
+    uint32_t length;
+    uint8_t bytes[BUFFER_SIZE_BYTES];
+};
 
 #endif

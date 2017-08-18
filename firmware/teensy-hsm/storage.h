@@ -86,6 +86,8 @@ class Storage
 {
 public:
     Storage();
+    ~Storage();
+    void init();
     int32_t load(const aes_state_t &key, const aes_state_t &iv);
     void store(const aes_state_t &key, const aes_state_t &iv);
     int32_t get_key(key_info_t &key, uint32_t key_handle);

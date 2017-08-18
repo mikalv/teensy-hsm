@@ -10,6 +10,7 @@
 #include <stdio.h>
 #endif
 
+#include <string.h>
 #include "error.h"
 #include "storage.h"
 #include "aes-cbc.h"
@@ -18,11 +19,17 @@
 
 Storage::Storage()
 {
-    storage_decrypted = false;
-    secret_unlocked = false;
-#ifdef DEBUG_STORAGE
-    MEMCLR(nv_storage);
-#endif
+    clear();
+}
+
+Storage::~Storage()
+{
+    clear();
+}
+
+void Storage::init()
+{
+    clear();
 }
 
 int32_t Storage::load(const aes_state_t &key, const aes_state_t &iv)
@@ -254,6 +261,10 @@ void Storage::clear()
     storage_decrypted = false;
     secret_unlocked = false;
     MEMCLR(storage);
+
+#ifdef DEBUG_STORAGE
+    MEMCLR(nv_storage);
+#endif
 }
 
 void Storage::format(const aes_state_t &key, const aes_state_t &iv)

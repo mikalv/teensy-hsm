@@ -68,5 +68,6 @@ private:
     Flags flags;
     Storage storage;
     AESDRBG drbg;
+    Buffer buffer;
 };
 #endif
