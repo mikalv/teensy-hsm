@@ -25,6 +25,9 @@ void Buffer::clear()
 
 void Buffer::encode(buffer_t buffer)
 {
+    MEMCLR(buffer);
+    memcpy(buffer.bytes, bytes, length);
+    buffer.length = length;
 }
 
 int32_t Buffer::write(uint32_t offset, const uint8_t *data, uint32_t data_len)

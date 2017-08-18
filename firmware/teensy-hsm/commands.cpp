@@ -1,3 +1,4 @@
+#include <string.h>
 #include "commands-private.h"
 #include "macros.h"
 #include "aes.h"
@@ -206,6 +207,7 @@ int32_t Commands::buffer_aead_generate(packet_t &output, const packet_t &input)
     aes_ccm_mac_t mac;
     key_info_t key_info;
     aes_ccm_nonce_t nonce;
+    buffer_t encoded;
 
     /* check against minimum length */
     if (input.length < sizeof(request))
@@ -242,14 +244,17 @@ int32_t Commands::buffer_aead_generate(packet_t &output, const packet_t &input)
         memcpy(nonce.bytes, request.nonce, sizeof(nonce.bytes));
     }
 
+    /* encode buffer */
+    buffer.encode(encoded);
+
     /* initialize AES-CCM */
     AESCCM aes = AESCCM();
     AES::state_fill(key, key_info.bytes);
-    aes.init(key, key_handle, nonce, request.data_len);
+    aes.init(key, key_handle, nonce, encoded.length);
 
     /* encrypt data */
-    uint32_t length = request.data_len;
-    uint8_t *src_data = request.data;
+    uint32_t length = encoded.length;
+    uint8_t *src_data = encoded.bytes;
     uint8_t *dst_data = response.data;
     while (length)
     {
