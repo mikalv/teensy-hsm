@@ -4,6 +4,7 @@
 #include "aes.h"
 #include "error.h"
 #include "util.h"
+#include "crc16.h"
 
 //------------------------------------------------------------------------------
 // Command Identifier
@@ -436,19 +437,31 @@ int32_t Commands::aead_otp_decode(packet_t &output, const packet_t &input)
     {
         secret_info_t secret_info;
         aes_state_t key, pt, ct;
-        uint8_t timestamp[6];
         Util::unpack_secret(secret_info, plaintext);
         AES::state_copy(key, secret_info.key);
         AES::state_copy(pt, request.otp);
 
+        CRC16 crc = CRC16();
         AES aes2 = AES();
         aes2.init(key);
         aes2.decrypt(pt, ct);
 
-        /* FIXME check decrypted otp */
+        // decrypted OTP
+        // -------------------------------------------------
+        // |00|01|02|03|04|05|06|07|08|09|10|11|12|13|14|15|
+        // -------------------------------------------------
+        // |       uid       | ctr | tstamp |su| rnd |crc16|
+        // -------------------------------------------------
 
-        response.status = THSM_STATUS_OK;
-        memcpy(response.counter_timestamp, timestamp, sizeof(response.counter_timestamp));
+        response.status = THSM_STATUS_OTP_INVALID;
+        uint16_t crc_ref = READ16(pt.bytes + 14);
+        bool crc_match = crc.ccit(pt.bytes, 14) == crc_ref;
+        bool uid_match = memcmp(pt.bytes, secret_info.uid, sizeof(secret_info.uid)) == 0;
+        if (crc_match && uid_match)
+        {
+            response.status = THSM_STATUS_OK;
+            memcpy(response.counter_timestamp, (pt.bytes + 8), sizeof(response.counter_timestamp));
+        }
     }
 
     /* copy key handle and nonce */
