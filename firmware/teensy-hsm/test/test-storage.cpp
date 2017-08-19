@@ -18,6 +18,7 @@ static void hexdump(const char * title, uint8_t *data, uint32_t length)
 
 int main(void)
 {
+    int32_t ret;
     aes_state_t key, iv;
     key_info_t key_info;
     secret_info_t secret_info;
@@ -36,42 +37,50 @@ int main(void)
 
     /* format and load */
     Storage storage = Storage();
+
+    printf("formatting storage\n");
     storage.format(key, iv);
 
     /* load */
     storage.clear();
-    if (storage.load(key, iv) < 0)
+
+    ret = storage.load(key, iv);
+    if (ret < 0)
     {
-        printf("failed to load storage");
+        printf("failed to load storage (error %d)\n", ret);
         exit(1);
     }
 
     /* put key and store */
-    if (storage.put_key(key_info) < 0)
+    ret = storage.put_key(key_info);
+    if (ret < 0)
     {
-        printf("failed to put key\n");
+        printf("failed to put key (error %d)\n", ret);
         exit(1);
     }
 
-    if (storage.put_secret(secret_info, KEY_HANDLE, public_id) < 0)
+    ret = storage.put_secret(secret_info, KEY_HANDLE, public_id);
+    if (ret < 0)
     {
-        printf("failed to put secret\n");
+        printf("failed to put secret (error %d)\n", ret);
         exit(1);
     }
     storage.store(key, iv);
 
     /* load and dump */
     storage.clear();
-    if (storage.load(key, iv) < 0)
+    ret = storage.load(key, iv);
+    if (ret < 0)
     {
-        printf("failed to load storage");
+        printf("failed to load storage (error %d)\n", ret);
         exit(1);
     }
 
     secret_info_t recovered_secret;
-    if (storage.get_secret(recovered_secret, KEY_HANDLE, public_id) < 0)
+    ret = storage.get_secret(recovered_secret, KEY_HANDLE, public_id);
+    if (ret < 0)
     {
-        printf("failed to get secret\n");
+        printf("failed to get secret (error %d)\n", ret);
         exit(1);
     }
 

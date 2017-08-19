@@ -98,8 +98,8 @@ void AESDRBG::update(const aes_drbg_entropy_t &seed)
     aes_state_t left, right, seed_left, seed_right;
 
     uint8_t *ptr = (uint8_t *) seed.bytes;
-    ptr = AES::state_fill(seed_left, ptr);
-    AES::state_fill(seed_right, ptr);
+    ptr = AES::state_copy(seed_left, ptr);
+    AES::state_copy(seed_right, ptr);
 
     AES::state_increment(value);
     aes.encrypt(left, value);

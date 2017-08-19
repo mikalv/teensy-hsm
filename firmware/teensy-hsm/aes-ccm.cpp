@@ -108,7 +108,7 @@ void AESCCM::encrypt(uint8_t *p_ciphertext, const uint8_t *p_plaintext, uint32_t
     while (plaintext_length)
     {
         uint32_t step = MIN(plaintext_length, sizeof(pt.bytes));
-        p_plaintext = AES::state_copy(pt, p_plaintext);
+        p_plaintext = AES::state_copy(pt, p_plaintext, step);
         encrypt_update(ct, pt);
         p_ciphertext = AES::state_copy(p_ciphertext, ct, step);
 
@@ -167,7 +167,8 @@ uint8_t *AESCCM::nonce_copy(aes_ccm_nonce_t &dst, const uint8_t *src)
     return (uint8_t *) (src + sizeof(dst.bytes));
 }
 
-void AESCCM::nonce_copy(aes_ccm_nonce_t &dst, const aes_ccm_nonce_t &src){
+void AESCCM::nonce_copy(aes_ccm_nonce_t &dst, const aes_ccm_nonce_t &src)
+{
     memcpy(dst.bytes, src.bytes, sizeof(src.bytes));
 }
 

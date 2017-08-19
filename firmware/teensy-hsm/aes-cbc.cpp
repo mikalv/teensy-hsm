@@ -30,7 +30,6 @@ void AESCBC::encrypt(aes_state_t &ciphertext, const aes_state_t &plaintext)
 void AESCBC::encrypt(uint8_t *p_ciphertext, const uint8_t *p_plaintext, uint32_t plaintext_length, const uint8_t *p_key, const uint8_t *p_iv)
 {
     aes_state_t key, iv, pt, ct;
-
     AES::state_copy(key, p_key);
     AES::state_copy(iv, p_iv);
 

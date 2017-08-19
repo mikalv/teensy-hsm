@@ -14,9 +14,9 @@ public:
     void reset();
     void update(const uint8_t *data, uint32_t data_length);
     void final(sha1_digest_t &digest);
-    void calculate(sha1_digest_t &mac, const uint8_t *data, uint32_t data_length);
-    bool compare(const sha1_digest_t &mac, const buffer_t &data);
-    bool compare(const sha1_digest_t &mac, const uint8_t *data, uint32_t data_length);
+    void calculate(sha1_digest_t &mac, const uint8_t *data, uint32_t data_length, const uint8_t *key, uint32_t key_length);
+    bool compare(const sha1_digest_t &mac, const buffer_t &data, const uint8_t *key, uint32_t key_length);
+    bool compare(const sha1_digest_t &mac, const uint8_t *data, uint32_t data_length, const uint8_t *key, uint32_t key_length);
 private:
     SHA1 ctx;
     uint8_t ipad[SHA1_BLOCK_SIZE_BYTES];

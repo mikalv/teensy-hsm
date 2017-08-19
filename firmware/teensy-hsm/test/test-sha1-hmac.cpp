@@ -37,9 +37,7 @@ static void hmac_equals(const uint8_t *data, uint32_t data_length, const uint8_t
 {
     sha1_digest_t actual;
     SHA1HMAC hmac = SHA1HMAC();
-
-    hmac.init(key, key_length);
-    hmac.calculate(actual, data, data_length);
+    hmac.calculate(actual, data, data_length, key, key_length);
 
     char buffer[64];
     hexdump(buffer, actual.bytes, sizeof(actual.bytes));

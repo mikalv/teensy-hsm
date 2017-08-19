@@ -7,7 +7,7 @@
 // (EEPROM) related functionality.
 //==================================================================================================
 #ifdef DEBUG_STORAGE
-#include <stdio.h>
+#include "debug.h"
 #endif
 
 #include <string.h>
@@ -44,35 +44,13 @@ int32_t Storage::load(const aes_state_t &key, const aes_state_t &iv)
     uint32_t length = sizeof(storage);
 
     /* setup AES */
-    aes_state_t pt, ct;
     AESCBC aes = AESCBC();
-    aes.init(key, iv);
+    aes.decrypt(ptr_out, ptr_in, length, key.bytes, iv.bytes);
 
     /* setup HMAC */
-    sha1_digest_t mac;
     SHA1HMAC hmac = SHA1HMAC();
-    hmac.init(key.bytes, sizeof(key.bytes));
-
-    /* decipher storage */
-    while (length)
-    {
-        uint32_t step = MIN(length, AES_BLOCK_SIZE_BYTES);
-        MEMCLR(ct);
-        memcpy(ct.bytes, ptr_in, step);
-
-        aes.decrypt(pt, ct);
-        memcpy(ptr_out, pt.bytes, step);
-        hmac.update(pt.bytes, step);
-
-        ptr_in += step;
-        ptr_out += step;
-        length -= step;
-    }
-
-    /* verify deciphered storage */
-    hmac.final(mac);
-    bool validated = memcmp(mac.bytes, eeprom.layout.storage.mac.bytes, sizeof(mac.bytes)) == 0;
-    if (!validated)
+    bool matched = hmac.compare(eeprom.layout.storage.mac, ptr_out, length, key.bytes, sizeof(key.bytes));
+    if (!matched)
     {
         clear();
         return ERROR_CODE_STORAGE_ENCRYPTED;
@@ -85,7 +63,6 @@ int32_t Storage::load(const aes_state_t &key, const aes_state_t &iv)
 void Storage::store(const aes_state_t &key, const aes_state_t &iv)
 {
     eeprom_buffer_t current;
-    MEMCLR(current);
     load_from_eeprom(current);
 
     store(key, iv, current);
@@ -134,10 +111,6 @@ int32_t Storage::get_secret(secret_info_t &secret, uint32_t key_handle, const ae
     int32_t ret = get_key(key_info, key_handle);
     if (ret < 0)
     {
-#ifdef DEBUG_STORAGE
-        printf("ERROR 1\n");
-#endif
-
         return ret;
     }
 
@@ -147,52 +120,23 @@ int32_t Storage::get_secret(secret_info_t &secret, uint32_t key_handle, const ae
         if (memcmp(storage.secrets[i].public_id, public_id.bytes, sizeof(public_id.bytes)) == 0)
         {
             uint8_t plaintext[AES_AEAD_SECRET_SIZE_BYTES];
-            uint8_t ciphertext[AES_AEAD_SECRET_SIZE_BYTES];
-            uint32_t length = AES_AEAD_SECRET_SIZE_BYTES;
-            uint8_t *ptr_in = ciphertext;
-            uint8_t *ptr_out = plaintext;
+            uint8_t ciphertext[AES_AEAD_SECRET_SIZE_BYTES + AES_CCM_MAC_SIZE_BYTES];
+            uint32_t length = sizeof(ciphertext);
 
             /* initialize buffers */
             MEMCLR(plaintext);
-            memcpy(ciphertext, storage.secrets[i].secret.bytes, length);
+            memcpy(ciphertext, storage.secrets[i].secret.bytes, AES_AEAD_SECRET_SIZE_BYTES);
+            memcpy(ciphertext + AES_AEAD_SECRET_SIZE_BYTES, storage.secrets[i].secret.mac, AES_CCM_MAC_SIZE_BYTES);
 
             AESCCM aes = AESCCM();
-            aes_state_t key, pt, ct;
-            AES::state_fill(key, key_info.bytes);
-            aes.init(key, key_handle, public_id, length);
-            while (length)
-            {
-                uint32_t step = MIN(length, sizeof(ct.bytes));
-
-                MEMCLR(ct);
-                memcpy(ct.bytes, ptr_in, step);
-
-                aes.decrypt_update(pt, ct);
-                memcpy(ptr_out, pt.bytes, step);
-
-                ptr_in += step;
-                ptr_out += step;
-                length -= step;
-            }
-
-            aes_ccm_mac_t mac;
-            memcpy(mac.bytes, storage.secrets[i].secret.mac, sizeof(mac.bytes));
-            if (aes.decrypt_final(mac))
+            if (aes.decrypt(plaintext, ciphertext, length, key_handle, key_info.bytes, public_id.bytes))
             {
                 unpack_secret(secret, plaintext);
                 return ERROR_CODE_NONE;
             }
-
-#ifdef DEBUG_STORAGE
-            printf("ERROR 2\n");
-#endif
             return ERROR_CODE_WRONG_KEY;
         }
     }
-
-#ifdef DEBUG_STORAGE
-    printf("ERROR 3\n");
-#endif
 
     return ERROR_CODE_SECRET_NOT_FOUND;
 }
@@ -215,39 +159,16 @@ int32_t Storage::put_secret(const secret_info_t &secret, uint32_t key_handle, co
         if (memcmp(empty, storage.secrets[i].public_id, sizeof(empty)) == 0)
         {
             uint8_t plaintext[AES_AEAD_SECRET_SIZE_BYTES];
-            uint8_t ciphertext[AES_AEAD_SECRET_SIZE_BYTES];
-            uint32_t length = AES_AEAD_SECRET_SIZE_BYTES;
-            uint8_t *ptr_in = plaintext;
-            uint8_t *ptr_out = ciphertext;
-            pack_secret(plaintext, secret);
+            uint8_t ciphertext[AES_AEAD_SECRET_SIZE_BYTES + AES_CCM_MAC_SIZE_BYTES];
 
-            aes_state_t pt, ct, key;
-            AES::state_fill(key, key_info.bytes);
             AESCCM aes = AESCCM();
-            aes.init(key, key_handle, public_id, length);
-
-            while (length)
-            {
-                uint32_t step = MIN(length, sizeof(pt.bytes));
-
-                MEMCLR(pt);
-                memcpy(pt.bytes, ptr_in, step);
-
-                aes.encrypt_update(ct, pt);
-                memcpy(ptr_out, ct.bytes, step);
-
-                ptr_in += step;
-                ptr_out += step;
-                length -= step;
-            }
-
-            aes_ccm_mac_t mac;
-            aes.encrypt_final(mac);
+            pack_secret(plaintext, secret);
+            aes.encrypt(ciphertext, plaintext, AES_AEAD_SECRET_SIZE_BYTES, key_handle, key_info.bytes, public_id.bytes);
 
             WRITE32(storage.secrets[i].counter, 0);
             memcpy(storage.secrets[i].public_id, public_id.bytes, sizeof(public_id.bytes));
-            memcpy(storage.secrets[i].secret.bytes, ciphertext, sizeof(ciphertext));
-            memcpy(storage.secrets[i].secret.mac, mac.bytes, sizeof(mac.bytes));
+            memcpy(storage.secrets[i].secret.bytes, ciphertext, AES_AEAD_SECRET_SIZE_BYTES);
+            memcpy(storage.secrets[i].secret.mac, ciphertext + AES_AEAD_SECRET_SIZE_BYTES, AES_CCM_MAC_SIZE_BYTES);
 
             return ERROR_CODE_NONE;
         }
@@ -261,10 +182,6 @@ void Storage::clear()
     storage_decrypted = false;
     secret_unlocked = false;
     MEMCLR(storage);
-
-#ifdef DEBUG_STORAGE
-    MEMCLR(nv_storage);
-#endif
 }
 
 void Storage::format(const aes_state_t &key, const aes_state_t &iv)
@@ -314,50 +231,28 @@ void Storage::store(const aes_state_t &key, const aes_state_t &iv, const eeprom_
     WRITE32(eeprom.layout.storage.body.store_counter, store_counter);
     memcpy(eeprom.layout.prng_seed, current.layout.prng_seed, sizeof(current.layout.prng_seed));
 
-    /* calculate MAC */
-    sha1_digest_t mac;
-    SHA1HMAC hmac = SHA1HMAC();
-    hmac.init(key.bytes, sizeof(key.bytes));
-
     /* encrypt storage */
     uint8_t *ptr_in = (uint8_t *) &storage;
     uint8_t *ptr_out = (uint8_t *) &eeprom.layout.storage.body;
     uint32_t length = sizeof(storage);
 
+    /* calculate MAC */
+    sha1_digest_t mac;
+    SHA1HMAC hmac = SHA1HMAC();
+    hmac.calculate(mac, ptr_in, length, key.bytes, sizeof(key.bytes));
+    memcpy(eeprom.layout.storage.mac.bytes, mac.bytes, sizeof(mac.bytes));
+
     /* setup AES */
     aes_state_t pt, ct;
     AESCBC aes = AESCBC();
-    aes.init(key, iv);
-
-    /* encipher storage */
-    while (length)
-    {
-        uint32_t step = MIN(length, AES_BLOCK_SIZE_BYTES);
-        MEMCLR(pt);
-        memcpy(pt.bytes, ptr_in, step);
-
-        hmac.update(pt.bytes, step);
-        aes.encrypt(ct, pt);
-        memcpy(ptr_out, ct.bytes, step);
-
-        ptr_in += step;
-        ptr_out += step;
-        length -= step;
-    }
-
-    hmac.final(mac);
-    memcpy(eeprom.layout.storage.mac.bytes, mac.bytes, sizeof(mac.bytes));
-
+    aes.encrypt(ptr_out, ptr_in, length, key.bytes, iv.bytes);
     store_to_eeprom(eeprom);
 }
 
 #ifdef DEBUG_STORAGE
 void Storage::dump_nv()
 {
-    for (int i = 0; i < sizeof(nv_storage); i++)
-    {
-        printf("%02x%c", nv_storage[i], ((i + 1) % 32) ? ' ' : '\n');
-    }
+    hexdump("nv :\n", nv_storage, sizeof(nv_storage));
 }
 
 void Storage::dump_keys()
@@ -369,12 +264,7 @@ void Storage::dump_keys()
         printf("key #%d\n", i);
         printf("  handle = 0x%08x\n", handle);
         printf("  flags  = 0x%08x\n", flags);
-        printf("  bytes  = ");
-        for (int j = 0; j < sizeof(storage.keys[i].bytes); j++)
-        {
-            printf("%02x ", storage.keys[i].bytes[j]);
-        }
-        putchar('\n');
+        hexdump("  bytes  = ", storage.keys[i].bytes, sizeof(storage.keys[i].bytes));
     }
 }
 #endif

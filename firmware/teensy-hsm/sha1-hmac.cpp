@@ -1,3 +1,4 @@
+#include <string.h>
 #include "sha1-hmac.h"
 #include "macros.h"
 
@@ -65,17 +66,17 @@ void SHA1HMAC::final(sha1_digest_t &mac)
     reset();
 }
 
-void SHA1HMAC::calculate(sha1_digest_t &mac, const uint8_t *data, uint32_t data_length)
+void SHA1HMAC::calculate(sha1_digest_t &mac, const uint8_t *data, uint32_t data_length, const uint8_t *key, uint32_t key_length)
 {
-    reset();
+    init(key, key_length);
     update(data, data_length);
     final(mac);
 }
 
-bool SHA1HMAC::compare(const sha1_digest_t &mac, const uint8_t *data, uint32_t data_length)
+bool SHA1HMAC::compare(const sha1_digest_t &mac, const uint8_t *data, uint32_t data_length, const uint8_t *key, uint32_t key_length)
 {
     sha1_digest_t actual;
-    calculate(actual, data, data_length);
+    calculate(actual, data, data_length, key, key_length);
 
     return memcmp(actual.bytes, mac.bytes, sizeof(mac.bytes)) == 0;
 }
