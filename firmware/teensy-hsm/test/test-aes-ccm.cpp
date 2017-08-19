@@ -40,61 +40,22 @@ static void decode(uint8_t *buffer, const char *values, size_t length)
 
 static bool encrypt_equals(const uint8_t *p_input, const uint8_t *p_key, const uint32_t key_handle, const uint8_t *p_nonce, const uint8_t *p_expected)
 {
-    aes_state_t key, plaintext, ciphertext;
-    aes_ccm_nonce_t nonce;
-    aes_ccm_mac_t mac;
     uint8_t actual[AES_BLOCK_SIZE_BYTES + AES_CCM_MAC_SIZE_BYTES];
 
-    memcpy(plaintext.bytes, p_input, sizeof(plaintext.bytes));
-    memcpy(key.bytes, p_key, sizeof(key.bytes));
-    memcpy(nonce.bytes, p_nonce, sizeof(nonce.bytes));
-    memset(ciphertext.bytes, 0, sizeof(ciphertext.bytes));
-
     AESCCM aes = AESCCM();
-    aes.init(key, key_handle, nonce, AES_BLOCK_SIZE_BYTES);
-    aes.encrypt_update(ciphertext, plaintext);
-    aes.encrypt_final(mac);
-
-    uint8_t *p = actual;
-    memcpy(p, ciphertext.bytes, sizeof(ciphertext.bytes));
-    p += sizeof(ciphertext.bytes);
-    memcpy(p, mac.bytes, sizeof(mac.bytes));
-
-#ifdef DEBUG_AES
-    char str_plaintext[64];
-    char str_ciphertext[64];
-    char str_nonce[64];
-    char str_key[64];
-
-    hexdump(str_plaintext, plaintext.bytes, sizeof(plaintext.bytes));
-    hexdump(str_ciphertext, ciphertext.bytes, sizeof(ciphertext.bytes));
-    hexdump(str_nonce, nonce.bytes, sizeof(nonce.bytes));
-    hexdump(str_key, key.bytes, sizeof(key.bytes));
-
-    printf("{0x%08x, \"%s\", \"%s\", \"%s\", \"%s\"},\n", key_handle, str_key, str_nonce, str_plaintext, str_ciphertext);
-#endif
+    aes.encrypt(actual, p_input, AES_BLOCK_SIZE_BYTES, key_handle, p_key, p_nonce);
 
     return memcmp(actual, p_expected, sizeof(actual)) == 0;
 }
 
 static bool decrypt_equals(const uint8_t *p_input, const uint8_t *p_key, const uint32_t key_handle, const uint8_t *p_nonce, const uint8_t *expected)
 {
-    aes_state_t key, plaintext, ciphertext;
-    aes_ccm_nonce_t nonce;
-    aes_ccm_mac_t mac;
-
-    memcpy(ciphertext.bytes, p_input, sizeof(ciphertext.bytes));
-    p_input += sizeof(ciphertext.bytes);
-    memcpy(mac.bytes, p_input, sizeof(mac.bytes));
-    memcpy(key.bytes, p_key, sizeof(key.bytes));
-    memcpy(nonce.bytes, p_nonce, sizeof(nonce.bytes));
-    memset(plaintext.bytes, 0, sizeof(plaintext));
+    uint8_t actual[AES_BLOCK_SIZE_BYTES];
 
     AESCCM aes = AESCCM();
-    aes.init(key, key_handle, nonce, AES_BLOCK_SIZE_BYTES);
-    aes.decrypt_update(plaintext, ciphertext);
-    bool mac_matched = aes.decrypt_final(mac);
-    return mac_matched && memcmp(plaintext.bytes, expected, sizeof(plaintext.bytes)) == 0;
+    uint32_t length = AES_BLOCK_SIZE_BYTES + AES_CCM_MAC_SIZE_BYTES;
+    bool matched = aes.decrypt(actual, p_input, length, key_handle, p_key, p_nonce);
+    return matched && memcmp(actual, expected, sizeof(actual)) == 0;
 }
 
 static void test_encrypt(const value_bin_t &value)

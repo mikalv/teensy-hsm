@@ -33,6 +33,8 @@ public:
 	void encrypt_final(aes_ccm_mac_t &mac);
 	void decrypt_update(aes_state_t &plaintext, const aes_state_t &ciphertext);
 	bool decrypt_final(const aes_ccm_mac_t &mac);
+	void encrypt(uint8_t *p_ciphertext, const uint8_t *p_plaintext, uint32_t plaintext_length, uint32_t key_handle, const uint8_t *p_key, const uint8_t *p_nonce);
+	bool decrypt(uint8_t *p_plaintext, const uint8_t *p_ciphertext, uint32_t ciphertext_length, uint32_t key_handle, const uint8_t *p_key, const uint8_t *p_nonce);
 	void reset();
 	void clear();
 private:

@@ -26,7 +26,7 @@ AESCCM::AESCCM()
 
 AESCCM::~AESCCM()
 {
-
+    clear();
 }
 
 void AESCCM::init(const aes_state_t &key, const uint32_t key_handle, const aes_ccm_nonce_t &nonce, uint16_t length)
@@ -92,6 +92,80 @@ void AESCCM::decrypt_update(aes_state_t &plaintext, const aes_state_t &ciphertex
 bool AESCCM::decrypt_final(const aes_ccm_mac_t &mac)
 {
     return memcmp(tmp_mac.bytes, mac.bytes, sizeof(mac.bytes)) == 0;
+}
+
+void AESCCM::encrypt(uint8_t *p_ciphertext, const uint8_t *p_plaintext, uint32_t plaintext_length, uint32_t key_handle, const uint8_t *p_key,
+        const uint8_t *p_nonce)
+{
+    aes_ccm_nonce_t nonce;
+    aes_ccm_mac_t mac;
+    aes_state_t key, pt, ct;
+
+    memcpy(nonce.bytes, p_nonce, sizeof(nonce.bytes));
+    AES::state_fill(key, p_key);
+    init(key, key_handle, nonce, plaintext_length);
+
+    while (plaintext_length)
+    {
+        MEMCLR(pt);
+
+        uint32_t step = MIN(plaintext_length, sizeof(pt.bytes));
+        memcpy(pt.bytes, p_plaintext, step);
+        encrypt_update(ct, pt);
+        memcpy(p_ciphertext, ct.bytes, step);
+
+        p_plaintext += step;
+        p_ciphertext += step;
+        plaintext_length -= step;
+    }
+
+    encrypt_final(mac);
+    memcpy(p_ciphertext, mac.bytes, sizeof(mac));
+
+    reset();
+}
+
+/**
+ * Perform one-shot AES-CCM decryption
+ * @param[in] p_plaintext
+ */
+bool AESCCM::decrypt(uint8_t *p_plaintext, const uint8_t *p_ciphertext, uint32_t ciphertext_length, uint32_t key_handle, const uint8_t *p_key,
+        const uint8_t *p_nonce)
+{
+    aes_ccm_nonce_t nonce;
+    aes_ccm_mac_t mac;
+    aes_state_t key, pt, ct;
+
+    /* cipher-text length must be at least (AES_CCM_MAC_SIZE_BYTES + 1) */
+    if (ciphertext_length <= AES_CCM_MAC_SIZE_BYTES)
+    {
+        return false;
+    }
+
+    uint32_t length = ciphertext_length - AES_CCM_MAC_SIZE_BYTES;
+    memcpy(nonce.bytes, p_nonce, sizeof(nonce.bytes));
+    AES::state_fill(key, p_key);
+    init(key, key_handle, nonce, length);
+
+    while (length)
+    {
+        MEMCLR(ct);
+
+        uint32_t step = MIN(length, sizeof(ct.bytes));
+        memcpy(ct.bytes, p_ciphertext, step);
+        decrypt_update(pt, ct);
+        memcpy(p_plaintext, pt.bytes, step);
+
+        p_plaintext += step;
+        p_ciphertext += step;
+        length -= step;
+    }
+
+    /* compare MAC */
+    bool match = memcpy(mac.bytes, p_ciphertext, sizeof(mac.bytes));
+    reset();
+
+    return match;
 }
 
 void AESCCM::reset()

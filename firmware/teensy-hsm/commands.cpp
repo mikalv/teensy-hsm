@@ -248,12 +248,12 @@ int32_t Commands::buffer_aead_generate(packet_t &output, const packet_t &input)
     buffer.encode(encoded);
 
     /* initialize AES-CCM */
+    uint32_t length = encoded.length;
     AESCCM aes = AESCCM();
     AES::state_fill(key, key_info.bytes);
-    aes.init(key, key_handle, nonce, encoded.length);
+    aes.init(key, key_handle, nonce, length);
 
     /* encrypt data */
-    uint32_t length = encoded.length;
     uint8_t *src_data = encoded.bytes;
     uint8_t *dst_data = response.data;
     while (length)
@@ -342,12 +342,12 @@ int32_t Commands::random_aead_generate(packet_t &output, const packet_t &input)
     drbg.generate(plaintext, request.random_len);
 
     /* initialize AES-CCM */
+    uint32_t length = plaintext.length;
     AESCCM aes = AESCCM();
     AES::state_fill(key, key_info.bytes);
-    aes.init(key, key_handle, nonce, plaintext.length);
+    aes.init(key, key_handle, nonce, length);
 
     /* encrypt data */
-    uint32_t length = plaintext.length;
     uint8_t *src_data = plaintext.bytes;
     uint8_t *dst_data = response.data;
     while (length)
@@ -422,12 +422,12 @@ int32_t Commands::aead_decrypt_cmp(packet_t &output, const packet_t &input)
     memcpy(nonce.bytes, request.nonce, sizeof(nonce.bytes));
 
     /* initialize AES-CCM */
+    uint32_t length = request.data_len;
     AESCCM aes = AESCCM();
     AES::state_fill(key, key_info.bytes);
-    aes.init(key, key_handle, nonce, request.data_len);
+    aes.init(key, key_handle, nonce, length);
 
     /* encrypt data */
-    uint32_t length = request.data_len;
     uint32_t remaining = request.data_len - sizeof(mac.bytes);
     uint8_t *src_data = request.data;
     memcpy(mac.bytes, (src_data + remaining), sizeof(mac.bytes));
@@ -458,9 +458,75 @@ int32_t Commands::aead_decrypt_cmp(packet_t &output, const packet_t &input)
     return ERROR_CODE_NONE;
 }
 
-int32_t Commands::db_aead_store(packet_t &response, const packet_t &request)
+int32_t Commands::db_aead_store(packet_t &output, const packet_t &input)
 {
-    /* FIXME add implementation */
+    THSM_DB_AEAD_STORE_REQ request;
+    THSM_DB_AEAD_STORE_RESP response;
+    aes_state_t key, pt, ct;
+    aes_ccm_mac_t mac;
+    key_info_t key_info;
+    aes_ccm_nonce_t nonce;
+
+    /* check against minimum length */
+    if (input.length < sizeof(request))
+    {
+        return ERROR_CODE_INVALID_REQUEST;
+    }
+
+    /* initialize buffers */
+    MEMCLR(response);
+    memcpy(&request, input.bytes, MIN(sizeof(request), input.length));
+
+    /* get key */
+    uint32_t key_handle = READ32(request.key_handle);
+    int ret = storage.get_key(key_info, key_handle);
+    if (ret < 0)
+    {
+        return ret;
+    }
+
+    /* use public-id as nonce */
+    memcpy(nonce.bytes, request.public_id, sizeof(nonce.bytes));
+
+    /* initialize AES-CCM */
+    AESCCM aes = AESCCM();
+    AES::state_fill(key, key_info.bytes);
+    uint32_t length = sizeof(request.aead) - AES_CCM_MAC_SIZE_BYTES;
+    memcpy(mac.bytes, request.aead + length, AES_CCM_MAC_SIZE_BYTES);
+    aes.init(key, key_handle, nonce, length);
+
+    /* encrypt data */
+    uint8_t *src_data = plaintext.bytes;
+    uint8_t *dst_data = response.data;
+    while (length)
+    {
+        MEMCLR(pt);
+        uint32_t step = MIN(length, sizeof(pt.bytes));
+        memcpy(pt.bytes, src_data, step);
+
+        aes.encrypt_update(ct, pt);
+        memcpy(dst_data, ct.bytes, step);
+
+        src_data += step;
+        dst_data += step;
+        length -= step;
+    }
+
+    aes.encrypt_final(mac);
+
+    /* copy key handle and nonce */
+    response.status = THSM_STATUS_OK;
+    response.data_len = plaintext.length + sizeof(mac.bytes);
+    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
+    memcpy(response.nonce, nonce.bytes, sizeof(nonce.bytes));
+    memcpy(dst_data, mac.bytes, sizeof(mac.bytes));
+
+    /* copy to output */
+    uint32_t output_length = response.data_len + 12;
+    output.length = output_length;
+    memcpy(output.bytes, &response, output_length);
+
+    return ERROR_CODE_NONE;
 }
 
 int32_t Commands::aead_otp_decode(packet_t &response, const packet_t &request)
