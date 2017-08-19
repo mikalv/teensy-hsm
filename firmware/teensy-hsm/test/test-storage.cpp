@@ -6,16 +6,6 @@
 
 #define KEY_HANDLE 0xaaaaaaaa
 
-static void hexdump(const char * title, uint8_t *data, uint32_t length)
-{
-    printf("%s : ", title);
-    for (int i = 0; i < length; i++)
-    {
-        printf("%02x%c", data[i], (i + 1) % 32 ? ' ' : '\n');
-    }
-    putchar('\n');
-}
-
 int main(void)
 {
     int32_t ret;
