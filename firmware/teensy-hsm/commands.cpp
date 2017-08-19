@@ -481,9 +481,60 @@ int32_t Commands::db_otp_validate(packet_t &response, const packet_t &request)
     /* FIXME add implementation */
 }
 
-int32_t Commands::db_aead_store2(packet_t &response, const packet_t &request)
+int32_t Commands::db_aead_store2(packet_t &output, const packet_t &input)
 {
-    /* FIXME add implementation */
+    THSM_DB_AEAD_STORE2_REQ request;
+    THSM_DB_AEAD_STORE2_RESP response;
+    key_info_t key_info;
+    uint8_t plaintext[AES_KEY_SIZE_BYTES + AES_CCM_NONCE_SIZE_BYTES];
+
+    /* check against minimum length */
+    if (input.length < sizeof(request))
+    {
+        return ERROR_CODE_INVALID_REQUEST;
+    }
+
+    /* initialize buffers */
+    MEMCLR(response);
+    MEMCLR(plaintext);
+    memcpy(&request, input.bytes, MIN(sizeof(request), input.length));
+
+    /* get key */
+    uint32_t key_handle = READ32(request.key_handle);
+    int ret = storage.get_key(key_info, key_handle);
+    if (ret < 0)
+    {
+        return ret;
+    }
+
+    /* decrypt */
+    uint32_t length = sizeof(request.aead);
+    AESCCM aes = AESCCM();
+    bool match = aes.decrypt(plaintext, request.aead, length, key_handle, key_info.bytes, request.public_id);
+    if (match)
+    {
+        secret_info_t secret_info;
+        aes_ccm_nonce_t nonce;
+
+        AESCCM::nonce_copy(nonce, request.nonce);
+        Util::unpack_secret(secret_info, plaintext);
+        int32_t ret = storage.put_secret(secret_info, key_handle, nonce);
+        if (ret < 0)
+        {
+            return ret;
+        }
+    }
+
+    /* copy key handle and nonce */
+    response.status = match ? THSM_STATUS_OK : THSM_STATUS_AEAD_INVALID;
+    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
+    memcpy(response.public_id, request.public_id, sizeof(request.public_id));
+
+    /* copy to output */
+    output.length = sizeof(response);
+    memcpy(output.bytes, &response, sizeof(response));
+
+    return ERROR_CODE_NONE;
 }
 
 int32_t Commands::aes_ecb_block_encrypt(packet_t &response, const packet_t &request)
