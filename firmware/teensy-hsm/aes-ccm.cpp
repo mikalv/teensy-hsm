@@ -107,15 +107,11 @@ void AESCCM::encrypt(uint8_t *p_ciphertext, const uint8_t *p_plaintext, uint32_t
 
     while (plaintext_length)
     {
-        MEMCLR(pt);
-
         uint32_t step = MIN(plaintext_length, sizeof(pt.bytes));
-        memcpy(pt.bytes, p_plaintext, step);
+        p_plaintext = AES::state_load(pt, p_plaintext);
         encrypt_update(ct, pt);
-        memcpy(p_ciphertext, ct.bytes, step);
+        p_ciphertext = AES::state_store(p_ciphertext, ct, step);
 
-        p_plaintext += step;
-        p_ciphertext += step;
         plaintext_length -= step;
     }
 
@@ -149,15 +145,11 @@ bool AESCCM::decrypt(uint8_t *p_plaintext, const uint8_t *p_ciphertext, uint32_t
 
     while (length)
     {
-        MEMCLR(ct);
-
         uint32_t step = MIN(length, sizeof(ct.bytes));
-        memcpy(ct.bytes, p_ciphertext, step);
+        p_ciphertext = AES::state_load(ct, p_ciphertext, step);
         decrypt_update(pt, ct);
-        memcpy(p_plaintext, pt.bytes, step);
+        p_plaintext = AES::state_store(p_plaintext, pt, step);
 
-        p_plaintext += step;
-        p_ciphertext += step;
         length -= step;
     }
 
