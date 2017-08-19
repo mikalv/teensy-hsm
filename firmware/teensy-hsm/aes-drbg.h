@@ -22,8 +22,9 @@ class AESDRBG
 public:
     AESDRBG();
     void init(const aes_drbg_entropy_t &seed);
-    int32_t generate(aes_state_t &random);
-    int32_t generate(buffer_t &random, uint32_t length);
+    int32_t generate(aes_state_t &buffer);
+    int32_t generate(buffer_t &buffer, uint32_t length);
+    int32_t generate(uint8_t *buffer, uint32_t length);
     void reseed(const aes_drbg_entropy_t &seed);
 private:
     void update(const aes_drbg_entropy_t &seed);

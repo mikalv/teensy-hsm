@@ -23,7 +23,7 @@ void Buffer::clear()
     MEMCLR(bytes);
 }
 
-void Buffer::encode(buffer_t buffer)
+void Buffer::read(buffer_t &buffer)
 {
     MEMCLR(buffer);
     memcpy(buffer.bytes, bytes, length);

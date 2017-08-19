@@ -93,6 +93,25 @@ int32_t AESDRBG::generate(buffer_t &output, uint32_t length)
     return ERROR_CODE_NONE;
 }
 
+int32_t AESDRBG::generate(uint8_t *buffer, uint32_t length)
+{
+    aes_state_t random;
+    while (length)
+    {
+        uint32_t step = MIN(length, sizeof(random.bytes));
+        int ret = generate(random);
+        if (ret < 0)
+        {
+            return ret;
+        }
+        buffer = AES::state_copy(buffer, random, step);
+
+        length -= step;
+    }
+
+    return ERROR_CODE_NONE;
+}
+
 void AESDRBG::update(const aes_drbg_entropy_t &seed)
 {
     aes_state_t left, right, seed_left, seed_right;

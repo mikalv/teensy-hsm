@@ -103,8 +103,6 @@ public:
 
 private:
     void store(const aes_state_t &key, const aes_state_t &iv, const eeprom_buffer_t & eeprom);
-    void unpack_secret(secret_info_t &out, const uint8_t *secret);
-    void pack_secret(uint8_t *secret, const secret_info_t &out);
     void load_from_eeprom(eeprom_buffer_t &eeprom);
     void store_to_eeprom(const eeprom_buffer_t &eeprom);
     bool storage_decrypted;

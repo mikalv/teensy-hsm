@@ -12,6 +12,7 @@
 
 #include <string.h>
 #include "error.h"
+#include "util.h"
 #include "storage.h"
 #include "aes-cbc.h"
 #include "sha1-hmac.h"
@@ -131,7 +132,7 @@ int32_t Storage::get_secret(secret_info_t &secret, uint32_t key_handle, const ae
             AESCCM aes = AESCCM();
             if (aes.decrypt(plaintext, ciphertext, length, key_handle, key_info.bytes, public_id.bytes))
             {
-                unpack_secret(secret, plaintext);
+                Util::unpack_secret(secret, plaintext);
                 return ERROR_CODE_NONE;
             }
             return ERROR_CODE_WRONG_KEY;
@@ -162,7 +163,7 @@ int32_t Storage::put_secret(const secret_info_t &secret, uint32_t key_handle, co
             uint8_t ciphertext[AES_AEAD_SECRET_SIZE_BYTES + AES_CCM_MAC_SIZE_BYTES];
 
             AESCCM aes = AESCCM();
-            pack_secret(plaintext, secret);
+            Util::pack_secret(plaintext, secret);
             aes.encrypt(ciphertext, plaintext, AES_AEAD_SECRET_SIZE_BYTES, key_handle, key_info.bytes, public_id.bytes);
 
             WRITE32(storage.secrets[i].counter, 0);
@@ -268,17 +269,3 @@ void Storage::dump_keys()
     }
 }
 #endif
-
-void Storage::unpack_secret(secret_info_t &out, const uint8_t *secret)
-{
-    memcpy(out.key, secret, sizeof(out.key));
-    secret += sizeof(out.key);
-    memcpy(out.uid, secret, sizeof(out.uid));
-}
-
-void Storage::pack_secret(uint8_t *out, const secret_info_t &secret)
-{
-    memcpy(out, secret.key, sizeof(secret.key));
-    out += sizeof(secret.key);
-    memcpy(out, secret.uid, sizeof(secret.uid));
-}
