@@ -308,7 +308,8 @@ int32_t Commands::random_aead_generate(packet_t &output, const packet_t &input)
     memcpy(&request, input.bytes, MIN(sizeof(request), input.length));
 
     /* can only generate max 64 bytes */
-    if(request.random_len > BUFFER_SIZE_BYTES){
+    if (request.random_len > BUFFER_SIZE_BYTES)
+    {
         return ERROR_CODE_INVALID_REQUEST;
     }
 
@@ -380,9 +381,81 @@ int32_t Commands::random_aead_generate(packet_t &output, const packet_t &input)
     return ERROR_CODE_NONE;
 }
 
-int32_t Commands::aead_decrypt_cmp(packet_t &response, const packet_t &request)
+int32_t Commands::aead_decrypt_cmp(packet_t &output, const packet_t &input)
 {
-    /* FIXME add implementation */
+    THSM_AEAD_DECRYPT_CMP_REQ request;
+    THSM_AEAD_DECRYPT_CMP_RESP response;
+    aes_state_t key, pt, ct;
+    aes_ccm_mac_t mac;
+    key_info_t key_info;
+    aes_ccm_nonce_t nonce;
+
+    /* check against minimum length */
+    if (input.length <= 11)
+    {
+        return ERROR_CODE_INVALID_REQUEST;
+    }
+
+    /* initialize buffers */
+    MEMCLR(response);
+    memcpy(&request, input.bytes, MIN(sizeof(request), input.length));
+
+    /* check min data length, at least 1 byte of cipher-text */
+    if (request.data_len <= AES_CCM_MAC_SIZE_BYTES)
+    {
+        return ERROR_CODE_INVALID_REQUEST;
+    }
+    else if (request.data_len > sizeof(request.data))
+    {
+        return ERROR_CODE_INVALID_REQUEST;
+    }
+
+    /* get key */
+    uint32_t key_handle = READ32(request.key_handle);
+    int ret = storage.get_key(key_info, key_handle);
+    if (ret < 0)
+    {
+        return ret;
+    }
+
+    /* use nonce from request */
+    memcpy(nonce.bytes, request.nonce, sizeof(nonce.bytes));
+
+    /* initialize AES-CCM */
+    AESCCM aes = AESCCM();
+    AES::state_fill(key, key_info.bytes);
+    aes.init(key, key_handle, nonce, request.data_len);
+
+    /* encrypt data */
+    uint32_t length = request.data_len;
+    uint32_t remaining = request.data_len - sizeof(mac.bytes);
+    uint8_t *src_data = request.data;
+    memcpy(mac.bytes, (src_data + remaining), sizeof(mac.bytes));
+    while (remaining)
+    {
+        MEMCLR(ct);
+        uint32_t step = MIN(remaining, sizeof(ct.bytes));
+        memcpy(ct.bytes, src_data, step);
+
+        aes.decrypt_update(pt, ct);
+
+        src_data += step;
+        remaining -= step;
+    }
+
+    bool match = aes.decrypt_final(mac);
+
+    /* copy key handle and nonce */
+    response.status = match ? THSM_STATUS_OK : THSM_STATUS_AEAD_INVALID;
+    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
+    memcpy(response.nonce, nonce.bytes, sizeof(nonce.bytes));
+
+    /* copy to output */
+    uint32_t output_length = sizeof(response);
+    output.length = output_length;
+    memcpy(output.bytes, &response, output_length);
+
+    return ERROR_CODE_NONE;
 }
 
 int32_t Commands::db_aead_store(packet_t &response, const packet_t &request)
