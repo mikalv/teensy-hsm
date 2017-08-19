@@ -15,36 +15,44 @@
 
 typedef struct
 {
-	uint8_t bytes[AES_CCM_NONCE_SIZE_BYTES];
+    uint8_t bytes[AES_CCM_NONCE_SIZE_BYTES];
 } aes_ccm_nonce_t;
 
 typedef struct
 {
-	uint8_t bytes[AES_CCM_MAC_SIZE_BYTES];
+    uint8_t bytes[AES_CCM_MAC_SIZE_BYTES];
 } aes_ccm_mac_t;
 
 class AESCCM
 {
 public:
-	AESCCM();
-	~AESCCM();
-	void init(const aes_state_t &key, const uint32_t key_handle, const aes_ccm_nonce_t &nonce, uint16_t message_length);
-	void encrypt_update(aes_state_t &ciphertext, const aes_state_t &plaintext);
-	void encrypt_final(aes_ccm_mac_t &mac);
-	void decrypt_update(aes_state_t &plaintext, const aes_state_t &ciphertext);
-	bool decrypt_final(const aes_ccm_mac_t &mac);
-	void encrypt(uint8_t *p_ciphertext, const uint8_t *p_plaintext, uint32_t plaintext_length, uint32_t key_handle, const uint8_t *p_key, const uint8_t *p_nonce);
-	bool decrypt(uint8_t *p_plaintext, const uint8_t *p_ciphertext, uint32_t ciphertext_length, uint32_t key_handle, const uint8_t *p_key, const uint8_t *p_nonce);
-	void reset();
-	void clear();
+    AESCCM();
+    ~AESCCM();
+    void init(const aes_state_t &key, const uint32_t key_handle, const aes_ccm_nonce_t &nonce, uint16_t message_length);
+    void encrypt_update(aes_state_t &ciphertext, const aes_state_t &plaintext);
+    void encrypt_final(aes_ccm_mac_t &mac);
+    void decrypt_update(aes_state_t &plaintext, const aes_state_t &ciphertext);
+    bool decrypt_final(const aes_ccm_mac_t &mac);
+    void encrypt(uint8_t *p_ciphertext, const uint8_t *p_plaintext, uint32_t plaintext_length, uint32_t key_handle, const uint8_t *p_key,
+            const uint8_t *p_nonce);
+    bool decrypt(uint8_t *p_plaintext, const uint8_t *p_ciphertext, uint32_t ciphertext_length, uint32_t key_handle, const uint8_t *p_key,
+            const uint8_t *p_nonce);
+    void reset();
+    void clear();
+    static uint8_t *nonce_copy(aes_ccm_nonce_t &dst, const uint8_t *src);
+    static void nonce_copy(aes_ccm_nonce_t &dst, const aes_ccm_nonce_t &src);
+    static uint8_t *nonce_copy(uint8_t *dst, const aes_ccm_nonce_t &src);
+    static uint8_t *mac_copy(aes_ccm_mac_t &dst, const uint8_t *src);
+    static uint8_t *mac_copy(uint8_t *dst, const aes_ccm_mac_t &src);
+    static bool mac_compare(const aes_ccm_mac_t &v1, const uint8_t *v2);
 private:
-	void generate_token(aes_state_t &token);
-	void generate_iv(aes_state_t &out);
-	AES ctx;
-	aes_state_t tmp_mac;
-	uint16_t length, counter, remaining;
-	uint32_t key_handle;
-	aes_ccm_nonce_t nonce;
+    void generate_token(aes_state_t &token);
+    void generate_iv(aes_state_t &out);
+    AES ctx;
+    aes_state_t tmp_mac;
+    uint16_t length, counter, remaining;
+    uint32_t key_handle;
+    aes_ccm_nonce_t nonce;
 };
 
 #endif

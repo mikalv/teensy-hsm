@@ -36,12 +36,14 @@ public:
 	void decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext);
 	void decrypt(uint8_t *plaintext, const uint8_t *ciphertext);
 	void clear();
-	static uint8_t *state_load(aes_state_t &dst, const uint8_t *src);
-	static uint8_t *state_load(aes_state_t &dst, const uint8_t *src, uint32_t length);
-	static uint8_t *state_store(uint8_t *dst, const aes_state_t &src);
-	static uint8_t *state_store(uint8_t *dst, const aes_state_t &src, uint32_t length);
-	static void state_xor(aes_state_t &dst, const aes_state_t &src1, const aes_state_t &src2);
 	static void state_copy(aes_state_t &dst, const aes_state_t &src);
+	static uint8_t *state_copy(aes_state_t &dst, const uint8_t *src);
+	static uint8_t *state_copy(aes_state_t &dst, const uint8_t *src, uint32_t length);
+	static uint8_t *state_copy(uint8_t *dst, const aes_state_t &src);
+	static uint8_t *state_copy(uint8_t *dst, const aes_state_t &src, uint32_t length);
+	static void state_xor(aes_state_t &dst, const aes_state_t &src1, const aes_state_t &src2);
+	static bool state_compare(const aes_state_t &s1, const aes_state_t &s2);
+	static bool state_compare(const aes_state_t &s1, const uint8_t *s2);
 	static void state_truncate(aes_state_t &state, uint32_t length);
 	static void state_increment(aes_state_t &state);
 #ifdef DEBUG_AES

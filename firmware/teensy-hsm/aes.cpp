@@ -5,10 +5,6 @@
 //
 // This file is part of TeensyHSM project containing the implementation of AES-128.
 //======================================================================================================================
-#ifdef DEBUG_AES
-#include <stdio.h>
-#endif
-
 #include <string.h>
 #include "aes.h"
 #include "macros.h"
@@ -267,9 +263,9 @@ void AES::encrypt(uint8_t *ciphertext, const uint8_t *plaintext)
 {
     aes_state_t pt, ct;
 
-    AES::state_load(pt, plaintext);
+    AES::state_copy(pt, plaintext);
     encrypt(ct, pt);
-    AES::state_store(ciphertext, ct);
+    AES::state_copy(ciphertext, ct);
 }
 
 void AES::decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext)
@@ -292,9 +288,9 @@ void AES::decrypt(uint8_t *plaintext, const uint8_t *ciphertext)
 {
     aes_state_t pt, ct;
 
-    AES::state_load(ct, ciphertext);
+    AES::state_copy(ct, ciphertext);
     decrypt(pt, ct);
-    AES::state_store(plaintext, pt);
+    AES::state_copy(plaintext, pt);
 }
 
 void AES::clear()
@@ -334,9 +330,10 @@ void AES::init(const aes_state_t &key)
     }
 }
 
-void AES::init(const uint8_t *p_key){
+void AES::init(const uint8_t *p_key)
+{
     aes_state_t key;
-    AES::state_load(key, p_key);
+    AES::state_copy(key, p_key);
     init(key);
 }
 
@@ -439,13 +436,18 @@ void AES::decrypt_final(aes_state_t &dst, const aes_state_t &src, const aes_stat
     state_xor(dst, dst, key);
 }
 
-uint8_t *AES::state_load(aes_state_t &dst, const uint8_t *src)
+void AES::state_copy(aes_state_t &dst, const aes_state_t &src)
+{
+    memcpy(dst.bytes, src.bytes, sizeof(src.bytes));
+}
+
+uint8_t *AES::state_copy(aes_state_t &dst, const uint8_t *src)
 {
     memcpy(dst.bytes, src, sizeof(dst.bytes));
     return (uint8_t *) (src + sizeof(dst.bytes));
 }
 
-uint8_t *AES::state_load(aes_state_t &dst, const uint8_t *src, uint32_t length)
+uint8_t *AES::state_copy(aes_state_t &dst, const uint8_t *src, uint32_t length)
 {
     uint32_t step = MIN(length, sizeof(dst.bytes));
     MEMCLR(dst);
@@ -453,13 +455,13 @@ uint8_t *AES::state_load(aes_state_t &dst, const uint8_t *src, uint32_t length)
     return (uint8_t *) (src + step);
 }
 
-uint8_t *AES::state_store(uint8_t *dst, const aes_state_t &src)
+uint8_t *AES::state_copy(uint8_t *dst, const aes_state_t &src)
 {
     memcpy(dst, src.bytes, sizeof(src.bytes));
     return (uint8_t *) (dst + sizeof(src.bytes));
 }
 
-uint8_t *AES::state_store(uint8_t *dst, const aes_state_t &src, uint32_t length)
+uint8_t *AES::state_copy(uint8_t *dst, const aes_state_t &src, uint32_t length)
 {
     uint32_t step = MIN(length, sizeof(src.bytes));
     memcpy(dst, src.bytes, step);
@@ -478,15 +480,14 @@ void AES::state_xor(aes_state_t &dst, const aes_state_t &src1, const aes_state_t
     dw[3] = sw1[3] ^ sw2[3];
 }
 
-void AES::state_copy(aes_state_t &dst, const aes_state_t &src)
+bool AES::state_compare(const aes_state_t &s1, const aes_state_t &s2)
 {
-    const uint32_t *sw = src.words;
-    uint32_t *dw = dst.words;
+    return memcmp(s1.bytes, s2.bytes, sizeof(s1.bytes)) == 0;
+}
 
-    dw[0] = sw[0];
-    dw[1] = sw[1];
-    dw[2] = sw[2];
-    dw[3] = sw[3];
+bool AES::state_compare(const aes_state_t &s1, const uint8_t *s2)
+{
+    return memcmp(s1.bytes, s2, sizeof(s1.bytes)) == 0;
 }
 
 void AES::state_truncate(aes_state_t &state, uint32_t length)
@@ -514,17 +515,3 @@ void AES::state_increment(aes_state_t &state)
     WRITE32(state.bytes + 8, i1);
     WRITE32(state.bytes + 12, i0);
 }
-
-#ifdef DEBUG_AES
-void AES::state_dump(const char *title, const aes_state_t &state)
-{
-    char buffer[64];
-    char *ptr = buffer;
-    for(int i=0;i<sizeof(state.bytes);i++)
-    {
-        sprintf(ptr, "%02x", state.bytes[i]);
-        ptr += 2;
-    }
-    printf("%s = %s\n", title, buffer);
-}
-#endif

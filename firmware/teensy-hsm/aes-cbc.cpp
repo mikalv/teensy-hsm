@@ -31,16 +31,16 @@ void AESCBC::encrypt(uint8_t *p_ciphertext, const uint8_t *p_plaintext, uint32_t
 {
     aes_state_t key, iv, pt, ct;
 
-    AES::state_load(key, p_key);
-    AES::state_load(iv, p_iv);
+    AES::state_copy(key, p_key);
+    AES::state_copy(iv, p_iv);
 
     init(key, iv);
     while (plaintext_length)
     {
         uint32_t step = MIN(plaintext_length, sizeof(pt.bytes));
-        p_plaintext = AES::state_load(pt, p_plaintext, step);
+        p_plaintext = AES::state_copy(pt, p_plaintext, step);
         encrypt(ct, pt);
-        p_ciphertext = AES::state_store(p_ciphertext, ct, step);
+        p_ciphertext = AES::state_copy(p_ciphertext, ct, step);
         plaintext_length -= step;
     }
 
@@ -59,16 +59,16 @@ void AESCBC::decrypt(uint8_t *p_plaintext, const uint8_t *p_ciphertext, uint32_t
 {
     aes_state_t key, iv, pt, ct;
 
-    AES::state_load(key, p_key);
-    AES::state_load(iv, p_iv);
+    AES::state_copy(key, p_key);
+    AES::state_copy(iv, p_iv);
 
     init(key, iv);
     while (ciphertext_length)
     {
         uint32_t step = MIN(ciphertext_length, sizeof(ct.bytes));
-        p_ciphertext = AES::state_load(ct, p_ciphertext, step);
+        p_ciphertext = AES::state_copy(ct, p_ciphertext, step);
         decrypt(pt, ct);
-        p_plaintext = AES::state_store(p_plaintext, pt, step);
+        p_plaintext = AES::state_copy(p_plaintext, pt, step);
         ciphertext_length -= step;
     }
 

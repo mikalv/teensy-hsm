@@ -35,7 +35,7 @@ void AESCCM::init(const aes_state_t &key, const uint32_t key_handle, const aes_c
     this->key_handle = key_handle;
     this->length = length;
     this->remaining = length;
-    memcpy(this->nonce.bytes, nonce.bytes, sizeof(nonce.bytes));
+    AESCCM::nonce_copy(this->nonce, nonce);
 
     ctx.init(key);
     reset();
@@ -101,22 +101,22 @@ void AESCCM::encrypt(uint8_t *p_ciphertext, const uint8_t *p_plaintext, uint32_t
     aes_ccm_mac_t mac;
     aes_state_t key, pt, ct;
 
-    memcpy(nonce.bytes, p_nonce, sizeof(nonce.bytes));
-    AES::state_load(key, p_key);
+    AESCCM::nonce_copy(nonce, p_nonce);
+    AES::state_copy(key, p_key);
     init(key, key_handle, nonce, plaintext_length);
 
     while (plaintext_length)
     {
         uint32_t step = MIN(plaintext_length, sizeof(pt.bytes));
-        p_plaintext = AES::state_load(pt, p_plaintext);
+        p_plaintext = AES::state_copy(pt, p_plaintext);
         encrypt_update(ct, pt);
-        p_ciphertext = AES::state_store(p_ciphertext, ct, step);
+        p_ciphertext = AES::state_copy(p_ciphertext, ct, step);
 
         plaintext_length -= step;
     }
 
     encrypt_final(mac);
-    memcpy(p_ciphertext, mac.bytes, sizeof(mac));
+    AESCCM::mac_copy(p_ciphertext, mac);
 
     reset();
 }
@@ -139,25 +139,59 @@ bool AESCCM::decrypt(uint8_t *p_plaintext, const uint8_t *p_ciphertext, uint32_t
     }
 
     uint32_t length = ciphertext_length - AES_CCM_MAC_SIZE_BYTES;
-    memcpy(nonce.bytes, p_nonce, sizeof(nonce.bytes));
-    AES::state_load(key, p_key);
+    AESCCM::nonce_copy(nonce, p_nonce);
+    AESCCM::mac_copy(mac, p_ciphertext + length);
+    AES::state_copy(key, p_key);
     init(key, key_handle, nonce, length);
 
     while (length)
     {
         uint32_t step = MIN(length, sizeof(ct.bytes));
-        p_ciphertext = AES::state_load(ct, p_ciphertext, step);
+        p_ciphertext = AES::state_copy(ct, p_ciphertext, step);
         decrypt_update(pt, ct);
-        p_plaintext = AES::state_store(p_plaintext, pt, step);
+        p_plaintext = AES::state_copy(p_plaintext, pt, step);
 
         length -= step;
     }
 
     /* compare MAC */
-    bool match = memcpy(mac.bytes, p_ciphertext, sizeof(mac.bytes));
+    bool match = decrypt_final(mac);
     reset();
 
     return match;
+}
+
+uint8_t *AESCCM::nonce_copy(aes_ccm_nonce_t &dst, const uint8_t *src)
+{
+    memcpy(dst.bytes, src, sizeof(dst.bytes));
+    return (uint8_t *) (src + sizeof(dst.bytes));
+}
+
+void AESCCM::nonce_copy(aes_ccm_nonce_t &dst, const aes_ccm_nonce_t &src){
+    memcpy(dst.bytes, src.bytes, sizeof(src.bytes));
+}
+
+uint8_t * AESCCM::nonce_copy(uint8_t *dst, const aes_ccm_nonce_t &src)
+{
+    memcpy(dst, src.bytes, sizeof(src.bytes));
+    return (uint8_t *) (dst + sizeof(src.bytes));
+}
+
+uint8_t * AESCCM::mac_copy(aes_ccm_mac_t &dst, const uint8_t *src)
+{
+    memcpy(dst.bytes, src, sizeof(dst.bytes));
+    return (uint8_t *) (src + sizeof(dst.bytes));
+}
+
+uint8_t * AESCCM::mac_copy(uint8_t *dst, const aes_ccm_mac_t &src)
+{
+    memcpy(dst, src.bytes, sizeof(src.bytes));
+    return (uint8_t *) (dst + sizeof(src.bytes));
+}
+
+bool AESCCM::mac_compare(const aes_ccm_mac_t &v1, const uint8_t *v2)
+{
+    return memcmp(v1.bytes, v2, sizeof(v1.bytes)) == 0;
 }
 
 void AESCCM::reset()
