@@ -18,26 +18,23 @@ typedef struct
 
 static bool encrypt_equals(const uint8_t *input, const uint8_t *key, const uint8_t *expected)
 {
-    aes_state_t tmp, out, in;
-    memcpy(in.bytes, input, sizeof(in.bytes));
-    memcpy(tmp.bytes, key, sizeof(tmp.bytes));
+    uint8_t actual[AES_BLOCK_SIZE_BYTES];
 
     AES aes = AES();
-    aes.init(tmp);
-    aes.encrypt(out, in);
-    return memcmp(out.bytes, expected, sizeof(out.bytes)) == 0;
+    aes.init(key);
+    aes.encrypt(actual, input);
+    return memcmp(actual, expected, sizeof(actual)) == 0;
 }
 
 static bool decrypt_equals(const uint8_t *input, const uint8_t *key, const uint8_t *expected)
 {
-    aes_state_t tmp, out, in;
-    memcpy(in.bytes, input, sizeof(in.bytes));
-    memcpy(tmp.bytes, key, sizeof(tmp.bytes));
+    uint8_t actual[AES_BLOCK_SIZE_BYTES];
+
 
     AES aes = AES();
-    aes.init(tmp);
-    aes.decrypt(out, in);
-    return memcmp(out.bytes, expected, sizeof(out.bytes)) == 0;
+    aes.init(key);
+    aes.decrypt(actual, input);
+    return memcmp(actual, expected, sizeof(actual)) == 0;
 }
 
 static void hexdump(char *buffer, const uint8_t *values, size_t length)

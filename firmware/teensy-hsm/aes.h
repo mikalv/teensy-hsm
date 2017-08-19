@@ -30,10 +30,16 @@ public:
 	AES();
 	~AES();
 	void init(const aes_state_t &key);
+	void init(const uint8_t *key);
 	void encrypt(aes_state_t &ciphertext, const aes_state_t &plaintext);
+	void encrypt(uint8_t *ciphertext, const uint8_t *plaintext);
 	void decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext);
+	void decrypt(uint8_t *plaintext, const uint8_t *ciphertext);
 	void clear();
-	static uint8_t *state_fill(aes_state_t &dst, const uint8_t *data);
+	static uint8_t *state_load(aes_state_t &dst, const uint8_t *src);
+	static uint8_t *state_load(aes_state_t &dst, const uint8_t *src, uint32_t length);
+	static uint8_t *state_store(uint8_t *dst, const aes_state_t &src);
+	static uint8_t *state_store(uint8_t *dst, const aes_state_t &src, uint32_t length);
 	static void state_xor(aes_state_t &dst, const aes_state_t &src1, const aes_state_t &src2);
 	static void state_copy(aes_state_t &dst, const aes_state_t &src);
 	static void state_truncate(aes_state_t &state, uint32_t length);

@@ -21,32 +21,20 @@ typedef struct
 
 static bool encrypt_equals(const uint8_t *p_input, const uint8_t *p_key, const uint8_t *p_iv, const uint8_t *p_expected)
 {
+	uint8_t actual[AES_BLOCK_SIZE_BYTES];
+
 	AESCBC aes = AESCBC();
-	aes_state_t key, iv, pt, ct;
-
-	memcpy(pt.bytes, p_input, sizeof(pt.bytes));
-	memcpy(key.bytes, p_key, sizeof(key.bytes));
-	memcpy(iv.bytes, p_iv, sizeof(iv.bytes));
-	memset(ct.bytes, 0, sizeof(ct.bytes));
-
-	aes.init(key, iv);
-	aes.encrypt(ct, pt);
-	return memcmp(ct.bytes, p_expected, sizeof(ct.bytes)) == 0;
+	aes.encrypt(actual, p_input, AES_BLOCK_SIZE_BYTES, p_key, p_iv);
+	return memcmp(actual, p_expected, sizeof(actual)) == 0;
 }
 
 static bool decrypt_equals(const uint8_t *p_input, const uint8_t *p_key, const uint8_t *p_iv, const uint8_t *p_expected)
 {
-	AESCBC aes = AESCBC();
-	aes_state_t key, iv, pt, ct;
+    uint8_t actual[AES_BLOCK_SIZE_BYTES];
 
-	memcpy(ct.bytes, p_input, sizeof(ct.bytes));
-	memcpy(key.bytes, p_key, sizeof(key.bytes));
-	memcpy(iv.bytes, p_iv, sizeof(iv.bytes));
-	memset(pt.bytes, 0, sizeof(pt.bytes));
-
-	aes.init(key, iv);
-	aes.decrypt(pt, ct);
-	return memcmp(pt.bytes, p_expected, sizeof(pt.bytes)) == 0;
+    AESCBC aes = AESCBC();
+	aes.decrypt(actual, p_input, AES_BLOCK_SIZE_BYTES, p_key,p_iv);
+	return memcmp(actual, p_expected, sizeof(actual)) == 0;
 }
 
 static void hexdump(char *buffer, const uint8_t *values, size_t length)

@@ -102,7 +102,7 @@ void AESCCM::encrypt(uint8_t *p_ciphertext, const uint8_t *p_plaintext, uint32_t
     aes_state_t key, pt, ct;
 
     memcpy(nonce.bytes, p_nonce, sizeof(nonce.bytes));
-    AES::state_fill(key, p_key);
+    AES::state_load(key, p_key);
     init(key, key_handle, nonce, plaintext_length);
 
     while (plaintext_length)
@@ -144,7 +144,7 @@ bool AESCCM::decrypt(uint8_t *p_plaintext, const uint8_t *p_ciphertext, uint32_t
 
     uint32_t length = ciphertext_length - AES_CCM_MAC_SIZE_BYTES;
     memcpy(nonce.bytes, p_nonce, sizeof(nonce.bytes));
-    AES::state_fill(key, p_key);
+    AES::state_load(key, p_key);
     init(key, key_handle, nonce, length);
 
     while (length)

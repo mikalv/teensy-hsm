@@ -263,6 +263,15 @@ void AES::encrypt(aes_state_t &ciphertext, const aes_state_t &plaintext)
     encrypt_final(ciphertext, ctx, subkeys[10]);
 }
 
+void AES::encrypt(uint8_t *ciphertext, const uint8_t *plaintext)
+{
+    aes_state_t pt, ct;
+
+    AES::state_load(pt, plaintext);
+    encrypt(ct, pt);
+    AES::state_store(ciphertext, ct);
+}
+
 void AES::decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext)
 {
     aes_state_t ctx;
@@ -277,6 +286,15 @@ void AES::decrypt(aes_state_t &plaintext, const aes_state_t &ciphertext)
     decrypt_step(plaintext, ctx, subkeys[2]);
     decrypt_step(ctx, plaintext, subkeys[1]);
     decrypt_final(plaintext, ctx, subkeys[0]);
+}
+
+void AES::decrypt(uint8_t *plaintext, const uint8_t *ciphertext)
+{
+    aes_state_t pt, ct;
+
+    AES::state_load(ct, ciphertext);
+    decrypt(pt, ct);
+    AES::state_store(plaintext, pt);
 }
 
 void AES::clear()
@@ -314,6 +332,12 @@ void AES::init(const aes_state_t &key)
         dst->bytes[14] = src->bytes[14] ^ dst->bytes[10];
         dst->bytes[15] = src->bytes[15] ^ dst->bytes[11];
     }
+}
+
+void AES::init(const uint8_t *p_key){
+    aes_state_t key;
+    AES::state_load(key, p_key);
+    init(key);
 }
 
 void AES::encrypt_step(aes_state_t &dst, const aes_state_t &src, const aes_state_t &key)
@@ -415,10 +439,31 @@ void AES::decrypt_final(aes_state_t &dst, const aes_state_t &src, const aes_stat
     state_xor(dst, dst, key);
 }
 
-uint8_t *AES::state_fill(aes_state_t &dst, const uint8_t *data)
+uint8_t *AES::state_load(aes_state_t &dst, const uint8_t *src)
 {
-    memcpy(dst.bytes, data, sizeof(dst.bytes));
-    return (uint8_t *) (data + sizeof(dst.bytes));
+    memcpy(dst.bytes, src, sizeof(dst.bytes));
+    return (uint8_t *) (src + sizeof(dst.bytes));
+}
+
+uint8_t *AES::state_load(aes_state_t &dst, const uint8_t *src, uint32_t length)
+{
+    uint32_t step = MIN(length, sizeof(dst.bytes));
+    MEMCLR(dst);
+    memcpy(dst.bytes, src, step);
+    return (uint8_t *) (src + step);
+}
+
+uint8_t *AES::state_store(uint8_t *dst, const aes_state_t &src)
+{
+    memcpy(dst, src.bytes, sizeof(src.bytes));
+    return (uint8_t *) (dst + sizeof(src.bytes));
+}
+
+uint8_t *AES::state_store(uint8_t *dst, const aes_state_t &src, uint32_t length)
+{
+    uint32_t step = MIN(length, sizeof(src.bytes));
+    memcpy(dst, src.bytes, step);
+    return (uint8_t *) (dst + step);
 }
 
 void AES::state_xor(aes_state_t &dst, const aes_state_t &src1, const aes_state_t &src2)
