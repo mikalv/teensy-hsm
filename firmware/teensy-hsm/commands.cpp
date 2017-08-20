@@ -576,14 +576,82 @@ int32_t Commands::aes_ecb_block_encrypt(packet_t &output, const packet_t &input)
     return ERROR_CODE_NONE;
 }
 
-int32_t Commands::aes_ecb_block_decrypt(packet_t &response, const packet_t &request)
+int32_t Commands::aes_ecb_block_decrypt(packet_t &output, const packet_t &input)
 {
-    /* FIXME add implementation */
+    THSM_AES_ECB_BLOCK_DECRYPT_REQ request;
+    THSM_AES_ECB_BLOCK_DECRYPT_RESP response;
+    key_info_t key_info;
+    aes_state_t pt, ct;
+
+    /* check against minimum length */
+    if (input.length < sizeof(request))
+    {
+        return ERROR_CODE_INVALID_REQUEST;
+    }
+
+    memcpy(&request, input.bytes, sizeof(request));
+    MEMCLR(response);
+
+    /* get key */
+    uint32_t key_handle = READ32(request.key_handle);
+    int ret = storage.get_key(key_info, key_handle);
+    if (ret < 0)
+    {
+        return ret;
+    }
+
+    AES aes = AES();
+    aes.init(key_info.bytes);
+    AES::state_copy(ct, request.ciphertext);
+    aes.decrypt(pt, ct);
+
+    response.status = THSM_STATUS_OK;
+    memcpy(response.plaintext, pt.bytes, sizeof(pt.bytes));
+    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
+
+    output.length = sizeof(response);
+    memcpy(output.bytes, &response, sizeof(response));
+
+    return ERROR_CODE_NONE;
 }
 
-int32_t Commands::aes_ecb_block_decrypt_cmp(packet_t &response, const packet_t &request)
+int32_t Commands::aes_ecb_block_decrypt_cmp(packet_t &output, const packet_t &input)
 {
-    /* FIXME add implementation */
+    THSM_AES_ECB_BLOCK_DECRYPT_CMP_REQ request;
+    THSM_AES_ECB_BLOCK_DECRYPT_CMP_RESP response;
+    key_info_t key_info;
+    aes_state_t pt, ct;
+
+    /* check against minimum length */
+    if (input.length < sizeof(request))
+    {
+        return ERROR_CODE_INVALID_REQUEST;
+    }
+
+    memcpy(&request, input.bytes, sizeof(request));
+    MEMCLR(response);
+
+    /* get key */
+    uint32_t key_handle = READ32(request.key_handle);
+    int ret = storage.get_key(key_info, key_handle);
+    if (ret < 0)
+    {
+        return ret;
+    }
+
+    AES aes = AES();
+    aes.init(key_info.bytes);
+    AES::state_copy(ct, request.ciphertext);
+    aes.decrypt(pt, ct);
+    bool match = AES::state_compare(pt, request.plaintext);
+
+    response.status = match ?THSM_STATUS_OK;
+    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
+
+    output.length = sizeof(response);
+    memcpy(output.bytes, &response, sizeof(response));
+
+    return ERROR_CODE_NONE;
 }
 
 int32_t Commands::hmac_sha1_generate(packet_t &response, const packet_t &request)
