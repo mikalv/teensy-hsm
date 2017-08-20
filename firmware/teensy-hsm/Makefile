@@ -3,6 +3,9 @@
 clean: test-runner
 	@rm -f $<
 
+test-crc16: crc16.cpp test/test-crc16.cpp
+	@g++ -I. -I./test $(USER_DEFINES) $^ -o test-runner && ./test-runner
+
 test-sha1: sha1.cpp test/test-sha1.cpp
 	@g++ -I. -I./test $(USER_DEFINES) $^ -o test-runner && ./test-runner
 
