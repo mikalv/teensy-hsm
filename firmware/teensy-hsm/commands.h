@@ -7,6 +7,7 @@
 #include "sizes.h"
 #include "storage.h"
 #include "aes-drbg.h"
+#include "sha1-hmac.h"
 
 //------------------------------------------------------------------------------
 // Response Flags
@@ -69,5 +70,6 @@ private:
     Storage storage;
     AESDRBG drbg;
     Buffer buffer;
+    SHA1HMAC hmac;
 };
 #endif

@@ -34,6 +34,11 @@
 #define THSM_CMD_KEY_STORE_DECRYPT          0x29
 #define THSM_CMD_MONITOR_EXIT               0x7f
 
+// HMAC flag
+#define THSM_HMAC_RESET          0x01
+#define THSM_HMAC_FINAL          0x02
+#define THSM_HMAC_SHA1_TO_BUFFER 0x04
+
 Commands::Commands()
 {
     flags = Flags();
@@ -654,9 +659,66 @@ int32_t Commands::aes_ecb_block_decrypt_cmp(packet_t &output, const packet_t &in
     return ERROR_CODE_NONE;
 }
 
-int32_t Commands::hmac_sha1_generate(packet_t &response, const packet_t &request)
+int32_t Commands::hmac_sha1_generate(packet_t &output, const packet_t &input)
 {
-    /* FIXME add implementation */
+    THSM_HMAC_SHA1_GENERATE_REQ request;
+    THSM_HMAC_SHA1_GENERATE_RESP response;
+    key_info_t key_info;
+
+    if (input.length < 6)
+    {
+        return ERROR_CODE_INVALID_REQUEST;
+    }
+
+    MEMCLR(response);
+    memcpy(&request, input.bytes, sizeof(request));
+
+    if (request.data_len > sizeof(request.data))
+    {
+        return ERROR_CODE_INVALID_REQUEST;
+    }
+
+    /* get key */
+    uint32_t key_handle = READ32(request.key_handle);
+    int ret = storage.get_key(key_info, key_handle);
+    if (ret < 0)
+    {
+        return ret;
+    }
+
+    uint8_t flags = request.flags;
+    if (!flags)
+    {
+        hmac.update(request.data, request.data_len);
+    }
+    else if (flags & THSM_HMAC_RESET)
+    {
+        hmac.init(key_info.bytes, sizeof(key_info.bytes));
+    }
+    else if (flags & THSM_HMAC_FINAL)
+    {
+        sha1_digest_t hash;
+        hmac.final(hash);
+
+        response.data_len = sizeof(hash.bytes);
+        memcpy(response.data, hash.bytes, sizeof(hash.bytes));
+
+        if (flags & THSM_HMAC_SHA1_TO_BUFFER)
+        {
+            buffer.clear();
+            buffer.write(0, hash.bytes, sizeof(hash.bytes));
+        }
+    }
+
+    response.status = THSM_STATUS_OK;
+    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
+
+    /* copy to output buffer */
+    uint32_t output_length = response.data_len + 6;
+    memcpy(output.bytes, &response, output_length);
+    output.length = output_length;
+
+    return ERROR_CODE_NONE;
 }
 
 int32_t Commands::temp_key_load(packet_t &response, const packet_t &request)
@@ -679,9 +741,34 @@ int32_t Commands::nonce_get(packet_t &response, const packet_t &request)
     /* FIXME add implementation */
 }
 
-int32_t Commands::echo(packet_t &response, const packet_t &request)
+int32_t Commands::echo(packet_t &output, const packet_t &input)
 {
-    /* FIXME add implementation */
+    THSM_ECHO_RESP request;
+    THSM_ECHO_RESP response;
+
+    if (input.length < 1)
+    {
+        return ERROR_CODE_INVALID_REQUEST;
+    }
+
+    MEMCLR(response);
+    memcpy(&request, input.bytes, sizeof(request));
+
+    if (request.data_len > sizeof(request.data))
+    {
+        return ERROR_CODE_INVALID_REQUEST;
+    }
+
+    /* set response */
+    uint32_t length = request.data_len;
+    response.data_len = length;
+    memcpy(response.data, request.data, length);
+
+    /* opy to output */
+    memcpy(output.bytes, &response, length + 1);
+    output.length = length + 1;
+
+    return ERROR_CODE_NONE;
 }
 
 int32_t Commands::random_generate(packet_t &output, const packet_t &input)

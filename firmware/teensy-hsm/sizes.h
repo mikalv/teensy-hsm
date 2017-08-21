@@ -13,9 +13,7 @@
 #define THSM_CCM_CTR_SIZE           2 // Sizeof of AES CCM counter field
 #define THSM_AEAD_MAX_SIZE       (THSM_DATA_BUF_SIZE + THSM_AEAD_MAC_SIZE) // Max size of an AEAD block
 #define THSM_SHA1_HASH_SIZE        20 // 160-bit SHA1 hash size
-#define THSM_HMAC_RESET          0x01
-#define THSM_HMAC_FINAL          0x02
-#define THSM_HMAC_SHA1_TO_BUFFER 0x04
+
 #define THSM_SYSTEM_ID_SIZE        12
 #define THSM_PUBLIC_ID_SIZE         6
 #define THSM_DB_KEY_ENTRIES        32
