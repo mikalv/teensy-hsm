@@ -691,11 +691,13 @@ int32_t Commands::hmac_sha1_generate(packet_t &output, const packet_t &input)
     {
         hmac.update(request.data, request.data_len);
     }
-    else if (flags & THSM_HMAC_RESET)
+
+    if (flags & THSM_HMAC_RESET)
     {
         hmac.init(key_info.bytes, sizeof(key_info.bytes));
     }
-    else if (flags & THSM_HMAC_FINAL)
+
+    if (flags & THSM_HMAC_FINAL)
     {
         sha1_digest_t hash;
         hmac.final(hash);
