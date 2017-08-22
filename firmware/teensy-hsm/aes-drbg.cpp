@@ -37,6 +37,9 @@ void AESDRBG::reseed(const aes_drbg_entropy_t &seed)
         aes.init(key);
     }
 
+    /* copy seed */
+    memcpy(this->seed.bytes, seed.bytes, sizeof(seed.bytes));
+
     /* derive key and value from seed */
     update(seed);
 
@@ -45,30 +48,27 @@ void AESDRBG::reseed(const aes_drbg_entropy_t &seed)
     reseed_counter = RESEED_COUNTER_VALUE;
 }
 
-int32_t AESDRBG::generate(aes_state_t &random)
+bool AESDRBG::generate(aes_state_t &random)
 {
     if (!initialized)
     {
-        return ERROR_CODE_DRBG_NOT_INITIALIZED;
+        return false;
     }
     else if (!reseed_counter)
     {
-        return ERROR_CODE_DRBG_EXHAUSTED;
+        reseed(seed);
     }
 
     reseed_counter--;
     AES::state_increment(value);
     aes.encrypt(random, value);
 
-    return ERROR_CODE_NONE;
+    return true;
 }
 
-int32_t AESDRBG::generate(buffer_t &output, uint32_t length)
+bool AESDRBG::generate(buffer_t &output, uint32_t length)
 {
-    if (length > sizeof(output.bytes))
-    {
-        return ERROR_CODE_INVALID_REQUEST;
-    }
+    length = MIN(length, sizeof(output.bytes));
 
     MEMCLR(output);
     output.length = length;
@@ -77,10 +77,9 @@ int32_t AESDRBG::generate(buffer_t &output, uint32_t length)
     while (length)
     {
         aes_state_t random;
-        int32_t ret = generate(random);
-        if (ret < 0)
+        if (!generate(random))
         {
-            return ret;
+            return false;
         }
 
         uint32_t step = MIN(length, sizeof(random.bytes));
@@ -90,26 +89,25 @@ int32_t AESDRBG::generate(buffer_t &output, uint32_t length)
         length -= step;
     }
 
-    return ERROR_CODE_NONE;
+    return true;
 }
 
-int32_t AESDRBG::generate(uint8_t *buffer, uint32_t length)
+bool AESDRBG::generate(uint8_t *buffer, uint32_t length)
 {
     aes_state_t random;
     while (length)
     {
         uint32_t step = MIN(length, sizeof(random.bytes));
-        int ret = generate(random);
-        if (ret < 0)
+        if (!generate(random))
         {
-            return ret;
+            return false;
         }
         buffer = AES::state_copy(buffer, random, step);
 
         length -= step;
     }
 
-    return ERROR_CODE_NONE;
+    return true;
 }
 
 void AESDRBG::update(const aes_drbg_entropy_t &seed)

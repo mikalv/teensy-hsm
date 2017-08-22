@@ -23,10 +23,17 @@ class HSM
 public:
     HSM();
     void init();
+    void clear();
     void process(uint8_t byte);
 private:
-    THSM_PKT_REQ request;
-    THSM_PKT_REQ response;
+    uint32_t null_counter;
+    uint32_t remaining;
+    uint32_t state;
+
+    uint32_t command_id;
+    packet_t request;
+    packet_t response;
+
     Commands commands;
 };
 #endif

@@ -69,25 +69,20 @@ void Storage::store(const aes_state_t &key, const aes_state_t &iv)
     store(key, iv, current);
 }
 
-int32_t Storage::get_key(key_info_t &key, uint32_t handle)
+bool Storage::get_key(key_info_t &key, uint32_t handle)
 {
-    if (!handle)
-    {
-        return ERROR_CODE_KEY_NOT_FOUND;
-    }
-
-    for (int i = 0; i < STORAGE_KEY_ENTRIES; i++)
+    for (int i = 0; i < STORAGE_KEY_ENTRIES && handle; i++)
     {
         if (READ32(storage.keys[i].handle) == handle)
         {
             key.handle = handle;
             key.flags = READ32(storage.keys[i].flags);
             memcpy(key.bytes, storage.keys[i].bytes, sizeof(key.bytes));
-            return ERROR_CODE_NONE;
+            return true;
         }
     }
 
-    return ERROR_CODE_KEY_NOT_FOUND;
+    return false;
 }
 
 int32_t Storage::put_key(const key_info_t &key)
