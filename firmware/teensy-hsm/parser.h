@@ -1,5 +1,5 @@
-#ifndef __HSM_H__
-#define __HSM_H__
+#ifndef __PARSER_H__
+#define __PARSER_H__
 
 #include <stdint.h>
 #include "commands.h"
@@ -18,10 +18,11 @@ typedef struct
     uint8_t payload[THSM_MAX_PKT_SIZE];
 } THSM_PKT_RESP;
 
-class HSM
+class Parser
 {
 public:
-    HSM();
+    Parser();
+    ~Parser();
     void init();
     void clear();
     void process(uint8_t byte);

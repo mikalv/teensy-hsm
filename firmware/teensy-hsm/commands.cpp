@@ -119,7 +119,7 @@ bool Commands::null(packet_t &response, const packet_t &request)
     return false;
 }
 
-int32_t Commands::aead_generate(packet_t &output, const packet_t &input)
+bool Commands::aead_generate(packet_t &output, const packet_t &input)
 {
     THSM_AEAD_GENERATE_REQ request;
     THSM_AEAD_GENERATE_RESP response;
@@ -175,55 +175,57 @@ int32_t Commands::aead_generate(packet_t &output, const packet_t &input)
     return true;
 }
 
-int32_t Commands::buffer_aead_generate(packet_t &output, const packet_t &input)
+bool Commands::buffer_aead_generate(packet_t &output, const packet_t &input)
 {
     THSM_BUFFER_AEAD_GENERATE_REQ request;
     THSM_BUFFER_AEAD_GENERATE_RESP response;
     key_info_t key_info;
     buffer_t plaintext;
 
-    /* check against minimum length */
-    if (input.length < sizeof(request))
-    {
-        return ERROR_CODE_INVALID_REQUEST;
-    }
+    uint32_t min_response_length = (sizeof(response) - sizeof(response.data));
 
-    /* initialize buffers */
+    /* initialize response */
     MEMCLR(response);
-    memcpy(&request, input.bytes, MIN(sizeof(request), input.length));
+    response.status = THSM_STATUS_INVALID_PARAMETER;
 
-    /* get key */
-    uint32_t key_handle = READ32(request.key_handle);
-    int ret = storage.get_key(key_info, key_handle);
-    if (ret < 0)
+    /* check against minimum length */
+    if (input.length >= sizeof(request))
     {
-        return ret;
-    }
+        /* initialize buffers */
+        memcpy(&request, input.bytes, MIN(sizeof(request), input.length));
 
-    /* generate nonce if it is null */
-    if (Util::is_empty(request.nonce, sizeof(request.nonce)))
-    {
-        aes_state_t random;
-        int32_t ret = drbg.generate(request.nonce, sizeof(request.nonce));
-        if (ret < 0)
+        /* get key */
+        response.status = THSM_STATUS_KEY_HANDLE_INVALID;
+        uint32_t key_handle = READ32(request.key_handle);
+        if (storage.get_key(key_info, key_handle))
         {
             return ret;
         }
+
+        /* generate nonce if it is null */
+        if (Util::is_empty(request.nonce, sizeof(request.nonce)))
+        {
+            int32_t ret = drbg.generate(request.nonce, sizeof(request.nonce));
+            if (ret < 0)
+            {
+                return ret;
+            }
+        }
+
+        /* encode buffer */
+        buffer.read(plaintext);
+
+        /* encrypt */
+        uint32_t length = plaintext.length;
+        AESCCM aes = AESCCM();
+        aes.encrypt(response.data, plaintext.bytes, length, key_handle, key_info.bytes, request.nonce);
+
+        /* copy key handle and nonce */
+        response.status = THSM_STATUS_OK;
+        response.data_len = length + AES_CCM_MAC_SIZE_BYTES;
+        memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
+        memcpy(response.nonce, request.nonce, sizeof(request.nonce));
     }
-
-    /* encode buffer */
-    buffer.read(plaintext);
-
-    /* encrypt */
-    uint32_t length = plaintext.length;
-    AESCCM aes = AESCCM();
-    aes.encrypt(response.data, plaintext.bytes, length, key_handle, key_info.bytes, request.nonce);
-
-    /* copy key handle and nonce */
-    response.status = THSM_STATUS_OK;
-    response.data_len = length + AES_CCM_MAC_SIZE_BYTES;
-    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
-    memcpy(response.nonce, request.nonce, sizeof(request.nonce));
 
     /* copy to output */
     uint32_t output_length = response.data_len + 12;

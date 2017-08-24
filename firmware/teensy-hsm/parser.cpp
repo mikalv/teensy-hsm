@@ -1,20 +1,27 @@
 #include <string.h>
-#include "hsm.h"
+#include "parser.h"
 #include "macros.h"
 
 #define STATE_WAIT_BCNT     0
 #define STATE_WAIT_CMD      1
 #define STATE_WAIT_PAYLOAD  2
 
-HSM::HSM()
+Parser::Parser()
 {
+    clear();
 }
 
-void HSM::init()
+Parser::~Parser()
 {
+    clear();
 }
 
-void HSM::clear()
+void Parser::init()
+{
+    clear();
+}
+
+void Parser::clear()
 {
     command_id = 0;
     state = STATE_WAIT_BCNT;
@@ -24,7 +31,7 @@ void HSM::clear()
     MEMCLR(response);
 
 }
-void HSM::process(uint8_t byte)
+void Parser::process(uint8_t byte)
 {
     null_counter += (byte == 0);
     if (null_counter == THSM_MAX_PKT_SIZE)
@@ -46,6 +53,7 @@ void HSM::process(uint8_t byte)
 
     case STATE_WAIT_CMD:
         command_id = byte;
+        MEMCLR(request);
         if (--remaining > 0)
         {
             state = STATE_WAIT_PAYLOAD;
@@ -57,12 +65,27 @@ void HSM::process(uint8_t byte)
         break;
 
     case STATE_WAIT_PAYLOAD:
+        request.bytes[request.length] = byte;
+        if (--remaining > 0)
+        {
+            state = STATE_WAIT_PAYLOAD;
+        }
+        else
+        {
+            execute = true;
+        }
         break;
     }
 
-    if(execute){
-        if(commands.process(command_id, response, request)){
-            /* FIXME send response */
+    if (execute)
+    {
+        if (commands.process(command_id, response, request))
+        {
+#ifdef CORE_TEENSY_SERIAL
+            Sertial.write((response.length + 1), BYTE);
+            Sertial.write(command_id | THSM_FLAG_RESPONSE, BYTE);
+            Serial.write(response.bytes, response.length);
+#endif
         }
 
         clear();

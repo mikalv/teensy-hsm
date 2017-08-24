@@ -27,6 +27,8 @@
 #define THSM_STATUS_KEY_STORAGE_LOCKED      0x8a
 #define THSM_STATUS_MISMATCH                0x8b
 #define THSM_STATUS_INVALID_PARAMETER       0x8c
+#define THSM_STATUS_INVALID_PARAMETER       0x8c
+#define THSM_STATUS_EXT_DRBG_ERROR          0x90
 
 #define THSM_MAX_PKT_SIZE        0x60 // Max size of a packet (excluding command byte)
 
