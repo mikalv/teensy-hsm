@@ -65,7 +65,7 @@ void Parser::process(uint8_t byte)
         break;
 
     case STATE_WAIT_PAYLOAD:
-        request.bytes[request.length] = byte;
+        request.bytes[request.length++] = byte;
         if (--remaining > 0)
         {
             state = STATE_WAIT_PAYLOAD;
