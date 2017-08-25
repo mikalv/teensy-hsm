@@ -171,9 +171,10 @@ int32_t Storage::get_secret(secret_info_t &secret, const aes_ccm_nonce_t &public
 
             /* retrieve key based on stored handle */
             uint32_t handle = READ32(storage.secrets[i].handle);
-            if (!get_key(key_info, handle))
+            int32_t ret = get_key(key_info, handle);
+            if (ret < 0)
             {
-                return ERROR_CODE_KEY_NOT_FOUND;
+                return ret;
             }
 
             /* initialize buffers */
