@@ -33,7 +33,7 @@ void Storage::init()
     clear();
 }
 
-int32_t Storage::load(const aes_state_t &key, const aes_state_t &iv)
+bool Storage::load(const aes_state_t &key, const aes_state_t &iv)
 {
     /* load EEPROM */
     eeprom_buffer_t eeprom;
@@ -54,11 +54,11 @@ int32_t Storage::load(const aes_state_t &key, const aes_state_t &iv)
     if (!matched)
     {
         clear();
-        return ERROR_CODE_STORAGE_ENCRYPTED;
+        return false;
     }
 
     storage_decrypted = true;
-    return ERROR_CODE_NONE;
+    return true;
 }
 
 void Storage::store(const aes_state_t &key, const aes_state_t &iv)

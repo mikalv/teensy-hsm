@@ -7,7 +7,7 @@
 #include "hardware.h"
 
 #define STORAGE_KEY_ENTRIES     30
-#define STORAGE_SECRET_ENTRIES  28
+#define STORAGE_SECRET_ENTRIES  29
 #define AES_AEAD_SECRET_SIZE_BYTES   (AES_KEY_SIZE_BYTES + AES_CCM_NONCE_SIZE_BYTES)
 
 // AEAD secret
@@ -88,7 +88,7 @@ public:
     Storage();
     ~Storage();
     void init();
-    int32_t load(const aes_state_t &key, const aes_state_t &iv);
+    bool load(const aes_state_t &key, const aes_state_t &iv);
     void store(const aes_state_t &key, const aes_state_t &iv);
     bool get_key(key_info_t &key, uint32_t key_handle);
     int32_t put_key(const key_info_t &key);

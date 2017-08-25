@@ -34,10 +34,9 @@ int main(void)
     /* load */
     storage.clear();
 
-    ret = storage.load(key, iv);
-    if (ret < 0)
+    if (!storage.load(key, iv))
     {
-        printf("failed to load storage (error %d)\n", ret);
+        printf("failed to load storage\n");
         exit(1);
     }
 
@@ -49,7 +48,7 @@ int main(void)
         exit(1);
     }
 
-    ret = storage.put_secret(secret_info, KEY_HANDLE, public_id);
+    ret = storage.put_secret(secret_info, key_info, public_id);
     if (ret < 0)
     {
         printf("failed to put secret (error %d)\n", ret);
