@@ -66,7 +66,7 @@ int main(void)
     }
 
     secret_info_t recovered_secret;
-    ret = storage.get_secret(recovered_secret, KEY_HANDLE, public_id);
+    ret = storage.get_secret(recovered_secret, key_info, public_id);
     if (ret < 0)
     {
         printf("failed to get secret (error %d)\n", ret);
