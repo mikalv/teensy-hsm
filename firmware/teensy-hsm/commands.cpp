@@ -182,7 +182,7 @@ bool Commands::aead_generate(packet_t &output, const packet_t &input)
 
     uint32_t output_length = response.data_len + min_response_length;
     output.length = output_length;
-    memcpy(output.bytes, &response, output_length);
+    memcpy(output.bytes, &response, output.length);
 
     return true;
 }
@@ -246,7 +246,7 @@ bool Commands::buffer_aead_generate(packet_t &output, const packet_t &input)
 
     uint32_t output_length = response.data_len + min_response_length;
     output.length = output_length;
-    memcpy(output.bytes, &response, output_length);
+    memcpy(output.bytes, &response, output.length);
 
     return ERROR_CODE_NONE;
 }
@@ -321,7 +321,7 @@ bool Commands::random_aead_generate(packet_t &output, const packet_t &input)
 
     uint32_t output_length = response.data_len + min_response_length;
     output.length = output_length;
-    memcpy(output.bytes, &response, output_length);
+    memcpy(output.bytes, &response, output.length);
 
     return ERROR_CODE_NONE;
 }
@@ -376,41 +376,50 @@ bool Commands::aead_decrypt_cmp(packet_t &output, const packet_t &input)
     memcpy(response.nonce, request.nonce, sizeof(request.nonce));
 
     finish:
+
     output.length = min_response_length;
     memcpy(output.bytes, &response, output.length);
 
     return ERROR_CODE_NONE;
 }
 
-int32_t Commands::db_aead_store(packet_t &output, const packet_t &input)
+bool Commands::db_aead_store(packet_t &output, const packet_t &input)
 {
     THSM_DB_AEAD_STORE_REQ request;
     THSM_DB_AEAD_STORE_RESP response;
     key_info_t key_info;
     uint8_t plaintext[AES_KEY_SIZE_BYTES + AES_CCM_NONCE_SIZE_BYTES];
 
+    uint32_t min_request_length = sizeof(request);
+    uint32_t min_response_length = sizeof(response);
+
+    /* initialize response */
+    MEMCLR(response);
+
     /* check against minimum length */
-    if (input.length < sizeof(request))
+    if (input.length < min_request_length)
     {
-        return ERROR_CODE_INVALID_REQUEST;
+        response.status = THSM_STATUS_INVALID_PARAMETER;
+        goto finish;
     }
 
     /* initialize buffers */
-    MEMCLR(response);
-    MEMCLR(plaintext);
     memcpy(&request, input.bytes, MIN(sizeof(request), input.length));
+    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
+    memcpy(response.public_id, request.public_id, sizeof(request.public_id));
 
     /* get key */
     uint32_t key_handle = READ32(request.key_handle);
-    int ret = storage.get_key(key_info, key_handle);
-    if (ret < 0)
+    if (!storage.get_key(key_info, key_handle))
     {
-        return ret;
+        response.status = THSM_STATUS_INVALID_PARAMETER;
+        goto finish;
     }
 
-    /* decrypt */
+    /* decipher AEAD */
     uint32_t length = sizeof(request.aead);
     AESCCM aes = AESCCM();
+    MEMCLR(plaintext);
     bool match = aes.decrypt(plaintext, request.aead, length, key_handle, key_info.bytes, request.public_id);
     if (match)
     {
@@ -419,55 +428,61 @@ int32_t Commands::db_aead_store(packet_t &output, const packet_t &input)
 
         AESCCM::nonce_copy(nonce, request.public_id);
         Util::unpack_secret(secret_info, plaintext);
-        int32_t ret = storage.put_secret(secret_info, key_handle, nonce);
-        if (ret < 0)
-        {
-            return ret;
-        }
+
+        bool stored = storage.put_secret(secret_info, key_info, nonce);
+        response.status = stored ? THSM_STATUS_OK : THSM_STATUS_DB_FULL;
+    }
+    else
+    {
+        response.status = THSM_STATUS_AEAD_INVALID;
     }
 
-    /* copy key handle and nonce */
-    response.status = match ? THSM_STATUS_OK : THSM_STATUS_AEAD_INVALID;
-    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
-    memcpy(response.public_id, request.public_id, sizeof(request.public_id));
+    finish:
 
-    /* copy to output */
-    output.length = sizeof(response);
-    memcpy(output.bytes, &response, sizeof(response));
+    output.length = min_response_length;
+    memcpy(output.bytes, &response, output.length);
 
-    return ERROR_CODE_NONE;
+    return true;
 }
 
-int32_t Commands::aead_otp_decode(packet_t &output, const packet_t &input)
+bool Commands::aead_otp_decode(packet_t &output, const packet_t &input)
 {
     THSM_AEAD_OTP_DECODE_REQ request;
     THSM_AEAD_OTP_DECODE_RESP response;
     key_info_t key_info;
     uint8_t plaintext[AES_KEY_SIZE_BYTES + AES_CCM_NONCE_SIZE_BYTES];
 
+    uint32_t min_request_length = sizeof(request);
+    uint32_t min_response_length = sizeof(response);
+
+    /* initialize response */
+    MEMCLR(response);
+
     /* check against minimum length */
-    if (input.length < sizeof(request))
+    if (input.length < min_request_length)
     {
-        return ERROR_CODE_INVALID_REQUEST;
+        response.status = THSM_STATUS_INVALID_PARAMETER;
+        goto finish;
     }
 
     /* initialize buffers */
-    MEMCLR(response);
-    MEMCLR(plaintext);
     memcpy(&request, input.bytes, MIN(sizeof(request), input.length));
+    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
+    memcpy(response.public_id, request.public_id, sizeof(request.public_id));
 
     /* get key */
     uint32_t key_handle = READ32(request.key_handle);
-    int ret = storage.get_key(key_info, key_handle);
-    if (ret < 0)
+    if (!storage.get_key(key_info, key_handle))
     {
-        return ret;
+        response.status = THSM_STATUS_INVALID_PARAMETER;
+        goto finish;
     }
 
-    /* decrypt */
+    /* decipher OTP */
     uint32_t length = sizeof(request.aead);
-    AESCCM aes1 = AESCCM();
-    bool match = aes1.decrypt(plaintext, request.aead, length, key_handle, key_info.bytes, request.public_id);
+    AESCCM ccm = AESCCM();
+    MEMCLR(plaintext);
+    bool match = ccm.decrypt(plaintext, request.aead, length, key_handle, key_info.bytes, request.public_id);
     if (match)
     {
         secret_info_t secret_info;
@@ -477,9 +492,9 @@ int32_t Commands::aead_otp_decode(packet_t &output, const packet_t &input)
         AES::state_copy(pt, request.otp);
 
         CRC16 crc = CRC16();
-        AES aes2 = AES();
-        aes2.init(key);
-        aes2.decrypt(pt, ct);
+        AES ecb = AES();
+        ecb.init(key);
+        ecb.decrypt(pt, ct);
 
         // decrypted OTP
         // -------------------------------------------------
@@ -497,21 +512,25 @@ int32_t Commands::aead_otp_decode(packet_t &output, const packet_t &input)
             response.status = THSM_STATUS_OK;
             memcpy(response.counter_timestamp, (pt.bytes + 8), sizeof(response.counter_timestamp));
         }
+        else
+        {
+            response.status = THSM_STATUS_OTP_INVALID;
+        }
+    }
+    else
+    {
+        response.status = THSM_STATUS_AEAD_INVALID;
     }
 
-    /* copy key handle and nonce */
-    response.status = THSM_STATUS_AEAD_INVALID;
-    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
-    memcpy(response.public_id, request.public_id, sizeof(request.public_id));
+    finish:
 
-    /* copy to output */
-    output.length = sizeof(response);
-    memcpy(output.bytes, &response, sizeof(response));
+    output.length = min_response_length;
+    memcpy(output.bytes, &response, output.length);
 
-    return ERROR_CODE_NONE;
+    return true;
 }
 
-int32_t Commands::db_otp_validate(packet_t &response, const packet_t &request)
+bool Commands::db_otp_validate(packet_t &response, const packet_t &request)
 {
     /* FIXME add implementation */
 }

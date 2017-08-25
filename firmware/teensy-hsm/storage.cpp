@@ -137,40 +137,34 @@ int32_t Storage::get_secret(secret_info_t &secret, uint32_t key_handle, const ae
     return ERROR_CODE_SECRET_NOT_FOUND;
 }
 
-int32_t Storage::put_secret(const secret_info_t &secret, uint32_t key_handle, const aes_ccm_nonce_t &public_id)
+bool Storage::put_secret(const secret_info_t &secret, const key_info_t &key_info, const aes_ccm_nonce_t &public_id)
 {
-    uint8_t empty[AES_CCM_NONCE_SIZE_BYTES];
-    key_info_t key_info;
-
-    MEMCLR(empty);
-    int32_t ret = get_key(key_info, key_handle);
-    if (ret < 0)
-    {
-        return ret;
-    }
 
     /* scan for empty secrets slot */
     for (int i = 0; i < STORAGE_SECRET_ENTRIES; i++)
     {
-        if (memcmp(empty, storage.secrets[i].public_id, sizeof(empty)) == 0)
+        if (Util::is_empty(storage.secrets[i].public_id, sizeof(storage.secrets[i].public_id)))
         {
             uint8_t plaintext[AES_AEAD_SECRET_SIZE_BYTES];
             uint8_t ciphertext[AES_AEAD_SECRET_SIZE_BYTES + AES_CCM_MAC_SIZE_BYTES];
 
+            MEMCLR(plaintext);
+            MEMCLR(ciphertext);
+
             AESCCM aes = AESCCM();
             Util::pack_secret(plaintext, secret);
-            aes.encrypt(ciphertext, plaintext, AES_AEAD_SECRET_SIZE_BYTES, key_handle, key_info.bytes, public_id.bytes);
+            aes.encrypt(ciphertext, plaintext, AES_AEAD_SECRET_SIZE_BYTES, key_info.handle, key_info.bytes, public_id.bytes);
 
             WRITE32(storage.secrets[i].counter, 0);
             memcpy(storage.secrets[i].public_id, public_id.bytes, sizeof(public_id.bytes));
             memcpy(storage.secrets[i].secret.bytes, ciphertext, AES_AEAD_SECRET_SIZE_BYTES);
             memcpy(storage.secrets[i].secret.mac, ciphertext + AES_AEAD_SECRET_SIZE_BYTES, AES_CCM_MAC_SIZE_BYTES);
 
-            return ERROR_CODE_NONE;
+            return true;
         }
     }
 
-    return ERROR_CODE_SECRET_SLOT_FULL;
+    return false;
 }
 
 void Storage::clear()

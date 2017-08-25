@@ -9,7 +9,7 @@
 #include <string.h>
 #include "util.h"
 
-bool Util::is_empty(uint8_t *data, uint32_t length)
+bool Util::is_empty(const uint8_t *data, uint32_t length)
 {
     for (int i = 0; i < length && data; i++)
     {

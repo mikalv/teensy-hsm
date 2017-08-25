@@ -7,7 +7,7 @@
 class Util
 {
 public:
-    static bool is_empty(uint8_t *nonce, uint32_t length);
+    static bool is_empty(const uint8_t *nonce, uint32_t length);
     static void unpack_secret(secret_info_t &out, const uint8_t *secret);
     static void pack_secret(uint8_t *secret, const secret_info_t &out);
 };
