@@ -459,8 +459,19 @@ bool Commands::db_aead_store(packet_t &output, const packet_t &input)
         AESCCM::nonce_copy(nonce, request.public_id);
         Util::unpack_secret(secret_info, plaintext);
 
-        bool stored = storage.put_secret(secret_info, key_info, nonce);
-        response.status = stored ? THSM_STATUS_OK : THSM_STATUS_DB_FULL;
+        int32_t ret = storage.put_secret(secret_info, key_info, nonce);
+        if (ret == ERROR_CODE_STORAGE_ENCRYPTED)
+        {
+            response.status = THSM_STATUS_MEMORY_ERROR;
+        }
+        else if (ret == ERROR_CODE_SECRET_SLOT_FULL)
+        {
+            response.status = THSM_STATUS_DB_FULL;
+        }
+        else
+        {
+            response.status = THSM_STATUS_OK;
+        }
     }
     else
     {
@@ -570,7 +581,6 @@ bool Commands::db_otp_validate(packet_t &output, const packet_t &input)
 {
     THSM_DB_OTP_VALIDATE_REQ request;
     THSM_DB_OTP_VALIDATE_RESP response;
-
     key_info_t key_info;
     secret_info_t secret_info;
 
@@ -630,10 +640,26 @@ bool Commands::db_otp_validate(packet_t &output, const packet_t &input)
     if (crc_match && uid_match)
     {
         /* check counter */
-        uint16_t counter = READ16(pt.bytes + 6);
-        storage.check_counter(public_id, counter);
-        response.status = THSM_STATUS_OK;
-        memcpy(response.counter_timestamp, (pt.bytes + 8), sizeof(response.counter_timestamp));
+        uint32_t hi = READ16(pt.bytes + 6);
+        uint16_t lo = READ16(pt.bytes + 12);
+        uint16_t ret = storage.check_counter(public_id, (hi << 16) + lo);
+        if (ret == ERROR_CODE_STORAGE_ENCRYPTED)
+        {
+            response.status = THSM_STATUS_MEMORY_ERROR;
+        }
+        else if (ret == ERROR_CODE_SECRET_NOT_FOUND)
+        {
+            response.status = THSM_STATUS_ID_NOT_FOUND;
+        }
+        else if (ret == ERROR_CODE_OTP_PLAYBACK)
+        {
+            response.status = THSM_STATUS_OTP_REPLAY;
+        }
+        else
+        {
+            response.status = THSM_STATUS_OK;
+            memcpy(response.counter_timestamp, (pt.bytes + 8), sizeof(response.counter_timestamp));
+        }
     }
     else
     {
@@ -655,29 +681,43 @@ bool Commands::db_aead_store2(packet_t &output, const packet_t &input)
     key_info_t key_info;
     uint8_t plaintext[AES_KEY_SIZE_BYTES + AES_CCM_NONCE_SIZE_BYTES];
 
+    uint32_t min_request_length = sizeof(request);
+    uint32_t min_response_length = sizeof(response);
+
+    /* initialize response */
+    MEMCLR(response);
+
     /* check against minimum length */
-    if (input.length < sizeof(request))
+    if (input.length < min_request_length)
     {
-        return ERROR_CODE_INVALID_REQUEST;
+        response.status = THSM_STATUS_INVALID_PARAMETER;
+        goto finish;
     }
 
     /* initialize buffers */
-    MEMCLR(response);
-    MEMCLR(plaintext);
     memcpy(&request, input.bytes, MIN(sizeof(request), input.length));
+    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
+    memcpy(response.public_id, request.public_id, sizeof(request.public_id));
 
     /* get key */
     uint32_t key_handle = READ32(request.key_handle);
-    int ret = storage.get_key(key_info, key_handle);
-    if (ret < 0)
+    int32_t ret = storage.get_key(key_info, key_handle);
+    if (ret == ERROR_CODE_STORAGE_ENCRYPTED)
     {
-        return ret;
+        response.status = THSM_STATUS_MEMORY_ERROR;
+        goto finish;
+    }
+    else if (ret == ERROR_CODE_KEY_NOT_FOUND)
+    {
+        response.status = THSM_STATUS_KEY_HANDLE_INVALID;
+        goto finish;
     }
 
-    /* decrypt */
+    /* decipher AEAD */
     uint32_t length = sizeof(request.aead);
-    AESCCM aes = AESCCM();
-    bool match = aes.decrypt(plaintext, request.aead, length, key_handle, key_info.bytes, request.public_id);
+    AESCCM ccm = AESCCM();
+    MEMCLR(plaintext);
+    bool match = ccm.decrypt(plaintext, request.aead, length, key_handle, key_info.bytes, request.public_id);
     if (match)
     {
         secret_info_t secret_info;
@@ -686,46 +726,64 @@ bool Commands::db_aead_store2(packet_t &output, const packet_t &input)
         AESCCM::nonce_copy(nonce, request.nonce);
         Util::unpack_secret(secret_info, plaintext);
         int32_t ret = storage.put_secret(secret_info, key_info, nonce);
-        if (ret < 0)
+        if (ret == ERROR_CODE_STORAGE_ENCRYPTED)
         {
-            return ret;
+            response.status = THSM_STATUS_MEMORY_ERROR;
+        }
+        else if (ret == ERROR_CODE_SECRET_SLOT_FULL)
+        {
+            response.status = THSM_STATUS_DB_FULL;
+        }
+        else
+        {
+            response.status = THSM_STATUS_OK;
         }
     }
 
-    /* copy key handle and nonce */
-    response.status = match ? THSM_STATUS_OK : THSM_STATUS_AEAD_INVALID;
-    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
-    memcpy(response.public_id, request.public_id, sizeof(request.public_id));
+    finish:
 
-    /* copy to output */
-    output.length = sizeof(response);
-    memcpy(output.bytes, &response, sizeof(response));
+    output.length = min_response_length;
+    memcpy(output.bytes, &response, output.length);
 
     return true;
 }
 
-int32_t Commands::aes_ecb_block_encrypt(packet_t &output, const packet_t &input)
+bool Commands::aes_ecb_block_encrypt(packet_t &output, const packet_t &input)
 {
     THSM_AES_ECB_BLOCK_ENCRYPT_REQ request;
     THSM_AES_ECB_BLOCK_ENCRYPT_RESP response;
     key_info_t key_info;
     aes_state_t pt, ct;
 
+    uint32_t min_request_length = sizeof(request);
+    uint32_t min_response_length = sizeof(response);
+
+    /* initialize response */
+    MEMCLR(response);
+
     /* check against minimum length */
-    if (input.length < sizeof(request))
+    if (input.length < min_request_length)
     {
-        return ERROR_CODE_INVALID_REQUEST;
+        response.status = THSM_STATUS_INVALID_PARAMETER;
+        goto finish;
     }
 
+    /* initialize buffers */
     memcpy(&request, input.bytes, sizeof(request));
-    MEMCLR(response);
+    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
 
     /* get key */
     uint32_t key_handle = READ32(request.key_handle);
     int ret = storage.get_key(key_info, key_handle);
-    if (ret < 0)
+    if (ret == ERROR_CODE_STORAGE_ENCRYPTED)
     {
-        return ret;
+        response.status = THSM_STATUS_MEMORY_ERROR;
+        goto finish;
+    }
+    else if (ret == ERROR_CODE_KEY_NOT_FOUND)
+    {
+        response.status = THSM_STATUS_KEY_HANDLE_INVALID;
+        goto finish;
     }
 
     AES aes = AES();
@@ -735,36 +793,51 @@ int32_t Commands::aes_ecb_block_encrypt(packet_t &output, const packet_t &input)
 
     response.status = THSM_STATUS_OK;
     memcpy(response.ciphertext, ct.bytes, sizeof(ct.bytes));
-    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
 
-    output.length = sizeof(response);
-    memcpy(output.bytes, &response, sizeof(response));
+    finish:
 
-    return ERROR_CODE_NONE;
+    output.length = min_response_length;
+    memcpy(output.bytes, &response, output.length);
+
+    return true;
 }
 
-int32_t Commands::aes_ecb_block_decrypt(packet_t &output, const packet_t &input)
+bool Commands::aes_ecb_block_decrypt(packet_t &output, const packet_t &input)
 {
     THSM_AES_ECB_BLOCK_DECRYPT_REQ request;
     THSM_AES_ECB_BLOCK_DECRYPT_RESP response;
     key_info_t key_info;
     aes_state_t pt, ct;
 
+    uint32_t min_request_length = sizeof(request);
+    uint32_t min_response_length = sizeof(response);
+
+    /* initialize response */
+    MEMCLR(response);
+
     /* check against minimum length */
-    if (input.length < sizeof(request))
+    if (input.length < min_request_length)
     {
-        return ERROR_CODE_INVALID_REQUEST;
+        response.status = THSM_STATUS_INVALID_PARAMETER;
+        goto finish;
     }
 
+    /* initialize buffers */
     memcpy(&request, input.bytes, sizeof(request));
-    MEMCLR(response);
+    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
 
     /* get key */
     uint32_t key_handle = READ32(request.key_handle);
     int ret = storage.get_key(key_info, key_handle);
-    if (ret < 0)
+    if (ret == ERROR_CODE_STORAGE_ENCRYPTED)
     {
-        return ret;
+        response.status = THSM_STATUS_MEMORY_ERROR;
+        goto finish;
+    }
+    else if (ret == ERROR_CODE_KEY_NOT_FOUND)
+    {
+        response.status = THSM_STATUS_KEY_HANDLE_INVALID;
+        goto finish;
     }
 
     AES aes = AES();
@@ -774,36 +847,51 @@ int32_t Commands::aes_ecb_block_decrypt(packet_t &output, const packet_t &input)
 
     response.status = THSM_STATUS_OK;
     memcpy(response.plaintext, pt.bytes, sizeof(pt.bytes));
-    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
 
-    output.length = sizeof(response);
-    memcpy(output.bytes, &response, sizeof(response));
+    finish:
 
-    return ERROR_CODE_NONE;
+    output.length = min_response_length;
+    memcpy(output.bytes, &response, output.length);
+
+    return true;
 }
 
-int32_t Commands::aes_ecb_block_decrypt_cmp(packet_t &output, const packet_t &input)
+bool Commands::aes_ecb_block_decrypt_cmp(packet_t &output, const packet_t &input)
 {
     THSM_AES_ECB_BLOCK_DECRYPT_CMP_REQ request;
     THSM_AES_ECB_BLOCK_DECRYPT_CMP_RESP response;
     key_info_t key_info;
     aes_state_t pt, ct;
 
+    uint32_t min_request_length = sizeof(request);
+    uint32_t min_response_length = sizeof(response);
+
+    /* initialize response */
+    MEMCLR(response);
+
     /* check against minimum length */
-    if (input.length < sizeof(request))
+    if (input.length < min_request_length)
     {
-        return ERROR_CODE_INVALID_REQUEST;
+        response.status = THSM_STATUS_INVALID_PARAMETER;
+        goto finish;
     }
 
+    /* initialize buffers */
     memcpy(&request, input.bytes, sizeof(request));
-    MEMCLR(response);
+    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
 
     /* get key */
     uint32_t key_handle = READ32(request.key_handle);
     int ret = storage.get_key(key_info, key_handle);
-    if (ret < 0)
+    if (ret == ERROR_CODE_STORAGE_ENCRYPTED)
     {
-        return ret;
+        response.status = THSM_STATUS_MEMORY_ERROR;
+        goto finish;
+    }
+    else if (ret == ERROR_CODE_KEY_NOT_FOUND)
+    {
+        response.status = THSM_STATUS_KEY_HANDLE_INVALID;
+        goto finish;
     }
 
     AES aes = AES();
@@ -811,14 +899,14 @@ int32_t Commands::aes_ecb_block_decrypt_cmp(packet_t &output, const packet_t &in
     AES::state_copy(ct, request.ciphertext);
     aes.decrypt(pt, ct);
     bool match = AES::state_compare(pt, request.plaintext);
-
     response.status = match ? THSM_STATUS_OK : THSM_STATUS_MISMATCH;
-    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
 
-    output.length = sizeof(response);
-    memcpy(output.bytes, &response, sizeof(response));
+    finish:
 
-    return ERROR_CODE_NONE;
+    output.length = min_response_length;
+    memcpy(output.bytes, &response, output.length);
+
+    return true;
 }
 
 int32_t Commands::hmac_sha1_generate(packet_t &output, const packet_t &input)
