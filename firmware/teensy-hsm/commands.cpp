@@ -990,76 +990,93 @@ bool Commands::hmac_sha1_generate(packet_t &output, const packet_t &input)
     return true;
 }
 
-int32_t Commands::temp_key_load(packet_t &response, const packet_t &request)
+bool Commands::temp_key_load(packet_t &output, const packet_t &input)
 {
+    THSM_TEMP_KEY_LOAD_REQ request;
+    THSM_TEMP_KEY_LOAD_RESP response;
+
     /* FIXME add implementation */
+
+    return true;
 }
 
-int32_t Commands::buffer_load(packet_t &response, const packet_t &request)
+bool Commands::buffer_load(packet_t &response, const packet_t &request)
 {
     /* FIXME add implementation */
+    return true;
 }
 
-int32_t Commands::buffer_random_load(packet_t &response, const packet_t &request)
+bool Commands::buffer_random_load(packet_t &response, const packet_t &request)
 {
     /* FIXME add implementation */
+    return true;
 }
 
-int32_t Commands::nonce_get(packet_t &response, const packet_t &request)
+bool Commands::nonce_get(packet_t &response, const packet_t &request)
 {
     /* FIXME add implementation */
+    return true;
 }
 
-int32_t Commands::echo(packet_t &output, const packet_t &input)
+bool Commands::echo(packet_t &output, const packet_t &input)
 {
-    THSM_ECHO_RESP request;
+    THSM_ECHO_REQ request;
     THSM_ECHO_RESP response;
 
-    if (input.length < 1)
+    uint32_t min_request_length = sizeof(request) - sizeof(request.data);
+    uint32_t min_response_length = sizeof(response) - sizeof(response.data);
+
+    /* initialize response */
+    MEMCLR(request);
+    MEMCLR(response);
+
+    /* check against minimum length */
+    if (input.length < min_request_length)
     {
-        return ERROR_CODE_INVALID_REQUEST;
+        goto finish;
     }
 
-    MEMCLR(response);
     memcpy(&request, input.bytes, sizeof(request));
 
-    if (request.data_len > sizeof(request.data))
-    {
-        return ERROR_CODE_INVALID_REQUEST;
-    }
-
     /* set response */
-    uint32_t length = request.data_len;
+    uint32_t length = MIN(request.data_len, sizeof(request.data));
     response.data_len = length;
     memcpy(response.data, request.data, length);
 
-    /* opy to output */
-    memcpy(output.bytes, &response, length + 1);
-    output.length = length + 1;
+    finish:
 
-    return ERROR_CODE_NONE;
+    output.length = length + min_response_length;
+    memcpy(output.bytes, &response, output.length);
+
+    return true;
 }
 
-int32_t Commands::random_generate(packet_t &output, const packet_t &input)
+bool Commands::random_generate(packet_t &output, const packet_t &input)
 {
     THSM_RANDOM_GENERATE_REQ request;
     THSM_RANDOM_GENERATE_RESP response;
 
-    if (input.length < sizeof(request))
+    uint32_t min_request_length = sizeof(request);
+    uint32_t min_response_length = sizeof(response) - sizeof(response.bytes);
+
+    /* initialize request and response */
+    MEMCLR(request);
+    MEMCLR(response);
+
+    if (input.length < min_request_length)
     {
-        return ERROR_CODE_INVALID_REQUEST;
+        goto finish;
     }
 
     /* initialize buffer */
-    MEMCLR(response);
     memcpy(&request, input.bytes, sizeof(request));
 
     /* truncate requested length */
     uint8_t *ptr = response.bytes;
-    uint8_t length = MIN(request.bytes_len, sizeof(response.bytes));
-    response.bytes_len = length;
+    uint32_t length = MIN(request.bytes_len, sizeof(response.bytes));
+    uint32_t remaining = length;
 
-    while (length)
+    while (remaining)
     {
         aes_state_t random;
         int32_t ret = drbg.generate(random);
@@ -1068,342 +1085,72 @@ int32_t Commands::random_generate(packet_t &output, const packet_t &input)
             return ret;
         }
 
-        uint32_t step = MIN(length, sizeof(random.bytes));
+        uint32_t step = MIN(remaining, sizeof(random.bytes));
         memcpy(ptr, random.bytes, step);
 
         ptr += step;
-        length -= step;
+        remaining -= step;
+        response.bytes_len += step;
     }
 
-    uint32_t output_length = (response.bytes_len + 1);
-    output.length = output_length;
-    memcpy(output.bytes, &response, output_length);
+    finish:
 
-    return ERROR_CODE_NONE;
+    output.length = response.bytes_len + min_response_length;
+    memcpy(output.bytes, &response, output.length);
+
+    return true;
 }
 
-int32_t Commands::random_reseed(packet_t &output, const packet_t &input)
+bool Commands::random_reseed(packet_t &output, const packet_t &input)
 {
     THSM_RANDOM_RESEED_REQ request;
     THSM_RANDOM_RESEED_RESP response;
     aes_drbg_entropy_t entropy;
 
+    MEMCLR(request);
+    MEMCLR(response);
+
     if (input.length < sizeof(request))
     {
-        return ERROR_CODE_INVALID_REQUEST;
+        response.status = THSM_STATUS_INVALID_PARAMETER;
+        goto finish;
     }
 
-    MEMCLR(response);
+    /* initialize buffers */
     memcpy(&request, input.bytes, sizeof(request));
     memcpy(entropy.bytes, request.seed, sizeof(entropy.bytes));
 
     /* reseed */
     drbg.reseed(entropy);
-
     response.status = THSM_STATUS_OK;
+
+    finish:
+
     output.length = sizeof(response);
     memcpy(output.bytes, &response, sizeof(response));
     return ERROR_CODE_NONE;
 }
 
-int32_t Commands::system_info_query(packet_t &response, const packet_t &request)
+bool Commands::system_info_query(packet_t &response, const packet_t &request)
 {
     /* FIXME add implementation */
+    return true;
 }
 
-int32_t Commands::hsm_unlock(packet_t &response, const packet_t &request)
+bool Commands::hsm_unlock(packet_t &response, const packet_t &request)
 {
     /* FIXME add implementation */
+    return true;
 }
 
-int32_t Commands::key_store_decrypt(packet_t &response, const packet_t &request)
+bool Commands::key_store_decrypt(packet_t &response, const packet_t &request)
 {
     /* FIXME add implementation */
+    return true;
 }
 
-int32_t Commands::monitor_exit(packet_t &response, const packet_t &request)
+bool Commands::monitor_exit(packet_t &response, const packet_t &request)
 {
     /* FIXME add implementation */
-}
-
-//--------------------------------------------------------------------------------------------------
-// Command Handlers
-//--------------------------------------------------------------------------------------------------
-static void cmd_echo()
-{
-    /* cap echo data length to sizeof(THSM_ECHO_REQ::data) */
-    uint8_t curr_length = request.payload.echo.data_len;
-    uint8_t max_length = sizeof(request.payload.echo.data);
-    uint8_t length = (curr_length > max_length) ? max_length : curr_length;
-
-    uint8_t *dst_data = response.payload.echo.data;
-    uint8_t *src_data = request.payload.echo.data;
-
-    /* copy data */
-    memcpy(dst_data, src_data, length);
-    response.bcnt = length + 2;
-    response.payload.echo.data_len = request.payload.echo.data_len;
-}
-
-static void cmd_info_query()
-{
-    response.bcnt = sizeof(response.payload.system_info) + 1;
-    response.payload.system_info.version_major = 1;
-    response.payload.system_info.version_minor = 0;
-    response.payload.system_info.version_build = 4;
-    response.payload.system_info.protocol_version = THSM_PROTOCOL_VERSION;
-    memcpy(response.payload.system_info.system_uid, "Teensy HSM  ", THSM_SYSTEM_ID_SIZE);
-}
-
-
-static void cmd_buffer_load()
-{
-    /* limit offset */
-    uint8_t max_offset = sizeof(request.payload.buffer_load.data) - 1;
-    uint8_t curr_offset = request.payload.buffer_load.offset;
-    uint8_t offset = (curr_offset > max_offset) ? max_offset : curr_offset;
-
-    /* offset + length must be sizeof(request.payload.buffer_load.data) */
-    uint8_t max_length = sizeof(request.payload.buffer_load.data) - offset;
-    uint8_t curr_length = request.payload.buffer_load.data_len;
-    uint8_t length = (curr_length > max_length) ? max_length : curr_length;
-
-    /* set request length */
-    request.bcnt = request.payload.buffer_load.data_len + 3;
-
-    /* copy data to buffer */
-    uint8_t *src_data = request.payload.buffer_load.data;
-    memcpy(&thsm_buffer.data[offset], src_data, length);
-    thsm_buffer.data_len = (offset > 0) ? (thsm_buffer.data_len + length) : length;
-
-    /* prepare response */
-    response.bcnt = sizeof(response.payload.buffer_load) + 1;
-    response.payload.buffer_load.length = thsm_buffer.data_len;
-}
-
-static void cmd_buffer_random_load()
-{
-    /* limit offset */
-    uint8_t max_offset = sizeof(thsm_buffer.data) - 1;
-    uint8_t curr_offset = request.payload.buffer_random_load.offset;
-    uint8_t offset = (curr_offset > max_offset) ? max_offset : curr_offset;
-
-    /* offset + length must be sizeof(thsm_buffer.data) */
-    uint8_t max_length = sizeof(thsm_buffer.data) - offset;
-    uint8_t curr_length = request.payload.buffer_random_load.length;
-    uint8_t length = (curr_length > max_length) ? max_length : curr_length;
-
-    /* fill buffer with random */
-    drbg_read(&thsm_buffer.data[offset], length);
-    thsm_buffer.data_len = (offset > 0) ? (thsm_buffer.data_len + length) : length;
-
-    /* prepare response */
-    response.bcnt = sizeof(response.payload.buffer_random_load) + 1;
-    response.payload.buffer_random_load.length = thsm_buffer.data_len;
-}
-
-static void cmd_hsm_unlock()
-{
-    uint8_t key[THSM_KEY_SIZE];
-    uint8_t nonce[THSM_AEAD_NONCE_SIZE];
-
-    /* prepare response */
-    response.bcnt = sizeof(response.payload.hsm_unlock) + 1;
-
-    uint8_t *public_id = request.payload.hsm_unlock.public_id;
-    uint8_t *otp = request.payload.hsm_unlock.otp;
-    uint8_t status = THSM_STATUS_OK;
-
-    /* check request byte count */
-    if (!flags_is_storage_decrypted())
-    {
-        response.payload.hsm_unlock.status = THSM_STATUS_KEY_STORAGE_LOCKED;
-    }
-    else if (request.bcnt != (sizeof(request.payload.hsm_unlock) + 1))
-    {
-        response.payload.hsm_unlock.status = THSM_STATUS_INVALID_PARAMETER;
-    }
-    else if ((status = keystore_load_secret(key, nonce, public_id)) != THSM_STATUS_OK)
-    {
-        response.payload.hsm_unlock.status = status;
-    }
-    else
-    {
-        uint8_t decoded[THSM_BLOCK_SIZE];
-        uint8_t *uid_act = decoded + 2;
-        uint32_t counter = read_uint32(uid_act + THSM_AEAD_NONCE_SIZE);
-        uint8_t length = THSM_KEY_SIZE - sizeof(uint16_t);
-
-        /* decrypt otp */
-        aes_ecb_decrypt(decoded, otp, key, THSM_KEY_SIZE);
-
-        /* lock secret by default */
-        flags_set_secret_locked(true);
-
-        /* compare CRC16 */
-        uint16_t crc = (decoded[0] << 8) | decoded[1];
-        if (crc != CRC16.ccitt(uid_act, length))
-        {
-            response.payload.hsm_unlock.status = THSM_STATUS_OTP_INVALID;
-        }
-        else if (!memcmp(nonce, uid_act, THSM_AEAD_NONCE_SIZE))
-        {
-            response.payload.hsm_unlock.status = THSM_STATUS_OTP_INVALID;
-        }
-        else if ((status = keystore_check_counter(public_id, counter)) != THSM_STATUS_OK)
-        {
-            response.payload.hsm_unlock.status = status;
-        }
-        else
-        {
-            secret_locked(false);
-
-            /* save updated flash cache */
-            keystore_update();
-        }
-
-        /* clear temporary variable */
-        memset(decoded, 0, sizeof(decoded));
-    }
-
-    /* clear secret */
-    memset(key, 0, sizeof(key));
-    memset(nonce, 0, sizeof(nonce));
-}
-
-static void cmd_key_store_decrypt()
-{
-    /* prepare response */
-    response.bcnt = sizeof(response.payload.key_store_decrypt) + 1;
-
-    /* check request byte count */
-    if (request.bcnt != (sizeof(request.payload.key_store_decrypt) + 1))
-    {
-        response.payload.key_store_decrypt.status = THSM_STATUS_INVALID_PARAMETER;
-    }
-    else
-    {
-        /* unlock keystore */
-        uint8_t *key = request.payload.key_store_decrypt.key;
-        uint8_t status = keystore_unlock(key);
-        if (status == THSM_STATUS_OK)
-        {
-            system_flags |= SYSTEM_FLAGS_STORAGE_DECRYPTED;
-        }
-        else
-        {
-            system_flags &= ~SYSTEM_FLAGS_STORAGE_DECRYPTED;
-        }
-        response.payload.key_store_decrypt.status = status;
-    }
-}
-
-static void cmd_nonce_get()
-{
-    /* prepare response */
-    response.bcnt = sizeof(response.payload.nonce_get) + 1;
-    response.payload.nonce_get.status = THSM_STATUS_OK;
-
-    if (request.bcnt != (sizeof(request.payload.nonce_get) + 1))
-    {
-        response.payload.nonce_get.status = THSM_STATUS_INVALID_PARAMETER;
-    }
-    else
-    {
-        uint16_t step = (request.payload.nonce_get.post_inc[0] << 8) | request.payload.nonce_get.post_inc[1];
-        nonce_pool_read(response.payload.nonce_get.nonce, step);
-    }
-}
-
-static void cmd_temp_key_load()
-{
-    uint8_t key[THSM_KEY_SIZE];
-    uint32_t flags;
-
-    /* prepare response */
-    response.bcnt = sizeof(response.payload.temp_key_load) + 1;
-    response.payload.temp_key_load.status = THSM_STATUS_OK;
-
-    uint8_t *src_key = request.payload.temp_key_load.key_handle;
-    uint8_t *dst_key = response.payload.temp_key_load.key_handle;
-    uint8_t *src_nonce = request.payload.temp_key_load.nonce;
-    uint8_t *dst_nonce = response.payload.temp_key_load.nonce;
-    uint8_t *src_data = request.payload.temp_key_load.data;
-
-    /* copy key handle and nonce */
-    memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
-    memcpy(dst_nonce, src_nonce, THSM_AEAD_NONCE_SIZE);
-
-    uint32_t key_handle = read_uint32(src_key);
-    uint8_t status = THSM_STATUS_OK;
-    uint16_t data_len = request.payload.temp_key_load.data_len;
-
-    if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED))
-    {
-        response.payload.temp_key_load.status = THSM_STATUS_KEY_STORAGE_LOCKED;
-    }
-    else if (request.bcnt != sizeof(request.payload.temp_key_load) + 1)
-    {
-        response.payload.temp_key_load.status = THSM_STATUS_INVALID_PARAMETER;
-    }
-    else if ((data_len != 12) || (data_len != 28) || (data_len != 32) || (data_len != 36) || (data_len != 44))
-    {
-        response.payload.hmac_sha1_generate.status = THSM_STATUS_INVALID_PARAMETER;
-    }
-    else if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK)
-    {
-        response.payload.hmac_sha1_generate.status = status;
-    }
-    else
-    {
-
-        /* clear temporary key and quit */
-        if (data_len == 12)
-        {
-            keystore_store_key(0xffffffff, 0, NULL);
-            return;
-        }
-
-        /* generate nonce */
-        if (!memcmp(dst_nonce, null_nonce, THSM_AEAD_NONCE_SIZE))
-        {
-            nonce_pool_read(dst_nonce, 1);
-        }
-
-        uint8_t length = data_len - (THSM_KEY_HANDLE_SIZE + THSM_AEAD_MAC_SIZE);
-        uint8_t ciphertext[32];
-        uint8_t plaintext[32];
-        uint8_t mac[THSM_AEAD_MAC_SIZE];
-        uint8_t flags[THSM_KEY_FLAGS_SIZE];
-
-        /* initialize */
-        memset(ciphertext, 0, sizeof(ciphertext));
-        memset(plaintext, 0, sizeof(plaintext));
-
-        /* load mac and ciphertext */
-        memcpy(ciphertext, src_data, length);
-        memcpy(mac, src_data + length, THSM_AEAD_MAC_SIZE);
-        memcpy(flags, src_data + length + THSM_AEAD_MAC_SIZE, THSM_KEY_FLAGS_SIZE);
-
-        /* perform AES CCM decryption */
-        uint8_t matched = aes128_ccm_decrypt(plaintext, ciphertext, length, dst_key, key, dst_nonce, mac);
-
-        /* Copy to temporary key */
-        if (matched)
-        {
-            keystore_store_key(0xffffffff, 0, plaintext);
-        }
-
-        /* set response */
-        response.payload.temp_key_load.status = matched ? THSM_STATUS_OK : THSM_STATUS_MISMATCH;
-
-        /* clear temporary variables */
-        memset(ciphertext, 0, sizeof(ciphertext));
-        memset(plaintext, 0, sizeof(plaintext));
-        memset(mac, 0, sizeof(mac));
-        memset(flags, 0, sizeof(flags));
-    }
-
-    /* clear key */
-    memset(key, 0, sizeof(key));
+    return true;
 }
