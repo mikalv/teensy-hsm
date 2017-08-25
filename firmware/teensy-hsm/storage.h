@@ -6,8 +6,8 @@
 #include "sha1.h"
 #include "hardware.h"
 
-#define STORAGE_KEY_ENTRIES     31
-#define STORAGE_SECRET_ENTRIES  31
+#define STORAGE_KEY_ENTRIES     30
+#define STORAGE_SECRET_ENTRIES  28
 #define AES_AEAD_SECRET_SIZE_BYTES   (AES_KEY_SIZE_BYTES + AES_CCM_NONCE_SIZE_BYTES)
 
 // AEAD secret
@@ -28,10 +28,11 @@ typedef struct
 } storage_key_t;
 
 // Storage secret entry
-// Size: 40
+// Size: 44
 typedef struct
 {
     uint8_t public_id[AES_CCM_NONCE_SIZE_BYTES]; // [6] public_id of secret
+    uint8_t handle[sizeof(uint32_t)]; // [4] key_handle
     uint8_t counter[sizeof(uint32_t)]; // [4] secret usage counter
     aead_secret_t secret; // [30]
 } storage_secret_t;
@@ -41,9 +42,8 @@ typedef struct
 typedef struct
 {
     uint8_t store_counter[sizeof(uint32_t)]; // [4]
-    storage_key_t keys[STORAGE_KEY_ENTRIES]; // [768] 31 * 24 -> 744
-    storage_secret_t secrets[STORAGE_SECRET_ENTRIES]; // [1240] 31 * 40
-    uint8_t padding[12]; // [12] padding
+    storage_key_t keys[STORAGE_KEY_ENTRIES]; // [720] 30 * 24 -> 720
+    storage_secret_t secrets[STORAGE_SECRET_ENTRIES]; // [1276] 29 * 44 -> 1276
 } storage_body_t;
 
 // Storage layout structure
