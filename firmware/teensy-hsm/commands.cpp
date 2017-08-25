@@ -909,31 +909,48 @@ bool Commands::aes_ecb_block_decrypt_cmp(packet_t &output, const packet_t &input
     return true;
 }
 
-int32_t Commands::hmac_sha1_generate(packet_t &output, const packet_t &input)
+bool Commands::hmac_sha1_generate(packet_t &output, const packet_t &input)
 {
     THSM_HMAC_SHA1_GENERATE_REQ request;
     THSM_HMAC_SHA1_GENERATE_RESP response;
     key_info_t key_info;
 
-    if (input.length < 6)
+    uint32_t min_request_length = sizeof(request) - sizeof(request.data);
+    uint32_t min_response_length = sizeof(response) - sizeof(response.data);
+
+    /* initialize response */
+    MEMCLR(response);
+
+    /* check against minimum length */
+    if (input.length < min_request_length)
     {
-        return ERROR_CODE_INVALID_REQUEST;
+        response.status = THSM_STATUS_INVALID_PARAMETER;
+        goto finish;
     }
 
-    MEMCLR(response);
+    /* initialize buffers */
     memcpy(&request, input.bytes, sizeof(request));
+    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
 
+    /* check against available buffer size */
     if (request.data_len > sizeof(request.data))
     {
-        return ERROR_CODE_INVALID_REQUEST;
+        response.status = THSM_STATUS_INVALID_PARAMETER;
+        goto finish;
     }
 
     /* get key */
     uint32_t key_handle = READ32(request.key_handle);
-    int ret = storage.get_key(key_info, key_handle);
-    if (ret < 0)
+    uint32_t ret = storage.get_key(key_info, key_handle);
+    if (ret == ERROR_CODE_STORAGE_ENCRYPTED)
     {
-        return ret;
+        response.status = THSM_STATUS_MEMORY_ERROR;
+        goto finish;
+    }
+    else if (ret == ERROR_CODE_KEY_NOT_FOUND)
+    {
+        response.status = THSM_STATUS_KEY_HANDLE_INVALID;
+        goto finish;
     }
 
     uint8_t flags = request.flags;
@@ -963,14 +980,14 @@ int32_t Commands::hmac_sha1_generate(packet_t &output, const packet_t &input)
     }
 
     response.status = THSM_STATUS_OK;
-    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
 
-    /* copy to output buffer */
+    finish:
+
     uint32_t output_length = response.data_len + 6;
     memcpy(output.bytes, &response, output_length);
     output.length = output_length;
 
-    return ERROR_CODE_NONE;
+    return true;
 }
 
 int32_t Commands::temp_key_load(packet_t &response, const packet_t &request)
@@ -1138,79 +1155,6 @@ static void cmd_info_query()
     memcpy(response.payload.system_info.system_uid, "Teensy HSM  ", THSM_SYSTEM_ID_SIZE);
 }
 
-static void cmd_hmac_sha1_generate()
-{
-    uint8_t key[THSM_KEY_SIZE];
-    uint32_t flags;
-
-    uint8_t *src_key = request.payload.hmac_sha1_generate.key_handle;
-    uint8_t *dst_key = response.payload.hmac_sha1_generate.key_handle;
-    uint8_t *src_data = request.payload.hmac_sha1_generate.data;
-    uint8_t *dst_data = response.payload.hmac_sha1_generate.data;
-
-    /* set common response */
-    response.bcnt = (sizeof(response.payload.hmac_sha1_generate) - sizeof(response.payload.hmac_sha1_generate.data)) + 1;
-    response.payload.hmac_sha1_generate.data_len = 0;
-    response.payload.hmac_sha1_generate.status = THSM_STATUS_OK;
-
-    /* copy key handle */
-    memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
-
-    /* check given key handle */
-    uint8_t status = THSM_STATUS_OK;
-    uint16_t length = request.payload.hmac_sha1_generate.data_len;
-    uint32_t key_handle = read_uint32(src_key);
-    if (flags_is_secret_locked())
-    {
-        response.payload.hmac_sha1_generate.status = THSM_STATUS_KEY_STORAGE_LOCKED;
-    }
-    else if (request.bcnt > (sizeof(request.payload.hmac_sha1_generate) + 1))
-    {
-        response.payload.hmac_sha1_generate.status = THSM_STATUS_INVALID_PARAMETER;
-    }
-    else if ((length < 1) || (length > sizeof(request.payload.hmac_sha1_generate.data)))
-    {
-        response.payload.hmac_sha1_generate.status = THSM_STATUS_INVALID_PARAMETER;
-    }
-    else if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK)
-    {
-        response.payload.hmac_sha1_generate.status = status;
-    }
-    else
-    {
-        /* init hmac */
-        uint8_t flags = request.payload.hmac_sha1_generate.flags;
-        if (flags & THSM_HMAC_RESET)
-        {
-            hmac_sha1_init(&hmac_sha1_ctx, key, sizeof(key));
-        }
-
-        /* clear key */
-        memset(key, 0, sizeof(key));
-
-        /* update hmac */
-        hmac_sha1_update(&hmac_sha1_ctx, src_data, length);
-
-        /* finalize hmac */
-        if (flags & THSM_HMAC_FINAL)
-        {
-            if (flags & THSM_HMAC_SHA1_TO_BUFFER)
-            {
-                hmac_sha1_final(&hmac_sha1_ctx, thsm_buffer.data);
-                thsm_buffer.data_len = THSM_SHA1_HASH_SIZE;
-            }
-            else
-            {
-                hmac_sha1_final(&hmac_sha1_ctx, dst_data);
-                response.payload.hmac_sha1_generate.data_len = THSM_SHA1_HASH_SIZE;
-                response.bcnt += THSM_SHA1_HASH_SIZE;
-            }
-        }
-    }
-
-    /* clear key */
-    memset(key, 0, sizeof(key));
-}
 
 static void cmd_buffer_load()
 {
@@ -1462,150 +1406,4 @@ static void cmd_temp_key_load()
 
     /* clear key */
     memset(key, 0, sizeof(key));
-}
-
-static void cmd_aead_otp_decode()
-{
-    uint32_t flags = 0;
-    uint8_t key[THSM_KEY_SIZE];
-
-    uint8_t *src_key = request.payload.aead_otp_decode.key_handle;
-    uint8_t *dst_key = response.payload.aead_otp_decode.key_handle;
-    uint8_t *src_pub = request.payload.aead_otp_decode.public_id;
-    uint8_t *dst_pub = response.payload.aead_otp_decode.public_id;
-    uint8_t *src_otp = request.payload.aead_otp_decode.otp;
-    uint8_t *src_aead = request.payload.aead_otp_decode.aead;
-
-    /* copy key handle, public id */
-    memcpy(dst_key, src_key, THSM_KEY_HANDLE_SIZE);
-    memcpy(dst_pub, src_pub, THSM_PUBLIC_ID_SIZE);
-
-    /* get key handle */
-    uint8_t status = THSM_STATUS_OK;
-    uint32_t key_handle = read_uint32(src_key);
-
-    /* check parameters */
-    if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED))
-    {
-        response.payload.aead_otp_decode.status = THSM_STATUS_KEY_STORAGE_LOCKED;
-    }
-    else if (request.bcnt > (sizeof(request.payload.aead_otp_decode) + 1))
-    {
-        response.payload.aead_otp_decode.status = THSM_STATUS_INVALID_PARAMETER;
-    }
-    else if ((status = keystore_load_key(key, &flags, key_handle)) != THSM_STATUS_OK)
-    {
-        response.payload.aead_otp_decode.status = status;
-    }
-    else
-    {
-        uint8_t recovered[THSM_KEY_SIZE + THSM_PUBLIC_ID_SIZE];
-        uint8_t length = (THSM_KEY_SIZE + THSM_PUBLIC_ID_SIZE);
-        uint8_t *ciphertext = src_aead;
-        uint8_t *mac = src_aead + length;
-        uint8_t *public_id = recovered + THSM_KEY_SIZE;
-
-        /* init buffer */
-        memset(recovered, 0, sizeof(recovered));
-
-        /* perform AES CCM decryption */
-        uint8_t matched = aes128_ccm_decrypt(recovered, ciphertext, length, dst_key, key, src_pub, mac);
-        if (matched)
-        {
-            uint8_t decoded[THSM_BLOCK_SIZE]; // CRC16 || uid || counter || rand
-
-            /* perform AES ECB decryption */
-            aes_ecb_decrypt(decoded, src_otp, recovered, THSM_KEY_SIZE);
-
-            /* compare CRC-16 */
-            uint16_t crc = (decoded[0] << 8) | decoded[1];
-            if (crc != CRC16.ccitt(decoded + 2, 14))
-            {
-                response.payload.aead_otp_decode.status = THSM_STATUS_OTP_INVALID;
-            }
-            else if (memcmp(public_id, decoded + 2, THSM_PUBLIC_ID_SIZE))
-            {
-                response.payload.aead_otp_decode.status = THSM_STATUS_OTP_INVALID;
-            }
-            else
-            {
-                /* copy counter */
-                memcpy(response.payload.aead_otp_decode.counter_timestamp, decoded + 8, THSM_PUBLIC_ID_SIZE);
-            }
-
-            /* clear temporary buffer */
-            memset(decoded, 0, sizeof(decoded));
-        }
-        else
-        {
-            response.payload.aead_otp_decode.status = THSM_STATUS_AEAD_INVALID;
-        }
-
-        /* clear*/
-        memset(recovered, 0, sizeof(recovered));
-    }
-
-    /* clear temporary buffer */
-    memset(key, 0, sizeof(key));
-}
-
-static void cmd_db_otp_validate()
-{
-    uint8_t key[THSM_KEY_SIZE];
-    uint8_t nonce[THSM_AEAD_NONCE_SIZE];
-
-    uint8_t *src_pub = request.payload.db_otp_validate.public_id;
-    uint8_t *dst_pub = response.payload.db_otp_validate.public_id;
-    uint8_t *src_otp = request.payload.db_otp_validate.otp;
-
-    /* copy public id */
-    memcpy(dst_pub, src_pub, THSM_PUBLIC_ID_SIZE);
-
-    /* get key handle */
-    uint8_t status = THSM_STATUS_OK;
-
-    /* check parameters */
-    if (!(system_flags & SYSTEM_FLAGS_STORAGE_DECRYPTED))
-    {
-        response.payload.db_otp_validate.status = THSM_STATUS_KEY_STORAGE_LOCKED;
-    }
-    else if (request.bcnt > (sizeof(request.payload.db_otp_validate) + 1))
-    {
-        response.payload.db_otp_validate.status = THSM_STATUS_INVALID_PARAMETER;
-    }
-    else if ((status = keystore_load_secret(key, nonce, src_pub)) != THSM_STATUS_OK)
-    {
-        response.payload.db_otp_validate.status = status;
-    }
-    else
-    {
-        uint8_t decoded[THSM_BLOCK_SIZE]; // CRC16 || uid || counter || rand
-        uint8_t *uid_act = decoded + 2;
-
-        /* perform AES ECB decryption */
-        aes_ecb_decrypt(decoded, src_otp, key, THSM_KEY_SIZE);
-
-        /* compare CRC-16 */
-        uint16_t crc = (decoded[0] << 8) | decoded[1];
-        if (crc != CRC16.ccitt(decoded + 2, 14))
-        {
-            response.payload.db_otp_validate.status = THSM_STATUS_OTP_INVALID;
-        }
-        else if (memcmp(nonce, uid_act, THSM_PUBLIC_ID_SIZE))
-        {
-            response.payload.db_otp_validate.status = THSM_STATUS_OTP_INVALID;
-        }
-        else
-        {
-            /* copy counter */
-            memcpy(response.payload.db_otp_validate.counter_timestamp, decoded + 8, THSM_PUBLIC_ID_SIZE);
-        }
-
-        /* clear temporary buffer */
-        memset(decoded, 0, sizeof(decoded));
-    }
-
-    /* clear key buffer */
-    memset(key, 0, sizeof(key));
-    memset(nonce, 0, sizeof(nonce));
 }
