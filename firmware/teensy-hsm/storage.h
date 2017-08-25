@@ -90,11 +90,12 @@ public:
     void init();
     bool load(const aes_state_t &key, const aes_state_t &iv);
     void store(const aes_state_t &key, const aes_state_t &iv);
-    bool get_key(key_info_t &key, uint32_t key_handle);
+    int32_t get_key(key_info_t &key, uint32_t key_handle);
     int32_t put_key(const key_info_t &key);
     int32_t get_secret(secret_info_t &secret, const key_info_t &key_info, const aes_ccm_nonce_t &public_id);
     int32_t get_secret(secret_info_t &secret, const aes_ccm_nonce_t &public_id);
-    bool put_secret(const secret_info_t &secret, const key_info_t &key_info, const aes_ccm_nonce_t &nonce);
+    int32_t put_secret(const secret_info_t &secret, const key_info_t &key_info, const aes_ccm_nonce_t &nonce);
+    int32_t check_counter(const aes_ccm_nonce_t &public_id, uint32_t counter);
     void clear();
     void format(const aes_state_t &key, const aes_state_t &iv);
 #ifdef DEBUG_STORAGE
@@ -109,6 +110,8 @@ private:
     bool storage_decrypted;
     bool secret_unlocked;
     storage_body_t storage;
+    aes_state_t last_key;
+    aes_state_t last_iv;
 
 #ifdef DEBUG_STORAGE
     uint8_t nv_storage[EEPROM_SIZE_BYTES];

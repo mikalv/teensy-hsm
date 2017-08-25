@@ -13,6 +13,7 @@
 #define	ERROR_CODE_KEY_NOT_FOUND		-9
 #define ERROR_CODE_SECRET_SLOT_FULL     -10
 #define ERROR_CODE_SECRET_NOT_FOUND     -11
+#define ERROR_CODE_OTP_PLAYBACK         -12
 
 
 #endif

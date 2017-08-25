@@ -57,20 +57,30 @@ bool Storage::load(const aes_state_t &key, const aes_state_t &iv)
         return false;
     }
 
+    AES::state_copy(last_key, key);
+    AES::state_copy(last_iv, iv);
     storage_decrypted = true;
     return true;
 }
 
 void Storage::store(const aes_state_t &key, const aes_state_t &iv)
 {
-    eeprom_buffer_t current;
-    load_from_eeprom(current);
+    if (storage_decrypted)
+    {
+        eeprom_buffer_t current;
+        load_from_eeprom(current);
 
-    store(key, iv, current);
+        store(key, iv, current);
+    }
 }
 
-bool Storage::get_key(key_info_t &key, uint32_t handle)
+int32_t Storage::get_key(key_info_t &key, uint32_t handle)
 {
+    if (!storage_decrypted)
+    {
+        return ERROR_CODE_STORAGE_ENCRYPTED;
+    }
+
     for (int i = 0; i < STORAGE_KEY_ENTRIES && handle; i++)
     {
         if (READ32(storage.keys[i].handle) == handle)
@@ -82,11 +92,16 @@ bool Storage::get_key(key_info_t &key, uint32_t handle)
         }
     }
 
-    return false;
+    return ERROR_CODE_NONE;
 }
 
 int32_t Storage::put_key(const key_info_t &key)
 {
+    if (!storage_decrypted)
+    {
+        return ERROR_CODE_STORAGE_ENCRYPTED;
+    }
+
     for (int i = 0; i < STORAGE_KEY_ENTRIES; i++)
     {
         if (READ32(storage.keys[i].handle) == 0)
@@ -94,6 +109,8 @@ int32_t Storage::put_key(const key_info_t &key)
             WRITE32(storage.keys[i].handle, key.handle)
             WRITE32(storage.keys[i].flags, key.flags);
             memcpy(storage.keys[i].bytes, key.bytes, sizeof(key.bytes));
+
+            store(last_key, last_iv);
             return ERROR_CODE_NONE;
         }
     }
@@ -103,6 +120,10 @@ int32_t Storage::put_key(const key_info_t &key)
 
 int32_t Storage::get_secret(secret_info_t &secret, const key_info_t &key_info, const aes_ccm_nonce_t &public_id)
 {
+    if (!storage_decrypted)
+    {
+        return ERROR_CODE_STORAGE_ENCRYPTED;
+    }
 
     /* scan for matching secrets */
     for (int i = 0; i < STORAGE_SECRET_ENTRIES; i++)
@@ -133,6 +154,10 @@ int32_t Storage::get_secret(secret_info_t &secret, const key_info_t &key_info, c
 
 int32_t Storage::get_secret(secret_info_t &secret, const aes_ccm_nonce_t &public_id)
 {
+    if (!storage_decrypted)
+    {
+        return ERROR_CODE_STORAGE_ENCRYPTED;
+    }
 
     /* scan for matching secrets */
     for (int i = 0; i < STORAGE_SECRET_ENTRIES; i++)
@@ -169,8 +194,12 @@ int32_t Storage::get_secret(secret_info_t &secret, const aes_ccm_nonce_t &public
     return ERROR_CODE_SECRET_NOT_FOUND;
 }
 
-bool Storage::put_secret(const secret_info_t &secret, const key_info_t &key_info, const aes_ccm_nonce_t &public_id)
+int32_t Storage::put_secret(const secret_info_t &secret, const key_info_t &key_info, const aes_ccm_nonce_t &public_id)
 {
+    if (!storage_decrypted)
+    {
+        return ERROR_CODE_STORAGE_ENCRYPTED;
+    }
 
     /* scan for empty secrets slot */
     for (int i = 0; i < STORAGE_SECRET_ENTRIES; i++)
@@ -193,11 +222,40 @@ bool Storage::put_secret(const secret_info_t &secret, const key_info_t &key_info
             memcpy(storage.secrets[i].secret.bytes, ciphertext, AES_AEAD_SECRET_SIZE_BYTES);
             memcpy(storage.secrets[i].secret.mac, ciphertext + AES_AEAD_SECRET_SIZE_BYTES, AES_CCM_MAC_SIZE_BYTES);
 
+            store(last_key, last_iv);
             return true;
         }
     }
 
-    return false;
+    return ERROR_CODE_NONE;
+}
+
+int32_t Storage::check_counter(const aes_ccm_nonce_t &public_id, uint32_t counter)
+{
+    if (!storage_decrypted)
+    {
+        return ERROR_CODE_STORAGE_ENCRYPTED;
+    }
+
+    for (int i = 0; i < STORAGE_SECRET_ENTRIES; i++)
+    {
+        if (memcmp(storage.secrets[i].public_id, public_id.bytes, sizeof(public_id.bytes)) == 0)
+        {
+            uint32_t ref_counter = READ32(storage.secrets[i].counter);
+            if (counter < ref_counter)
+            {
+                return ERROR_CODE_OTP_PLAYBACK;
+            }
+            else
+            {
+                WRITE32(storage.secrets[i].counter, counter + 1);
+                store(last_key, last_iv);
+                return ERROR_CODE_NONE;
+            }
+        }
+    }
+
+    return ERROR_CODE_SECRET_NOT_FOUND;
 }
 
 void Storage::clear()
@@ -205,6 +263,8 @@ void Storage::clear()
     storage_decrypted = false;
     secret_unlocked = false;
     MEMCLR(storage);
+    MEMCLR(last_key);
+    MEMCLR(last_iv);
 }
 
 void Storage::format(const aes_state_t &key, const aes_state_t &iv)
