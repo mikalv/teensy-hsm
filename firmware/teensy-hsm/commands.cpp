@@ -151,7 +151,13 @@ bool Commands::aead_generate(packet_t &output, const packet_t &input)
     /* get key */
     memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
     uint32_t key_handle = READ32(request.key_handle);
-    if (!storage.get_key(key_info, key_handle))
+    int32_t ret = storage.get_key(key_info, key_handle);
+    if (ret == ERROR_CODE_STORAGE_ENCRYPTED)
+    {
+        response.status = THSM_STATUS_MEMORY_ERROR;
+        goto finish;
+    }
+    else if (ret == ERROR_CODE_KEY_NOT_FOUND)
     {
         response.status = THSM_STATUS_KEY_HANDLE_INVALID;
         goto finish;
@@ -213,7 +219,13 @@ bool Commands::buffer_aead_generate(packet_t &output, const packet_t &input)
     /* get key */
     memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
     uint32_t key_handle = READ32(request.key_handle);
-    if (!storage.get_key(key_info, key_handle))
+    int32_t ret = storage.get_key(key_info, key_handle);
+    if (ret == ERROR_CODE_STORAGE_ENCRYPTED)
+    {
+        response.status = THSM_STATUS_MEMORY_ERROR;
+        goto finish;
+    }
+    else if (ret == ERROR_CODE_KEY_NOT_FOUND)
     {
         response.status = THSM_STATUS_KEY_HANDLE_INVALID;
         goto finish;
@@ -284,7 +296,13 @@ bool Commands::random_aead_generate(packet_t &output, const packet_t &input)
     /* get key */
     memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
     uint32_t key_handle = READ32(request.key_handle);
-    if (!storage.get_key(key_info, key_handle))
+    int32_t ret = storage.get_key(key_info, key_handle);
+    if (ret == ERROR_CODE_STORAGE_ENCRYPTED)
+    {
+        response.status = THSM_STATUS_MEMORY_ERROR;
+        goto finish;
+    }
+    else if (ret == ERROR_CODE_KEY_NOT_FOUND)
     {
         response.status = THSM_STATUS_KEY_HANDLE_INVALID;
         goto finish;
@@ -360,7 +378,13 @@ bool Commands::aead_decrypt_cmp(packet_t &output, const packet_t &input)
     /* get key */
     memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
     uint32_t key_handle = READ32(request.key_handle);
-    if (!storage.get_key(key_info, key_handle))
+    int32_t ret = storage.get_key(key_info, key_handle);
+    if (ret == ERROR_CODE_STORAGE_ENCRYPTED)
+    {
+        response.status = THSM_STATUS_MEMORY_ERROR;
+        goto finish;
+    }
+    else if (ret == ERROR_CODE_KEY_NOT_FOUND)
     {
         response.status = THSM_STATUS_KEY_HANDLE_INVALID;
         goto finish;
@@ -410,7 +434,13 @@ bool Commands::db_aead_store(packet_t &output, const packet_t &input)
 
     /* get key */
     uint32_t key_handle = READ32(request.key_handle);
-    if (!storage.get_key(key_info, key_handle))
+    int32_t ret = storage.get_key(key_info, key_handle);
+    if (ret == ERROR_CODE_STORAGE_ENCRYPTED)
+    {
+        response.status = THSM_STATUS_MEMORY_ERROR;
+        goto finish;
+    }
+    else if (ret == ERROR_CODE_KEY_NOT_FOUND)
     {
         response.status = THSM_STATUS_KEY_HANDLE_INVALID;
         goto finish;
@@ -472,9 +502,15 @@ bool Commands::aead_otp_decode(packet_t &output, const packet_t &input)
 
     /* get key */
     uint32_t key_handle = READ32(request.key_handle);
-    if (!storage.get_key(key_info, key_handle))
+    int32_t ret = storage.get_key(key_info, key_handle);
+    if (ret == ERROR_CODE_STORAGE_ENCRYPTED)
     {
-        response.status = THSM_STATUS_INVALID_PARAMETER;
+        response.status = THSM_STATUS_MEMORY_ERROR;
+        goto finish;
+    }
+    else if (ret == ERROR_CODE_KEY_NOT_FOUND)
+    {
+        response.status = THSM_STATUS_KEY_HANDLE_INVALID;
         goto finish;
     }
 

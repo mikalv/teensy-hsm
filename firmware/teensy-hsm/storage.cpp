@@ -88,11 +88,11 @@ int32_t Storage::get_key(key_info_t &key, uint32_t handle)
             key.handle = handle;
             key.flags = READ32(storage.keys[i].flags);
             memcpy(key.bytes, storage.keys[i].bytes, sizeof(key.bytes));
-            return true;
+            return ERROR_CODE_NONE;
         }
     }
 
-    return ERROR_CODE_NONE;
+    return ERROR_CODE_KEY_NOT_FOUND;
 }
 
 int32_t Storage::put_key(const key_info_t &key)
@@ -224,11 +224,11 @@ int32_t Storage::put_secret(const secret_info_t &secret, const key_info_t &key_i
             memcpy(storage.secrets[i].secret.mac, ciphertext + AES_AEAD_SECRET_SIZE_BYTES, AES_CCM_MAC_SIZE_BYTES);
 
             store(last_key, last_iv);
-            return true;
+            return ERROR_CODE_NONE;
         }
     }
 
-    return ERROR_CODE_NONE;
+    return ERROR_CODE_SECRET_SLOT_FULL;
 }
 
 int32_t Storage::check_counter(const aes_ccm_nonce_t &public_id, uint32_t counter)
