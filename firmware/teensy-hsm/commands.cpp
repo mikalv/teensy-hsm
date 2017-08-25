@@ -983,9 +983,8 @@ bool Commands::hmac_sha1_generate(packet_t &output, const packet_t &input)
 
     finish:
 
-    uint32_t output_length = response.data_len + 6;
-    memcpy(output.bytes, &response, output_length);
-    output.length = output_length;
+    output.length = response.data_len + min_response_length;
+    memcpy(output.bytes, &response, output.length);
 
     return true;
 }
@@ -994,8 +993,40 @@ bool Commands::temp_key_load(packet_t &output, const packet_t &input)
 {
     THSM_TEMP_KEY_LOAD_REQ request;
     THSM_TEMP_KEY_LOAD_RESP response;
+    key_info_t key_info;
 
-    /* FIXME add implementation */
+    uint32_t min_request_length = sizeof(request) - sizeof(request.data);
+    uint32_t min_response_length = sizeof(response);
+
+    MEMCLR(request);
+    MEMCLR(response);
+
+    if (input.length < min_request_length)
+    {
+        response.status = THSM_STATUS_INVALID_PARAMETER;
+        goto finish;
+    }
+
+    /* get key */
+    uint32_t key_handle = READ32(request.key_handle);
+    uint32_t ret = storage.get_key(key_info, key_handle);
+    if (ret == ERROR_CODE_STORAGE_ENCRYPTED)
+    {
+        response.status = THSM_STATUS_MEMORY_ERROR;
+        goto finish;
+    }
+    else if (ret == ERROR_CODE_KEY_NOT_FOUND)
+    {
+        response.status = THSM_STATUS_KEY_HANDLE_INVALID;
+        goto finish;
+    }
+
+    finish:
+
+    /* TODO decrypt data and put it on temporary key */
+
+    output.length = sizeof(response);
+    memcpy(output.bytes, &response, output.length);
 
     return true;
 }
