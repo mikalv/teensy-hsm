@@ -74,6 +74,35 @@ void Storage::store(const aes_state_t &key, const aes_state_t &iv)
     }
 }
 
+int32_t Storage::clear_key(uint32_t handle)
+{
+    if (handle == TEMP_KEY_HANDLE)
+    {
+        MEMCLR(temp_key);
+        temp_key.handle = TEMP_KEY_HANDLE;
+        return ERROR_CODE_NONE;
+    }
+    else if (!storage_decrypted)
+    {
+        return ERROR_CODE_STORAGE_ENCRYPTED;
+    }
+
+    for (int i = 0; i < STORAGE_KEY_ENTRIES && handle; i++)
+    {
+        uint32_t stored_handle = READ32(storage.keys[i].handle);
+        if ((stored_handle) && stored_handle == handle)
+        {
+            storage.keys[i].handle = 0;
+            storage.keys[i].flags = 0;
+            MEMCLR(storage.keys[i].bytes);
+
+            store(last_key, last_iv);
+            return ERROR_CODE_NONE;
+        }
+    }
+
+    return ERROR_CODE_KEY_NOT_FOUND;
+}
 int32_t Storage::get_key(key_info_t &key, uint32_t handle)
 {
     if (!storage_decrypted)

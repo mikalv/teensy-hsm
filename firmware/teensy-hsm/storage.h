@@ -91,6 +91,7 @@ public:
     void init();
     bool load(const aes_state_t &key, const aes_state_t &iv);
     void store(const aes_state_t &key, const aes_state_t &iv);
+    int32_t clear_key(uint32_t key_handle);
     int32_t get_key(key_info_t &key, uint32_t key_handle);
     int32_t put_key(const key_info_t &key);
     int32_t get_secret(secret_info_t &secret, const key_info_t &key_info, const aes_ccm_nonce_t &public_id);

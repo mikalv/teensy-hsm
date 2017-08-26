@@ -1013,11 +1013,22 @@ bool Commands::temp_key_load(packet_t &output, const packet_t &input)
     memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
     memcpy(response.nonce, request.nonce, sizeof(request.nonce));
 
-    /* check against available buffer size */
-    uint32_t min_data_length = AES_CCM_MAC_SIZE_BYTES + sizeof(uint32_t);
-    if ((request.data_len > sizeof(request.data)) || (request.data_len <= min_data_length))
+    /* for this time */
+    if (request.data_len == 0)
+    {
+        response.status = THSM_STATUS_OK;
+        storage.clear_key(TEMP_KEY_HANDLE);
+        goto finish;
+    }
+    else if (request.data_len != sizeof(request.data))
     {
         response.status = THSM_STATUS_INVALID_PARAMETER;
+        goto finish;
+    }
+    else if (Util::is_empty(request.data, sizeof(request.data)))
+    {
+        response.status = THSM_STATUS_OK;
+        storage.clear_key(TEMP_KEY_HANDLE);
         goto finish;
     }
 
@@ -1050,6 +1061,7 @@ bool Commands::temp_key_load(packet_t &output, const packet_t &input)
     temp_key_info.flags = READ32(key_and_flag + AES_KEY_SIZE_BYTES);
     memcpy(temp_key_info.bytes, key_and_flag, AES_KEY_SIZE_BYTES);
     storage.put_key(temp_key_info);
+    response.status = THSM_STATUS_OK;
 
     finish:
 
