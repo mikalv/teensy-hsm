@@ -993,6 +993,7 @@ bool Commands::temp_key_load(packet_t &output, const packet_t &input)
 {
     THSM_TEMP_KEY_LOAD_REQ request;
     THSM_TEMP_KEY_LOAD_RESP response;
+    uint8_t plaintext[THSM_MAX_KEY_SIZE];
     key_info_t key_info;
 
     uint32_t min_request_length = sizeof(request) - sizeof(request.data);
@@ -1002,6 +1003,18 @@ bool Commands::temp_key_load(packet_t &output, const packet_t &input)
     MEMCLR(response);
 
     if (input.length < min_request_length)
+    {
+        response.status = THSM_STATUS_INVALID_PARAMETER;
+        goto finish;
+    }
+
+    /* initialize buffers */
+    memcpy(&request, input.bytes, sizeof(request));
+    memcpy(response.key_handle, request.key_handle, sizeof(request.key_handle));
+    memcpy(response.nonce, request.nonce, sizeof(request.nonce));
+
+    /* check against available buffer size */
+    if ((request.data_len > sizeof(request.data)) || (request.data_len < sizeof(AES_CCM_MAC_SIZE_BYTES)))
     {
         response.status = THSM_STATUS_INVALID_PARAMETER;
         goto finish;
@@ -1024,6 +1037,12 @@ bool Commands::temp_key_load(packet_t &output, const packet_t &input)
     finish:
 
     /* TODO decrypt data and put it on temporary key */
+    AESCCM ccm = AESCCM();
+    if (!ccm.decrypt(plaintext, request.data, request.data_len, key_handle, key_info.bytes, request.nonce))
+    {
+        response.status = THSM_STATUS_MISMATCH;
+        goto finish;
+    }
 
     output.length = sizeof(response);
     memcpy(output.bytes, &response, output.length);
