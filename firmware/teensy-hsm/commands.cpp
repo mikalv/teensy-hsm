@@ -993,7 +993,7 @@ bool Commands::temp_key_load(packet_t &output, const packet_t &input)
 {
     THSM_TEMP_KEY_LOAD_REQ request;
     THSM_TEMP_KEY_LOAD_RESP response;
-    uint8_t plaintext[THSM_MAX_KEY_SIZE];
+    uint8_t key_and_flag[AES_KEY_SIZE_BYTES + sizeof(uint32_t)];
     key_info_t key_info;
 
     uint32_t min_request_length = sizeof(request) - sizeof(request.data);
@@ -1014,7 +1014,8 @@ bool Commands::temp_key_load(packet_t &output, const packet_t &input)
     memcpy(response.nonce, request.nonce, sizeof(request.nonce));
 
     /* check against available buffer size */
-    if ((request.data_len > sizeof(request.data)) || (request.data_len < sizeof(AES_CCM_MAC_SIZE_BYTES)))
+    uint32_t min_data_length = AES_CCM_MAC_SIZE_BYTES + sizeof(uint32_t);
+    if ((request.data_len > sizeof(request.data)) || (request.data_len <= min_data_length))
     {
         response.status = THSM_STATUS_INVALID_PARAMETER;
         goto finish;
@@ -1034,15 +1035,23 @@ bool Commands::temp_key_load(packet_t &output, const packet_t &input)
         goto finish;
     }
 
-    finish:
-
-    /* TODO decrypt data and put it on temporary key */
+    /* decipher data and put it on temporary key */
     AESCCM ccm = AESCCM();
-    if (!ccm.decrypt(plaintext, request.data, request.data_len, key_handle, key_info.bytes, request.nonce))
+    MEMCLR(key_and_flag);
+    if (!ccm.decrypt(key_and_flag, request.data, request.data_len, key_handle, key_info.bytes, request.nonce))
     {
         response.status = THSM_STATUS_MISMATCH;
         goto finish;
     }
+
+    /* put temporary key to storage */
+    key_info_t temp_key_info;
+    temp_key_info.handle = TEMP_KEY_HANDLE;
+    temp_key_info.flags = READ32(key_and_flag + AES_KEY_SIZE_BYTES);
+    memcpy(temp_key_info.bytes, key_and_flag, AES_KEY_SIZE_BYTES);
+    storage.put_key(temp_key_info);
+
+    finish:
 
     output.length = sizeof(response);
     memcpy(output.bytes, &response, output.length);

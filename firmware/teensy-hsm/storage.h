@@ -113,7 +113,7 @@ private:
     storage_body_t storage;
     aes_state_t last_key;
     aes_state_t last_iv;
-    aes_state_t temp_key;
+    key_info_t temp_key;
 
 #ifdef DEBUG_STORAGE
     uint8_t nv_storage[EEPROM_SIZE_BYTES];

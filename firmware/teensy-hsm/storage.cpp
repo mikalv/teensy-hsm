@@ -83,7 +83,9 @@ int32_t Storage::get_key(key_info_t &key, uint32_t handle)
 
     if (handle == TEMP_KEY_HANDLE)
     {
-        AES::state_copy(key.bytes, temp_key);
+        key.flags = temp_key.flags;
+        key.handle = handle;
+        memcpy(key.bytes, temp_key.bytes, sizeof(temp_key.bytes));
         return ERROR_CODE_NONE;
     }
 
@@ -114,9 +116,11 @@ int32_t Storage::put_key(const key_info_t &key)
     }
 
     /* store to temporary key of handle 0xffffffff */
-    if (key.handle == 0xffffffff)
+    if (key.handle == TEMP_KEY_HANDLE)
     {
-        AES::state_copy(temp_key, key.bytes);
+        temp_key.flags = key.flags;
+        temp_key.flags = TEMP_KEY_HANDLE;
+        memcpy(temp_key.bytes, key.bytes, sizeof(key.bytes));
         return ERROR_CODE_NONE;
     }
 

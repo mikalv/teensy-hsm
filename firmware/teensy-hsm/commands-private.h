@@ -189,7 +189,7 @@ typedef struct
     uint8_t nonce[AES_CCM_NONCE_SIZE_BYTES];
     uint8_t key_handle[sizeof(uint32_t)];
     uint8_t data_len;
-    uint8_t data[THSM_MAX_KEY_SIZE + AES_CCM_MAC_SIZE_BYTES];
+    uint8_t data[AES_BLOCK_SIZE_BYTES + AES_CCM_MAC_SIZE_BYTES];// key || mac
 } THSM_TEMP_KEY_LOAD_REQ;
 
 typedef struct
