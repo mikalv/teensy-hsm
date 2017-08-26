@@ -1268,7 +1268,7 @@ bool Commands::random_reseed(packet_t &output, const packet_t &input)
 
     output.length = sizeof(response);
     memcpy(output.bytes, &response, sizeof(response));
-    return ERROR_CODE_NONE;
+    return true;
 }
 
 bool Commands::system_info_query(packet_t &response, const packet_t &request)
@@ -1283,9 +1283,47 @@ bool Commands::hsm_unlock(packet_t &response, const packet_t &request)
     return true;
 }
 
-bool Commands::key_store_decrypt(packet_t &response, const packet_t &request)
+bool Commands::key_store_decrypt(packet_t &output, const packet_t &input)
 {
-    /* FIXME add implementation */
+    THSM_KEY_STORE_DECRYPT_REQ request;
+    THSM_KEY_STORE_DECRYPT_RESP response;
+    aes_state_t key, iv;
+
+    uint32_t min_request_length = sizeof(request);
+    uint32_t min_response_length = sizeof(response);
+
+    /* initialize request and response */
+    MEMCLR(request);
+    MEMCLR(response);
+
+    /* check input against minimum length */
+    if (input.length < min_request_length)
+    {
+        response.status = THSM_STATUS_INVALID_PARAMETER;
+        goto finish;
+    }
+
+    /* initialize buffer */
+    memcpy(&request, input.bytes, sizeof(request));
+
+    /* unlock storage */
+    uint8_t *ptr = request.key;
+    ptr = AES::state_copy(key, ptr);
+    ptr = AES::state_copy(iv, ptr);
+
+    if (storage.load(key, iv))
+    {
+        response.status = THSM_STATUS_OK;
+    }
+    else
+    {
+        response.status = THSM_STATUS_KEY_STORAGE_LOCKED;
+    }
+
+    finish:
+
+    output.length = sizeof(response);
+    memcpy(output.bytes, &response, sizeof(response));
     return true;
 }
 
