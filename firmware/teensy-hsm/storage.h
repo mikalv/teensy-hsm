@@ -6,9 +6,10 @@
 #include "sha1.h"
 #include "hardware.h"
 
-#define STORAGE_KEY_ENTRIES     30
-#define STORAGE_SECRET_ENTRIES  29
-#define AES_AEAD_SECRET_SIZE_BYTES   (AES_KEY_SIZE_BYTES + AES_CCM_NONCE_SIZE_BYTES)
+#define STORAGE_KEY_ENTRIES         30
+#define STORAGE_SECRET_ENTRIES      29
+#define AES_AEAD_SECRET_SIZE_BYTES  (AES_KEY_SIZE_BYTES + AES_CCM_NONCE_SIZE_BYTES)
+#define TEMP_KEY_HANDLE             0xffffffff
 
 // AEAD secret
 // Size : 30 bytes
@@ -112,6 +113,7 @@ private:
     storage_body_t storage;
     aes_state_t last_key;
     aes_state_t last_iv;
+    aes_state_t temp_key;
 
 #ifdef DEBUG_STORAGE
     uint8_t nv_storage[EEPROM_SIZE_BYTES];

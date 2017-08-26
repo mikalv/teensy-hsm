@@ -81,9 +81,16 @@ int32_t Storage::get_key(key_info_t &key, uint32_t handle)
         return ERROR_CODE_STORAGE_ENCRYPTED;
     }
 
+    if (handle == TEMP_KEY_HANDLE)
+    {
+        AES::state_copy(key.bytes, temp_key);
+        return ERROR_CODE_NONE;
+    }
+
     for (int i = 0; i < STORAGE_KEY_ENTRIES && handle; i++)
     {
-        if (READ32(storage.keys[i].handle) == handle)
+        uint32_t stored_handle = READ32(storage.keys[i].handle);
+        if ((stored_handle) && stored_handle == handle)
         {
             key.handle = handle;
             key.flags = READ32(storage.keys[i].flags);
@@ -101,10 +108,22 @@ int32_t Storage::put_key(const key_info_t &key)
     {
         return ERROR_CODE_STORAGE_ENCRYPTED;
     }
+    else if (key.handle == 0x00000000)
+    {
+        return ERROR_CODE_KEY_HANDLE_INVALID;
+    }
+
+    /* store to temporary key of handle 0xffffffff */
+    if (key.handle == 0xffffffff)
+    {
+        AES::state_copy(temp_key, key.bytes);
+        return ERROR_CODE_NONE;
+    }
 
     for (int i = 0; i < STORAGE_KEY_ENTRIES; i++)
     {
-        if (READ32(storage.keys[i].handle) == 0)
+        uint32_t stored_handle = READ32(storage.keys[i].handle);
+        if (stored_handle == 0)
         {
             WRITE32(storage.keys[i].handle, key.handle)
             WRITE32(storage.keys[i].flags, key.flags);
@@ -266,6 +285,7 @@ void Storage::clear()
     MEMCLR(storage);
     MEMCLR(last_key);
     MEMCLR(last_iv);
+    MEMCLR(temp_key);
 }
 
 void Storage::format(const aes_state_t &key, const aes_state_t &iv)
