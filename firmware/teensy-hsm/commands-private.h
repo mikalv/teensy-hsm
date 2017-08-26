@@ -13,7 +13,7 @@ typedef struct
     uint8_t nonce[AES_CCM_NONCE_SIZE_BYTES];
     uint8_t key_handle[sizeof(uint32_t)];
     uint8_t data_len;
-    uint8_t data[THSM_DATA_BUF_SIZE];
+    uint8_t data[BUFFER_SIZE_BYTES];
 } THSM_AEAD_GENERATE_REQ;
 
 typedef struct
@@ -203,7 +203,7 @@ typedef struct
 {
     uint8_t offset;
     uint8_t data_len;
-    uint8_t data[THSM_DATA_BUF_SIZE];
+    uint8_t data[BUFFER_SIZE_BYTES];
 } THSM_BUFFER_LOAD_REQ;
 
 typedef struct

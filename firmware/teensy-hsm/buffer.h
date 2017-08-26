@@ -28,7 +28,7 @@ public:
     void init();
     void clear();
     void read(buffer_t &buffer);
-    int32_t write(uint32_t offset, const uint8_t *data, uint32_t data_len);
+    bool write(uint32_t offset, const uint8_t *data, uint32_t data_len);
 private:
     uint32_t length;
     uint8_t bytes[BUFFER_SIZE_BYTES];

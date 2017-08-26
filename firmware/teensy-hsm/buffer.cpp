@@ -30,6 +30,16 @@ void Buffer::read(buffer_t &buffer)
     buffer.length = length;
 }
 
-int32_t Buffer::write(uint32_t offset, const uint8_t *data, uint32_t data_len)
+bool Buffer::write(uint32_t offset, const uint8_t *data, uint32_t data_len)
 {
+    if ((offset > sizeof(bytes)) || (data_len > sizeof(bytes)))
+    {
+        return false;
+    }
+
+    uint32_t available = sizeof(bytes) - offset;
+    uint32_t step = MIN(data_len, available);
+    memcpy(bytes + offset, data, step);
+    length = (step + offset);
+    return true;
 }

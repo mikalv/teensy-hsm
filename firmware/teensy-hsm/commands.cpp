@@ -1054,14 +1054,13 @@ bool Commands::temp_key_load(packet_t &output, const packet_t &input)
         response.status = THSM_STATUS_MISMATCH;
         goto finish;
     }
+    response.status = THSM_STATUS_OK;
 
     /* put temporary key to storage */
-    key_info_t temp_key_info;
-    temp_key_info.handle = TEMP_KEY_HANDLE;
-    temp_key_info.flags = READ32(key_and_flag + AES_KEY_SIZE_BYTES);
-    memcpy(temp_key_info.bytes, key_and_flag, AES_KEY_SIZE_BYTES);
-    storage.put_key(temp_key_info);
-    response.status = THSM_STATUS_OK;
+    key_info.handle = TEMP_KEY_HANDLE;
+    key_info.flags = READ32(key_and_flag + AES_KEY_SIZE_BYTES);
+    memcpy(key_info.bytes, key_and_flag, AES_KEY_SIZE_BYTES);
+    storage.put_key(key_info);
 
     finish:
 
@@ -1071,9 +1070,33 @@ bool Commands::temp_key_load(packet_t &output, const packet_t &input)
     return true;
 }
 
-bool Commands::buffer_load(packet_t &response, const packet_t &request)
+bool Commands::buffer_load(packet_t &output, const packet_t &input)
 {
-    /* FIXME add implementation */
+    THSM_BUFFER_LOAD_REQ request;
+    THSM_BUFFER_LOAD_RESP response;
+
+    uint32_t min_request_length = sizeof(request) - sizeof(request.data);
+    uint32_t min_response_length = sizeof(response);
+
+    MEMCLR(request);
+    MEMCLR(response);
+
+    if ((input.length < min_request_length) || (request.data_len > sizeof(request.data)) || (request.offset > sizeof(request)))
+    {
+        goto finish;
+    }
+
+    uint32_t available = sizeof(request.data) - request.offset;
+    uint32_t length = MIN(available, request.data_len);
+
+    /* store to buffer */
+    buffer.write(request.offset, request.data, length);
+
+    finish:
+
+    output.length = sizeof(response);
+    memcpy(output.bytes, &response, output.length);
+
     return true;
 }
 
