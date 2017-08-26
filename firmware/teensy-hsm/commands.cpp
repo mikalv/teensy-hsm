@@ -1081,7 +1081,14 @@ bool Commands::buffer_load(packet_t &output, const packet_t &input)
     MEMCLR(request);
     MEMCLR(response);
 
-    if ((input.length < min_request_length) || (request.data_len > sizeof(request.data)) || (request.offset > sizeof(request)))
+    if (input.length < min_request_length)
+    {
+        goto finish;
+    }
+
+    /* initialize buffers */
+    memcpy(&request, input.bytes, sizeof(request));
+    if ((request.data_len > sizeof(request.data)) || (request.offset > sizeof(request)))
     {
         goto finish;
     }
@@ -1100,9 +1107,48 @@ bool Commands::buffer_load(packet_t &output, const packet_t &input)
     return true;
 }
 
-bool Commands::buffer_random_load(packet_t &response, const packet_t &request)
+bool Commands::buffer_random_load(packet_t &output, const packet_t &input)
 {
-    /* FIXME add implementation */
+    THSM_BUFFER_RANDOM_LOAD_REQ request;
+    THSM_BUFFER_RANDOM_LOAD_RESP response;
+    uint8_t random[BUFFER_SIZE_BYTES];
+
+    uint32_t min_request_length = sizeof(request);
+    uint32_t min_response_length = sizeof(response);
+
+    MEMCLR(request);
+    MEMCLR(response);
+    MEMCLR(random);
+
+    if (input.length < min_request_length)
+    {
+        goto finish;
+    }
+
+    /* initialize buffers */
+    memcpy(&request, input.bytes, sizeof(request));
+    if ((request.length > BUFFER_SIZE_BYTES) || (request.offset > BUFFER_SIZE_BYTES))
+    {
+        goto finish;
+    }
+
+    /* generate random */
+    uint32_t available = sizeof(random) - request.offset;
+    uint32_t step = MIN(available, request.length);
+    if (drbg.generate(random, step))
+    {
+        buffer.write(request.offset, random, step);
+        response.length = step;
+    }
+    else
+    {
+        response.length = 0;
+    }
+
+    finish:
+
+    output.length = sizeof(response);
+    memcpy(output.bytes, &response, output.length);
     return true;
 }
 
