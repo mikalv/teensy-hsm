@@ -2,6 +2,16 @@
 #include "nonce.h"
 #include "macros.h"
 
+Nonce::Nonce()
+{
+    init();
+}
+
+void Nonce::init()
+{
+    MEMCLR(counter);
+}
+
 void Nonce::get_and_increment(uint8_t *buffer, uint32_t step)
 {
     memcpy(buffer, counter, sizeof(counter));

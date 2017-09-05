@@ -8,6 +8,7 @@
 #include "storage.h"
 #include "aes-drbg.h"
 #include "sha1-hmac.h"
+#include "nonce.h"
 
 //------------------------------------------------------------------------------
 // Response Flags
@@ -75,5 +76,6 @@ private:
     AESDRBG drbg;
     Buffer buffer;
     SHA1HMAC hmac;
+    Nonce nonce;
 };
 #endif

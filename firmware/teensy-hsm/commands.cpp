@@ -50,6 +50,7 @@ void Commands::init()
     //drbg.init()
     buffer.init();
     storage.init();
+    nonce.init();
 }
 
 void Commands::clear()
@@ -1173,9 +1174,10 @@ bool Commands::nonce_get(packet_t &output, const packet_t &input)
     /* copy request */
     memcpy(&request, input.bytes, sizeof(request));
 
+    /* get nonce and increment */
     uint16_t post_inc = READ16(request.post_inc);
     response.status = THSM_STATUS_OK;
-    storage.get
+    nonce.get_and_increment(response.nonce, post_inc);
 
     finish:
 

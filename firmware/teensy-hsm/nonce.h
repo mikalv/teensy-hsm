@@ -5,6 +5,8 @@
 class Nonce
 {
 public:
+    Nonce();
+    void init();
     void get_and_increment(uint8_t *buffer, uint32_t step);
 private:
     uint8_t counter[6];
