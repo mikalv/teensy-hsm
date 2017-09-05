@@ -1152,9 +1152,36 @@ bool Commands::buffer_random_load(packet_t &output, const packet_t &input)
     return true;
 }
 
-bool Commands::nonce_get(packet_t &response, const packet_t &request)
+bool Commands::nonce_get(packet_t &output, const packet_t &input)
 {
-    /* FIXME add implementation */
+    THSM_NONCE_GET_REQ request;
+    THSM_NONCE_GET_RESP response;
+
+    uint32_t min_request_length = sizeof(request);
+    uint32_t min_response_length = sizeof(response);
+
+    /* initialize request and response */
+    MEMCLR(request);
+    MEMCLR(response);
+
+    /* check against minimum length */
+    if (input.length < min_request_length)
+    {
+        goto finish;
+    }
+
+    /* copy request */
+    memcpy(&request, input.bytes, sizeof(request));
+
+    uint16_t post_inc = READ16(request.post_inc);
+    response.status = THSM_STATUS_OK;
+    storage.get
+
+    finish:
+
+    output.length = min_response_length;
+    memcpy(output.bytes, &response, output.length);
+
     return true;
 }
 
@@ -1166,7 +1193,7 @@ bool Commands::echo(packet_t &output, const packet_t &input)
     uint32_t min_request_length = sizeof(request) - sizeof(request.data);
     uint32_t min_response_length = sizeof(response) - sizeof(response.data);
 
-    /* initialize response */
+    /* initialize request and response */
     MEMCLR(request);
     MEMCLR(response);
 
@@ -1176,6 +1203,7 @@ bool Commands::echo(packet_t &output, const packet_t &input)
         goto finish;
     }
 
+    /* copy request */
     memcpy(&request, input.bytes, sizeof(request));
 
     /* set response */
